@@ -18,6 +18,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     var isPositionLocked: Bool { isLocked }
 
     private let settingsStore: SettingsStore
+    private let shouldAutoSizeOnInitialRender: Bool
     private var hostingView: NSHostingView<WidgetPanelContentView>?
     private var isApplyingAutoSize = false
 
@@ -63,9 +64,14 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     private var hoverActivationWorkItem: DispatchWorkItem?
     private var passivationWorkItem: DispatchWorkItem?
 
-    init(config: WidgetConfig, settingsStore: SettingsStore) {
+    init(
+        config: WidgetConfig,
+        settingsStore: SettingsStore,
+        shouldAutoSizeOnInitialRender: Bool
+    ) {
         self.config = config
         self.settingsStore = settingsStore
+        self.shouldAutoSizeOnInitialRender = shouldAutoSizeOnInitialRender
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: config.size.width.cgFloat, height: config.size.height.cgFloat),
@@ -75,7 +81,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         )
 
         configureWindow()
-        installContent(allowAutoSize: true)
+        installContent(allowAutoSize: shouldAutoSizeOnInitialRender)
         placeInitialPosition()
         installEventMonitors()
         setPassiveMode(enabled: true)
@@ -113,11 +119,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         activate()
-
-        if shouldPreferResize(at: event.locationInWindow) {
-            super.mouseDown(with: event)
-            return
-        }
 
         guard !isLocked else {
             super.mouseDown(with: event)
@@ -189,7 +190,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             display: true,
             animate: true
         )
-        installContent(allowAutoSize: true)
+        installContent(allowAutoSize: false)
     }
 
     func updatePosition(_ position: WidgetPosition) {
@@ -489,7 +490,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        let keepAspectRatio = !NSEvent.modifierFlags.contains(.shift)
+        let keepAspectRatio = NSEvent.modifierFlags.contains(.shift)
         let resizedFrame = frameForResize(
             session: resizeSession,
             currentPoint: currentPoint,
@@ -669,19 +670,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         )
     }
 
-    private func shouldPreferResize(at point: NSPoint) -> Bool {
-        guard !isPassive, (isActive || isResizing), !isLocked else {
-            return false
-        }
-
-        let margin: CGFloat = 10
-        let onLeft = point.x <= margin
-        let onRight = point.x >= frame.width - margin
-        let onBottom = point.y <= margin
-        let onTop = point.y >= frame.height - margin
-        return onLeft || onRight || onBottom || onTop
-    }
-
     func windowDidMove(_ notification: Notification) {
         guard !isDragging, !isResizing else {
             return
@@ -837,7 +825,7 @@ private struct ResizeHandlesOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                ForEach(ResizeHandle.allCases) { handle in
+                ForEach(ResizeHandle.visibleHandles) { handle in
                     ZStack {
                         Circle()
                             .fill(Color.white.opacity(0.7))
@@ -881,6 +869,8 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    static var visibleHandles: [ResizeHandle] { [.bottomRight] }
+
     var affectsLeft: Bool {
         self == .topLeft || self == .left || self == .bottomLeft
     }
@@ -921,7 +911,7 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
         case .right:
             return CGPoint(x: size.width, y: size.height / 2)
         case .bottomRight:
-            return CGPoint(x: size.width, y: size.height)
+            return CGPoint(x: max(0, size.width - 9), y: max(0, size.height - 9))
         case .bottom:
             return CGPoint(x: size.width / 2, y: size.height)
         case .bottomLeft:

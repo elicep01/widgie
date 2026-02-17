@@ -40,16 +40,24 @@ final class WidgetManager {
             return
         }
 
-        var initialConfig = config
-        if initialConfig.position == nil {
-            let size = CGSize(width: initialConfig.size.width.cgFloat, height: initialConfig.size.height.cgFloat)
-            let origin = nextAutoOrigin(for: size)
-            initialConfig.position = WidgetPosition(x: origin.x.double, y: origin.y.double)
-        }
-
-        let window = WidgetWindow(config: initialConfig, settingsStore: settingsStore)
+        let shouldAutoArrange = config.position == nil
+        let window = WidgetWindow(
+            config: config,
+            settingsStore: settingsStore,
+            shouldAutoSizeOnInitialRender: shouldAutoArrange
+        )
         if let isLocked {
             window.setLocked(isLocked)
+        }
+
+        if shouldAutoArrange {
+            // Use the post-render fitted size to pick a clean non-overlapping first placement.
+            let origin = nextAutoOrigin(for: window.frame.size)
+            window.setFrameOrigin(origin)
+            window.updatePosition(WidgetPosition(x: origin.x.double, y: origin.y.double))
+        } else {
+            let origin = window.frame.origin
+            window.updatePosition(WidgetPosition(x: origin.x.double, y: origin.y.double))
         }
 
         interactionController.attach(to: window)
@@ -57,10 +65,7 @@ final class WidgetManager {
         windows[config.id] = window
         window.orderFrontRegardless()
 
-        // Persist resolved placement immediately so relaunch restores exact positions.
-        var persisted = window.config
-        persisted.position = WidgetPosition(x: window.frame.origin.x.double, y: window.frame.origin.y.double)
-        window.update(config: persisted)
+        // Persist resolved placement/size immediately so relaunch restores exact state.
         store.save(window.config, isLocked: window.isPositionLocked)
         notifyWidgetListChanged()
     }
