@@ -1,0 +1,17 @@
+{
+  "name": "Clock and Date",
+  "size": {"width": 180, "height": 100},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 16, "leading": 20, "trailing": 20},
+  "content": {
+    "type": "vstack",
+    "alignment": "center",
+    "spacing": 4,
+    "children": [
+      {"type": "clock", "style": "digital", "timezone": "local", "format": "h:mm a", "font": "sf-mono", "size": 32, "weight": "light", "color": "primary"},
+      {"type": "date", "format": "EEEE, MMMM d", "font": "sf-pro", "size": 12, "weight": "regular", "color": "muted"}
+    ]
+  }
+}

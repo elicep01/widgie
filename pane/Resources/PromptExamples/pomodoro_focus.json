@@ -1,0 +1,20 @@
+{
+  "name": "Pomodoro",
+  "size": {"width": 180, "height": 210},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 20,
+  "padding": {"top": 20, "bottom": 16, "leading": 20, "trailing": 20},
+  "content": {
+    "type": "pomodoro",
+    "workDuration": 1500,
+    "breakDuration": 300,
+    "longBreakDuration": 900,
+    "sessionsBeforeLongBreak": 4,
+    "showSessionCount": true,
+    "style": "ring",
+    "workColor": "negative",
+    "breakColor": "positive",
+    "showControls": true
+  }
+}

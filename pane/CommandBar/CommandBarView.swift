@@ -6,7 +6,7 @@ struct CommandBarView: View {
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 18, weight: .semibold))
@@ -21,26 +21,39 @@ struct CommandBarView: View {
                     .onSubmit {
                         viewModel.submit()
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 if viewModel.isLoading {
                     ProgressView()
                         .controlSize(.small)
                 }
             }
+            .padding(.bottom, 2)
 
-            if viewModel.prompt.count > 48 && !viewModel.isLoading {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Prompt")
+            if !viewModel.prompt.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Full Prompt")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                    ScrollView(.horizontal, showsIndicators: false) {
+                        .foregroundStyle(.secondary)
+                    ScrollView(.vertical, showsIndicators: true) {
                         Text(viewModel.prompt)
                             .font(.system(size: 12, weight: .regular, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
                     }
-                    .frame(height: 18)
+                    .frame(minHeight: 56, maxHeight: 148)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.black.opacity(0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
                 }
             }
 
@@ -49,15 +62,38 @@ struct CommandBarView: View {
                 Text(suggestion)
                     .font(.system(size: 13, weight: .regular))
                     .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let statusMessage = viewModel.statusMessage {
-                Text(statusMessage)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(viewModel.isError ? Color.red : Color.secondary)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(viewModel.isError ? "Error" : "Status")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(viewModel.isError ? Color.red.opacity(0.9) : Color.secondary)
+
+                    ScrollView(.vertical, showsIndicators: true) {
+                        Text(statusMessage)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(viewModel.isError ? Color.red : Color.secondary)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                    }
+                    .frame(minHeight: 48, maxHeight: 136)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill((viewModel.isError ? Color.red : Color.black).opacity(viewModel.isError ? 0.11 : 0.12))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke((viewModel.isError ? Color.red : Color.white).opacity(viewModel.isError ? 0.35 : 0.08), lineWidth: 1)
+                    )
+                }
             }
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, 16)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)

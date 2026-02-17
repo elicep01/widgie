@@ -1,0 +1,18 @@
+{
+  "name": "Day Progress",
+  "size": {"width": 220, "height": 80},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 16,
+  "padding": {"top": 14, "bottom": 14, "leading": 18, "trailing": 18},
+  "content": {
+    "type": "day_progress",
+    "startHour": 7,
+    "endHour": 23,
+    "style": "bar",
+    "showPercentage": true,
+    "showTimeRemaining": true,
+    "color": "accent",
+    "label": "Day Progress"
+  }
+}

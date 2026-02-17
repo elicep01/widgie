@@ -11,7 +11,7 @@ final class CommandBarWindow {
 
     init() {
         panel = CommandBarPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 960, height: 168),
+            contentRect: NSRect(x: 0, y: 0, width: 1020, height: 380),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -70,10 +70,10 @@ final class CommandBarWindow {
     private func positionPanel() {
         guard let screenFrame = NSScreen.main?.visibleFrame else { return }
 
-        let width = min(1120, max(760, screenFrame.width - 120))
-        let height: CGFloat = 168
+        let width = min(1180, max(840, screenFrame.width - 96))
+        let height: CGFloat = 380
         let x = screenFrame.midX - (width / 2)
-        let y = screenFrame.maxY - (screenFrame.height * 0.24)
+        let y = screenFrame.maxY - (screenFrame.height * 0.22)
 
         panel.setFrame(NSRect(x: x, y: y - height / 2, width: width, height: height), display: false)
     }

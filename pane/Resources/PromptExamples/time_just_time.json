@@ -1,0 +1,19 @@
+{
+  "name": "Clock",
+  "size": {"width": 160, "height": 72},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 16,
+  "padding": {"top": 14, "bottom": 14, "leading": 20, "trailing": 20},
+  "content": {
+    "type": "clock",
+    "style": "digital",
+    "timezone": "local",
+    "format": "HH:mm",
+    "showSeconds": false,
+    "font": "sf-mono",
+    "size": 36,
+    "weight": "ultralight",
+    "color": "primary"
+  }
+}

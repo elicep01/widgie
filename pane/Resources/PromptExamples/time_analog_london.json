@@ -1,0 +1,17 @@
+{
+  "name": "London Clock",
+  "size": {"width": 160, "height": 180},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 12, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "vstack",
+    "alignment": "center",
+    "spacing": 8,
+    "children": [
+      {"type": "analog_clock", "timezone": "Europe/London", "size": 110, "style": "minimal", "hourHandColor": "primary", "minuteHandColor": "primary", "secondHandColor": "accent", "showSecondHand": true, "tickColor": "muted"},
+      {"type": "text", "content": "London", "font": "sf-pro", "size": 11, "weight": "medium", "color": "secondary"}
+    ]
+  }
+}

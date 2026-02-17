@@ -1,0 +1,14 @@
+{
+  "name": "System Monitor",
+  "size": {"width": 260, "height": 110},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 16,
+  "padding": {"top": 14, "bottom": 14, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "system_stats",
+    "show": ["cpu", "memory", "storage"],
+    "style": "bars",
+    "color": "accent"
+  }
+}

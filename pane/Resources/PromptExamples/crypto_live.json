@@ -1,0 +1,19 @@
+{
+  "name": "Crypto Tracker",
+  "size": {"width": 300, "height": 110},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 16,
+  "padding": {"top": 14, "bottom": 14, "leading": 18, "trailing": 18},
+  "content": {
+    "type": "hstack",
+    "alignment": "center",
+    "spacing": 20,
+    "children": [
+      {"type": "crypto", "symbol": "BTC", "currency": "USD", "showPrice": true, "showChange": true, "showChart": false, "color": "#F7931A"},
+      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"},
+      {"type": "crypto", "symbol": "ETH", "currency": "USD", "showPrice": true, "showChange": true, "showChart": false, "color": "#627EEA"}
+    ]
+  },
+  "refreshInterval": 60
+}

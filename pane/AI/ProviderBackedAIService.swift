@@ -24,7 +24,7 @@ final class ProviderBackedAIService: AIWidgetService {
             promptBuilder: promptBuilder,
             validator: validator,
             callTimeoutSeconds: 25.0,
-            totalPipelineTimeoutSeconds: 90.0
+            totalPipelineTimeoutSeconds: 140.0
         )
     }
 

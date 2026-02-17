@@ -1,0 +1,17 @@
+{
+  "name": "Mood",
+  "size": {"width": 200, "height": 120},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 16, "leading": 18, "trailing": 18},
+  "content": {
+    "type": "vstack",
+    "alignment": "center",
+    "spacing": 10,
+    "children": [
+      {"type": "text", "content": "How are you feeling?", "font": "sf-pro", "size": 13, "weight": "medium", "color": "secondary"},
+      {"type": "shortcut_launcher", "shortcuts": [{"name": "Great", "icon": "face.smiling.fill", "action": "mood:great"}, {"name": "Good", "icon": "face.smiling", "action": "mood:good"}, {"name": "Okay", "icon": "face.dashed", "action": "mood:okay"}, {"name": "Bad", "icon": "face.dashed.fill", "action": "mood:bad"}, {"name": "Awful", "icon": "cloud.rain.fill", "action": "mood:awful"}], "style": "row", "iconSize": 28, "color": "primary"}
+    ]
+  }
+}

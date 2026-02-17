@@ -104,6 +104,7 @@ final class ComponentConfig: Codable {
     var showComponents: [String]?
     var style: String?
     var category: String?
+    var refreshInterval: String?
     var editable: Bool?
     var resetsDaily: Bool?
     var strikethrough: Bool?
@@ -215,6 +216,7 @@ final class ComponentConfig: Codable {
         targetDate: String? = nil,
         showComponents: [String]? = nil,
         style: String? = nil,
+        refreshInterval: String? = nil,
         completedText: String? = nil,
         clocks: [WorldClockConfig]? = nil,
         chartType: String? = nil,
@@ -310,6 +312,7 @@ final class ComponentConfig: Codable {
         self.targetDate = targetDate
         self.showComponents = showComponents
         self.style = style
+        self.refreshInterval = refreshInterval
         self.completedText = completedText
         self.clocks = clocks
         self.chartType = chartType

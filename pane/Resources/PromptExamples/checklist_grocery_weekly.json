@@ -1,0 +1,30 @@
+{
+  "name": "Groceries",
+  "size": {"width": 220, "height": 280},
+  "theme": "paper",
+  "background": {"type": "solid", "color": "#1C1917"},
+  "cornerRadius": 20,
+  "padding": {"top": 18, "bottom": 18, "leading": 18, "trailing": 18},
+  "content": {
+    "type": "checklist",
+    "title": "Groceries",
+    "items": [
+      {"id": "1", "text": "Eggs", "checked": false},
+      {"id": "2", "text": "Milk", "checked": false},
+      {"id": "3", "text": "Bread", "checked": false},
+      {"id": "4", "text": "Chicken", "checked": false},
+      {"id": "5", "text": "Rice", "checked": false},
+      {"id": "6", "text": "Vegetables", "checked": false},
+      {"id": "7", "text": "Fruit", "checked": false}
+    ],
+    "resetsDaily": false,
+    "showProgress": true,
+    "interactive": true,
+    "checkedColor": "positive",
+    "uncheckedColor": "muted",
+    "strikethrough": true,
+    "font": "sf-pro",
+    "size": 14,
+    "color": "primary"
+  }
+}

@@ -118,13 +118,14 @@ private actor WeatherGeocoder {
                 return cached
             }
 
-            if let resolved = try await geocodeWithCoreLocation(query) {
+            // Prefer API geocoding first; avoids CLGeocoder cancellation edge cases.
+            if let resolved = try await geocodeWithOpenMeteo(query) {
                 cache[normalized] = resolved
                 cache[query] = resolved
                 return resolved
             }
 
-            if let resolved = try await geocodeWithOpenMeteo(query) {
+            if let resolved = try await geocodeWithCoreLocation(query) {
                 cache[normalized] = resolved
                 cache[query] = resolved
                 return resolved
@@ -137,11 +138,8 @@ private actor WeatherGeocoder {
     private func geocodeWithCoreLocation(_ query: String) async throws -> ResolvedWeatherLocation? {
         let placemarks: [CLPlacemark]
         do {
-            placemarks = try await withTimeout(seconds: 4.0) {
-                try await self.geocoder.geocodeAddressString(query)
-            }
+            placemarks = try await geocoder.geocodeAddressString(query)
         } catch {
-            geocoder.cancelGeocode()
             return nil
         }
 
@@ -245,30 +243,6 @@ private actor WeatherGeocoder {
             }
         }
         return unique
-    }
-
-    private func withTimeout<T>(
-        seconds: Double,
-        operation: @escaping () async throws -> T
-    ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                try await operation()
-            }
-
-            group.addTask {
-                let nanos = UInt64(seconds * 1_000_000_000)
-                try await Task.sleep(nanoseconds: nanos)
-                throw URLError(.timedOut)
-            }
-
-            guard let value = try await group.next() else {
-                throw URLError(.timedOut)
-            }
-
-            group.cancelAll()
-            return value
-        }
     }
 }
 

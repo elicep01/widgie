@@ -1,0 +1,28 @@
+{
+  "name": "Job Search",
+  "size": {"width": 240, "height": 260},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 20,
+  "padding": {"top": 18, "bottom": 18, "leading": 18, "trailing": 18},
+  "content": {
+    "type": "checklist",
+    "title": "Job Search",
+    "items": [
+      {"id": "1", "text": "Apply to 5 companies", "checked": false},
+      {"id": "2", "text": "LeetCode 2 problems", "checked": false},
+      {"id": "3", "text": "Follow up on applications", "checked": false},
+      {"id": "4", "text": "Update resume and portfolio", "checked": false},
+      {"id": "5", "text": "Message 2 people", "checked": false}
+    ],
+    "resetsDaily": true,
+    "showProgress": true,
+    "interactive": true,
+    "checkedColor": "positive",
+    "uncheckedColor": "muted",
+    "strikethrough": true,
+    "font": "sf-pro",
+    "size": 14,
+    "color": "primary"
+  }
+}

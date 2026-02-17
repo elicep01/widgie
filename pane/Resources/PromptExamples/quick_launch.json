@@ -1,0 +1,20 @@
+{
+  "name": "Quick Launch",
+  "size": {"width": 220, "height": 80},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.5},
+  "cornerRadius": 16,
+  "padding": {"top": 14, "bottom": 14, "leading": 18, "trailing": 18},
+  "content": {
+    "type": "shortcut_launcher",
+    "shortcuts": [
+      {"name": "Slack", "icon": "message.fill", "action": "open:com.tinyspeck.slackmacgap"},
+      {"name": "Spotify", "icon": "music.note", "action": "open:com.spotify.client"},
+      {"name": "Terminal", "icon": "terminal.fill", "action": "open:com.apple.Terminal"},
+      {"name": "Chrome", "icon": "globe", "action": "open:com.google.Chrome"}
+    ],
+    "style": "row",
+    "iconSize": 26,
+    "color": "primary"
+  }
+}

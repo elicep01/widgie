@@ -1,0 +1,20 @@
+{
+  "name": "Daily Quote",
+  "size": {"width": 300, "height": 130},
+  "theme": "obsidian",
+  "background": {"type": "gradient", "colors": ["#0D1117", "#161B22"], "direction": "topToBottom"},
+  "cornerRadius": 20,
+  "padding": {"top": 22, "bottom": 22, "leading": 24, "trailing": 24},
+  "content": {
+    "type": "quote",
+    "source": "curated",
+    "category": "motivation",
+    "refreshInterval": "daily",
+    "font": "new-york",
+    "size": 15,
+    "weight": "regular",
+    "color": "secondary",
+    "authorColor": "muted",
+    "showQuotationMarks": true
+  }
+}

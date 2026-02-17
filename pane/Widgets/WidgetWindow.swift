@@ -284,6 +284,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         setFrameOrigin(targetOrigin)
+        config.position = WidgetPosition(x: targetOrigin.x.double, y: targetOrigin.y.double)
     }
 
     private func installEventMonitors() {

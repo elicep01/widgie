@@ -199,14 +199,19 @@ struct OpenAIService: AIProviderClient {
             || lower.contains("does not exist")
             || lower.contains("not available")
             || lower.contains("doesn't support")
+        let looksTransient = lower.contains("timed out")
+            || lower.contains("network")
+            || lower.contains("connection")
+            || lower.contains("could not connect")
 
-        guard looksLikeModelError else {
+        guard looksLikeModelError || looksTransient else {
             return false
         }
 
         return lower.contains("http 400")
             || lower.contains("http 404")
             || lower.contains("http 422")
+            || looksTransient
     }
 
     private func candidateModels() -> [String] {
@@ -261,16 +266,24 @@ struct OpenAIService: AIProviderClient {
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch let urlError as URLError where urlError.code == .timedOut {
-            throw AIWidgetServiceError.requestFailed("Timed out while waiting for \(provider) response.")
-        } catch {
-            throw AIWidgetServiceError.requestFailed(error.localizedDescription)
+        var lastError: Error?
+        for attempt in 0..<2 {
+            do {
+                let (data, response) = try await session.data(for: request)
+                try validateHTTP(response: response, data: data, provider: provider)
+                return data
+            } catch let urlError as URLError where urlError.code == .timedOut {
+                lastError = AIWidgetServiceError.requestFailed("Timed out while waiting for \(provider) response.")
+            } catch {
+                lastError = AIWidgetServiceError.requestFailed(error.localizedDescription)
+            }
+
+            if attempt == 0 {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+            }
         }
-        try validateHTTP(response: response, data: data, provider: provider)
-        return data
+
+        throw lastError ?? AIWidgetServiceError.requestFailed("Unknown request failure for \(provider).")
     }
 
     private func validateHTTP(response: URLResponse, data: Data, provider: String) throws {

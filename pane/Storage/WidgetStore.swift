@@ -75,6 +75,13 @@ final class WidgetStore {
         return files
             .filter { $0.pathExtension.lowercased() == "json" }
             .compactMap { loadEnvelope(at: $0) ?? loadConfig(at: $0).map(makeEnvelopeFromLegacyConfig) }
+            .map { envelope in
+                var resolved = envelope
+                if resolved.config.position == nil, let persisted = resolved.metadata.position {
+                    resolved.config.position = persisted
+                }
+                return resolved
+            }
     }
 
     func exportAll(to url: URL) throws {

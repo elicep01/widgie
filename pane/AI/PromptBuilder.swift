@@ -17,16 +17,38 @@ struct PromptContext {
 
 struct PromptBuilder {
     private let componentSchema: String
+    private let exampleRetriever: PromptExampleRetriever
 
-    init(componentSchema: String? = nil) {
+    init(
+        componentSchema: String? = nil,
+        exampleRetriever: PromptExampleRetriever = PromptExampleRetriever()
+    ) {
         self.componentSchema = componentSchema ?? Self.loadComponentSchema()
+        self.exampleRetriever = exampleRetriever
     }
 
-    func generationSystemPrompt(defaultTheme: WidgetTheme, context: PromptContext) -> String {
-        """
+    func generationSystemPrompt(defaultTheme: WidgetTheme, context: PromptContext, prompt: String) -> String {
+        let retrievedExamples = exampleRetriever.formattedExamples(for: prompt, limit: 6)
+        let examplesSection: String
+        if retrievedExamples.isEmpty {
+            examplesSection = "No curated example matched strongly; still produce a complete valid config."
+        } else {
+            examplesSection = retrievedExamples
+        }
+
+        return """
         You are the AI engine inside "pane", a macOS desktop widget app. Users summon a command bar with Cmd+Shift+W and describe a widget in plain English. Your job is to return one JSON configuration that renders the widget correctly.
 
         YOU ARE THE INTELLIGENCE LAYER. There is no Swift intent-fixing code after you. No timezone dictionaries, no spelling correctors, no duration parsers, no size heuristics. If you are wrong, the user sees a broken widget.
+        
+        CRITICAL:
+        - ALWAYS return a valid widget config.
+        - There is no "I can't do that."
+        - If you are unsure, make the best interpretation and build the closest useful widget.
+        - If a request cannot be represented exactly with available components, build the closest possible version and include a `note` component explaining the limitation.
+        - NEVER return invalid JSON.
+        - NEVER return component types outside the schema.
+        - NEVER leave required fields empty.
 
         YOUR RESPONSIBILITIES
         1. Understand intent, not just keywords.
@@ -49,6 +71,21 @@ struct PromptBuilder {
         - Pomodoro defaults to 1500 only when user asks for pomodoro/focus-cycle behavior.
         - If user asks celsius/°C, use celsius. If user asks fahrenheit/°F, use fahrenheit.
         - If unit not explicit, infer sensibly from location context.
+        
+        Stock ticker rules:
+        - If user requests multiple symbols, include one `stock` component per symbol.
+        - Use `hstack` for ticker-style rows with optional `divider` components.
+        - `stock.symbol` must be a single string (for example "AAPL"), never an array.
+        - Never invent unsupported component types like `stocks` or `ticker`.
+        - Crypto assets (bitcoin, ethereum, solana, dogecoin, etc.) must use `crypto`, not `stock`.
+        - If user says "bitcoin stock" or "ethereum stock", interpret intent as crypto market data and use `crypto` with symbols BTC/ETH.
+        - For "live updates" market prompts, use a short refresh interval (for example 60s) and include change/percent fields.
+        - If ticker is unknown, choose the closest obvious symbol and proceed.
+
+        ## EXAMPLES
+        \(examplesSection)
+
+        Apply the patterns from examples to this request, but adapt intelligently. Do not copy blindly.
 
         4. Size widgets to content density.
         Principle: no wasted space.
@@ -74,6 +111,9 @@ struct PromptBuilder {
         - No markdown, no code fences, no explanation.
         - Use only component types and fields from schema.
         - Omit minSize/maxSize unless explicitly needed; keep sizing content-driven and tight.
+        - If user asks for data, prefer available data components:
+          weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time.
+        - If data request is outside available components, use `text` or `note` fallback instead of failing.
 
         CURRENT CONTEXT
         - Today's date: \(context.currentDateString)
@@ -86,7 +126,12 @@ struct PromptBuilder {
     }
 
     func generationUserPrompt(_ prompt: String) -> String {
-        prompt
+        return """
+        USER REQUEST:
+        \(prompt)
+
+        Return one valid widget JSON object only.
+        """
     }
 
     func editUserPrompt(existingConfig: WidgetConfig, editPrompt: String) -> String {
@@ -121,6 +166,8 @@ struct PromptBuilder {
         9. Typo handling: user typos were interpreted correctly.
         10. Completeness: no obvious missing expected fields/content.
         11. Empty-space check: fail if large areas are blank and size can be reduced without harming readability.
+        12. Multi-symbol stock check: if user named N symbols, ensure N stock components or explicit equivalent representation exists.
+        13. Asset-class accuracy: crypto assets should use `crypto`; equities should use `stock`.
 
         RESPONSE FORMAT
         - If everything is correct, respond with exactly: PASS
@@ -197,7 +244,47 @@ struct PromptBuilder {
         Validation error:
         \(validationError)
 
+        Important:
+        - Use only schema-supported component types.
+        - Do not use unknown types like "stocks" or "ticker".
+        - For multi-symbol stock prompts, create one `stock` component per symbol.
+        - For crypto assets (bitcoin, ethereum, etc.), use `crypto` components with symbols like BTC/ETH.
+        - If user asks for "live updates", keep refreshInterval short (about 60 seconds).
+
         Return one corrected JSON object only.
+        """
+    }
+    
+    func schemaRepairSystemPrompt() -> String {
+        """
+        You are repairing an invalid widget JSON response for the app "pane".
+
+        Rules:
+        - Return ONE valid JSON object only.
+        - Use only schema-supported component types and fields.
+        - Preserve user intent from the original prompt.
+        - Fix malformed JSON, wrong component names, wrong field types, and missing required fields.
+        - If asset names are crypto (bitcoin/ethereum/etc), use `crypto` components, not `stock`.
+        - Do not include markdown, comments, or explanations.
+        """
+    }
+    
+    func schemaRepairUserPrompt(
+        originalPrompt: String,
+        previousResponse: String,
+        validationError: String
+    ) -> String {
+        """
+        Original user prompt:
+        \(originalPrompt)
+
+        Invalid response to repair:
+        \(previousResponse)
+
+        Validation error:
+        \(validationError)
+
+        Return a corrected JSON object that satisfies the prompt and schema.
         """
     }
 

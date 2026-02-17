@@ -34,14 +34,31 @@ struct ClaudeService: AIProviderClient {
         request.addValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch let urlError as URLError where urlError.code == .timedOut {
-            throw AIWidgetServiceError.requestFailed("Timed out while waiting for Claude response.")
-        } catch {
-            throw AIWidgetServiceError.requestFailed(error.localizedDescription)
+        var data: Data?
+        var response: URLResponse?
+        var lastError: Error?
+
+        for attempt in 0..<2 {
+            do {
+                let result = try await session.data(for: request)
+                data = result.0
+                response = result.1
+                break
+            } catch let urlError as URLError where urlError.code == .timedOut {
+                lastError = AIWidgetServiceError.requestFailed("Timed out while waiting for Claude response.")
+            } catch {
+                lastError = AIWidgetServiceError.requestFailed(error.localizedDescription)
+            }
+
+            if attempt == 0 {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+            }
         }
+
+        guard let data, let response else {
+            throw lastError ?? AIWidgetServiceError.requestFailed("Unknown request failure for Claude.")
+        }
+
         try validateHTTP(response: response, data: data, provider: "Claude")
 
         let decoded = try JSONDecoder().decode(ClaudeResponse.self, from: data)

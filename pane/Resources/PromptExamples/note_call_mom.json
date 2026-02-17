@@ -1,0 +1,16 @@
+{
+  "name": "Note",
+  "size": {"width": 200, "height": 80},
+  "theme": "paper",
+  "background": {"type": "solid", "color": "#1C1917"},
+  "cornerRadius": 14,
+  "padding": {"top": 14, "bottom": 14, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "note",
+    "content": "Remember to call Mom",
+    "font": "sf-pro",
+    "size": 15,
+    "color": "primary",
+    "editable": true
+  }
+}

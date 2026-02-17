@@ -1,0 +1,337 @@
+{
+  "examples": [
+    {
+      "id": "time-just-time",
+      "prompt": "just the time",
+      "intentSummary": "Single digital time display with compact layout.",
+      "keySignals": ["just the time", "time only", "just time"],
+      "categories": ["time"],
+      "outputHints": ["single clock", "compact width > height"],
+      "expectedFile": "time_just_time.json"
+    },
+    {
+      "id": "time-analog-london",
+      "prompt": "analog clock for london",
+      "intentSummary": "Analog clock with London timezone label.",
+      "keySignals": ["analog clock", "london"],
+      "categories": ["time"],
+      "outputHints": ["analog_clock", "timezone Europe/London"],
+      "expectedFile": "time_analog_london.json"
+    },
+    {
+      "id": "time-world-clocks",
+      "prompt": "world clocks for new york london and tokyo",
+      "intentSummary": "World clocks in one compact horizontal widget.",
+      "keySignals": ["world clocks", "new york", "london", "tokyo"],
+      "categories": ["time"],
+      "outputHints": ["world_clocks", "three cities"],
+      "expectedFile": "time_world_clocks.json"
+    },
+    {
+      "id": "time-clock-date",
+      "prompt": "time and today's date",
+      "intentSummary": "Clock with date stacked underneath.",
+      "keySignals": ["time", "today", "date"],
+      "categories": ["time"],
+      "outputHints": ["clock plus date", "vstack"],
+      "expectedFile": "time_clock_date.json"
+    },
+    {
+      "id": "countdown-graduation",
+      "prompt": "countdown to graduation may 1 2026",
+      "intentSummary": "Countdown to fixed date with label.",
+      "keySignals": ["countdown", "may 1 2026", "graduation"],
+      "categories": ["time"],
+      "outputHints": ["countdown", "targetDate 2026-05-01"],
+      "expectedFile": "countdown_graduation.json"
+    },
+    {
+      "id": "timer-2-minute",
+      "prompt": "2 minute timer",
+      "intentSummary": "Timer duration exactly 120 seconds.",
+      "keySignals": ["2 minute timer", "two minute timer", "2 min timer"],
+      "categories": ["time"],
+      "outputHints": ["timer", "duration 120"],
+      "expectedFile": "timer_2min.json"
+    },
+    {
+      "id": "pomodoro-focus",
+      "prompt": "pomodoro focus timer",
+      "intentSummary": "Pomodoro widget with standard intervals.",
+      "keySignals": ["pomodoro", "focus timer"],
+      "categories": ["time", "dashboard"],
+      "outputHints": ["pomodoro", "workDuration 1500"],
+      "expectedFile": "pomodoro_focus.json"
+    },
+    {
+      "id": "stopwatch-runs",
+      "prompt": "stopwatch for my runs",
+      "intentSummary": "Run stopwatch with controls.",
+      "keySignals": ["stopwatch", "runs"],
+      "categories": ["time"],
+      "outputHints": ["stopwatch", "showControls true"],
+      "expectedFile": "stopwatch_runs.json"
+    },
+    {
+      "id": "day-progress",
+      "prompt": "how much of the day is left",
+      "intentSummary": "Day progress bar with percentage and remaining time.",
+      "keySignals": ["day is left", "day progress"],
+      "categories": ["time"],
+      "outputHints": ["day_progress", "bar style"],
+      "expectedFile": "day_progress.json"
+    },
+    {
+      "id": "weather-seattle",
+      "prompt": "weather in seattle",
+      "intentSummary": "Compact weather card for Seattle.",
+      "keySignals": ["weather", "seattle"],
+      "categories": ["weather"],
+      "outputHints": ["weather", "Seattle, WA, USA"],
+      "expectedFile": "weather_seattle.json"
+    },
+    {
+      "id": "weather-pune-forecast",
+      "prompt": "full weather for pune india in celsius with 5 day forecast",
+      "intentSummary": "Detailed weather plus 5-day forecast for Pune in celsius.",
+      "keySignals": ["pune", "celsius", "5 day forecast"],
+      "categories": ["weather"],
+      "outputHints": ["weather detailed", "forecastDays 5"],
+      "expectedFile": "weather_pune_forecast.json"
+    },
+    {
+      "id": "weather-multi-city",
+      "prompt": "weather for madison tempe and san francisco side by side",
+      "intentSummary": "Side-by-side multi-city weather layout.",
+      "keySignals": ["weather", "madison", "tempe", "san francisco", "side by side"],
+      "categories": ["weather"],
+      "outputHints": ["hstack", "three weather components"],
+      "expectedFile": "weather_multi_city.json"
+    },
+    {
+      "id": "stock-single-aapl",
+      "prompt": "apple stock price",
+      "intentSummary": "Single stock card for AAPL with change and intraday chart.",
+      "keySignals": ["apple stock", "aapl", "stock price"],
+      "categories": ["market"],
+      "outputHints": ["stock component", "symbol AAPL"],
+      "expectedFile": "stock_single_aapl.json"
+    },
+    {
+      "id": "stock-tech-row",
+      "prompt": "show me AAPL GOOGL MSFT TSLA with sparklines",
+      "intentSummary": "Multi-stock ticker row with intraday charts.",
+      "keySignals": ["AAPL", "GOOGL", "MSFT", "TSLA", "sparklines"],
+      "categories": ["market"],
+      "outputHints": ["multiple stock components", "showChart true"],
+      "expectedFile": "stock_tech_row.json"
+    },
+    {
+      "id": "market-portfolio-mixed",
+      "prompt": "track AAPL NVDA bitcoin and solana",
+      "intentSummary": "Mixed equities and crypto portfolio tracker.",
+      "keySignals": ["AAPL", "NVDA", "bitcoin", "solana", "portfolio", "track"],
+      "categories": ["market", "dashboard"],
+      "outputHints": ["use stock for AAPL/NVDA and crypto for BTC/SOL"],
+      "expectedFile": "market_portfolio_mixed.json"
+    },
+    {
+      "id": "crypto-live",
+      "prompt": "bitcoin and ethereum prices with live updates",
+      "intentSummary": "BTC and ETH live crypto tracker.",
+      "keySignals": ["bitcoin", "ethereum", "live updates", "crypto"],
+      "categories": ["market"],
+      "outputHints": ["crypto BTC ETH", "refreshInterval 60"],
+      "expectedFile": "crypto_live.json"
+    },
+    {
+      "id": "checklist-job-daily",
+      "prompt": "daily job search checklist that resets every morning",
+      "intentSummary": "Interactive daily-reset checklist for job search.",
+      "keySignals": ["daily", "job search", "checklist", "resets"],
+      "categories": ["productivity"],
+      "outputHints": ["checklist", "resetsDaily true", "interactive true"],
+      "expectedFile": "checklist_job_daily.json"
+    },
+    {
+      "id": "checklist-grocery-weekly",
+      "prompt": "grocery list for this week",
+      "intentSummary": "Weekly grocery checklist with interactive items.",
+      "keySignals": ["grocery list", "groceries", "this week", "shopping"],
+      "categories": ["productivity"],
+      "outputHints": ["checklist", "resetsDaily false"],
+      "expectedFile": "checklist_grocery_weekly.json"
+    },
+    {
+      "id": "habit-github-style",
+      "prompt": "habit tracker like github contributions for working out reading and drinking water",
+      "intentSummary": "Grid style habit tracker with multiple habits.",
+      "keySignals": ["habit tracker", "github", "workout", "reading", "water"],
+      "categories": ["productivity"],
+      "outputHints": ["habit_tracker", "grid style"],
+      "expectedFile": "habit_github_style.json"
+    },
+    {
+      "id": "habit-water-today",
+      "prompt": "track my water intake today",
+      "intentSummary": "Single-habit water tracker for the current day.",
+      "keySignals": ["water intake", "track water", "today"],
+      "categories": ["productivity"],
+      "outputHints": ["habit_tracker", "single water habit", "rings style"],
+      "expectedFile": "habit_water_today.json"
+    },
+    {
+      "id": "mood-daily",
+      "prompt": "daily mood tracker",
+      "intentSummary": "Mood check widget with quick action buttons.",
+      "keySignals": ["daily mood tracker", "mood"],
+      "categories": ["creative", "productivity"],
+      "outputHints": ["vstack", "shortcut launcher row"],
+      "expectedFile": "mood_daily.json"
+    },
+    {
+      "id": "quote-daily",
+      "prompt": "motivational quote that changes every day",
+      "intentSummary": "Daily rotating motivation quote.",
+      "keySignals": ["motivational quote", "changes every day", "daily"],
+      "categories": ["quote"],
+      "outputHints": ["quote", "refreshInterval daily"],
+      "expectedFile": "quote_daily.json"
+    },
+    {
+      "id": "quote-stoic",
+      "prompt": "stoic philosophy quotes",
+      "intentSummary": "Daily stoic quote card in warm paper style.",
+      "keySignals": ["stoic", "philosophy quotes", "stoic quotes"],
+      "categories": ["quote", "creative"],
+      "outputHints": ["quote category stoic", "refreshInterval daily"],
+      "expectedFile": "quote_stoic.json"
+    },
+    {
+      "id": "note-call-mom",
+      "prompt": "a note on my desktop that says remember to call mom",
+      "intentSummary": "Editable note with the requested reminder text.",
+      "keySignals": ["note", "remember to call mom", "sticky note"],
+      "categories": ["productivity", "creative"],
+      "outputHints": ["note component", "editable true"],
+      "expectedFile": "note_call_mom.json"
+    },
+    {
+      "id": "reminders-all",
+      "prompt": "show my reminders",
+      "intentSummary": "Interactive reminders list with due dates.",
+      "keySignals": ["show my reminders", "reminders"],
+      "categories": ["productivity"],
+      "outputHints": ["reminders component", "interactive true"],
+      "expectedFile": "reminders_all.json"
+    },
+    {
+      "id": "calendar-today",
+      "prompt": "what is on my calendar today",
+      "intentSummary": "Calendar upcoming events for today.",
+      "keySignals": ["calendar", "today", "events"],
+      "categories": ["productivity"],
+      "outputHints": ["calendar_next", "timeRange today"],
+      "expectedFile": "calendar_today.json"
+    },
+    {
+      "id": "battery-indicator",
+      "prompt": "battery indicator",
+      "intentSummary": "Ring battery indicator with low threshold color.",
+      "keySignals": ["battery indicator", "battery"],
+      "categories": ["system"],
+      "outputHints": ["battery", "ring"],
+      "expectedFile": "battery_indicator.json"
+    },
+    {
+      "id": "system-monitor",
+      "prompt": "show me cpu memory and storage usage",
+      "intentSummary": "System stats bars for cpu memory and storage.",
+      "keySignals": ["cpu", "memory", "storage"],
+      "categories": ["system"],
+      "outputHints": ["system_stats", "bars style"],
+      "expectedFile": "system_monitor.json"
+    },
+    {
+      "id": "music-now-playing",
+      "prompt": "show what is currently playing on spotify",
+      "intentSummary": "Now playing with artwork progress and controls.",
+      "keySignals": ["currently playing", "spotify", "music"],
+      "categories": ["media"],
+      "outputHints": ["music_now_playing", "showControls true"],
+      "expectedFile": "music_now_playing.json"
+    },
+    {
+      "id": "news-bbc",
+      "prompt": "bbc news headlines",
+      "intentSummary": "BBC RSS headlines widget.",
+      "keySignals": ["bbc", "news", "headlines"],
+      "categories": ["news"],
+      "outputHints": ["news_headlines", "rss"],
+      "expectedFile": "news_bbc.json"
+    },
+    {
+      "id": "quick-launch",
+      "prompt": "shortcut buttons for slack spotify terminal and chrome",
+      "intentSummary": "Quick-launch shortcut strip.",
+      "keySignals": ["shortcut buttons", "slack", "spotify", "terminal", "chrome"],
+      "categories": ["launcher"],
+      "outputHints": ["shortcut_launcher", "row style"],
+      "expectedFile": "quick_launch.json"
+    },
+    {
+      "id": "bookmarks-social",
+      "prompt": "bookmarks for github linkedin and twitter",
+      "intentSummary": "Quick link bookmarks for common social/dev sites.",
+      "keySignals": ["bookmarks", "github", "linkedin", "twitter"],
+      "categories": ["launcher"],
+      "outputHints": ["link_bookmarks", "row or grid"],
+      "expectedFile": "bookmarks_social.json"
+    },
+    {
+      "id": "dashboard-morning",
+      "prompt": "morning dashboard with time weather calendar and a checklist",
+      "intentSummary": "Morning productivity dashboard with multiple sections.",
+      "keySignals": ["morning dashboard", "time", "weather", "calendar", "checklist"],
+      "categories": ["dashboard"],
+      "outputHints": ["multi-section vstack", "large size"],
+      "expectedFile": "dashboard_morning.json"
+    },
+    {
+      "id": "dashboard-finance",
+      "prompt": "finance dashboard with stocks crypto and a news ticker",
+      "intentSummary": "Finance dashboard combining equities crypto and news.",
+      "keySignals": ["finance dashboard", "stocks", "crypto", "news"],
+      "categories": ["dashboard", "market"],
+      "outputHints": ["vstack sections", "refreshInterval 60"],
+      "expectedFile": "dashboard_finance.json"
+    },
+    {
+      "id": "dashboard-command-center",
+      "prompt": "full productivity widget with pomodoro checklist calendar and a quote",
+      "intentSummary": "Comprehensive productivity command center with multiple sections.",
+      "keySignals": ["full productivity", "pomodoro", "checklist", "calendar", "quote"],
+      "categories": ["dashboard", "productivity"],
+      "outputHints": ["large multi-section layout", "include all requested components"],
+      "expectedFile": "dashboard_command_center.json"
+    },
+    {
+      "id": "creative-surprise",
+      "prompt": "surprise me",
+      "intentSummary": "Creative aesthetic widget with time plus rotating quote.",
+      "keySignals": ["surprise me", "surprise", "creative"],
+      "categories": ["creative"],
+      "outputHints": ["interesting composition", "at least two component types"],
+      "expectedFile": "creative_surprise.json"
+    },
+    {
+      "id": "creative-beautiful",
+      "prompt": "something beautiful for my desktop",
+      "intentSummary": "Visually rich aesthetic widget with hierarchy and spacing.",
+      "keySignals": ["something beautiful", "beautiful", "desktop"],
+      "categories": ["creative"],
+      "outputHints": ["gradient or blur background", "multiple component types"],
+      "expectedFile": "creative_beautiful.json"
+    }
+  ]
+}

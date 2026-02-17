@@ -1,0 +1,17 @@
+{
+  "name": "2 Min Timer",
+  "size": {"width": 150, "height": 150},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 16, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "timer",
+    "duration": 120,
+    "autoStart": false,
+    "style": "ring",
+    "color": "negative",
+    "size": 100,
+    "showControls": true
+  }
+}

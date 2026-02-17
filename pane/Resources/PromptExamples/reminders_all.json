@@ -1,0 +1,19 @@
+{
+  "name": "Reminders",
+  "size": {"width": 240, "height": 220},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 16, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "reminders",
+    "list": "all",
+    "maxItems": 5,
+    "showDueDate": true,
+    "showCheckbox": true,
+    "interactive": true,
+    "font": "sf-pro",
+    "size": 13,
+    "color": "primary"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Water Tracker",
+  "size": {"width": 160, "height": 170},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 16, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "habit_tracker",
+    "habits": [
+      {"id": "water", "name": "Water", "icon": "drop.fill", "target": 8, "unit": "glasses"}
+    ],
+    "style": "rings",
+    "interactive": true,
+    "showStreak": true,
+    "color": "accent"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Run Stopwatch",
+  "size": {"width": 180, "height": 100},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 16,
+  "padding": {"top": 14, "bottom": 14, "leading": 20, "trailing": 20},
+  "content": {
+    "type": "stopwatch",
+    "style": "digital",
+    "font": "sf-mono",
+    "size": 36,
+    "color": "positive",
+    "showLaps": true,
+    "showControls": true
+  }
+}

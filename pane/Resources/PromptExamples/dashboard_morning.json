@@ -1,0 +1,20 @@
+{
+  "name": "Morning Dashboard",
+  "size": {"width": 400, "height": 360},
+  "theme": "obsidian",
+  "background": {"type": "gradient", "colors": ["#0D1117", "#161B22"], "direction": "topToBottom"},
+  "cornerRadius": 22,
+  "padding": {"top": 20, "bottom": 20, "leading": 22, "trailing": 22},
+  "content": {
+    "type": "vstack",
+    "alignment": "leading",
+    "spacing": 14,
+    "children": [
+      {"type": "hstack", "alignment": "center", "spacing": 16, "children": [{"type": "clock", "style": "digital", "timezone": "local", "format": "h:mm a", "font": "sf-mono", "size": 32, "weight": "light", "color": "primary"}, {"type": "spacer", "size": null}, {"type": "weather", "location": "Madison, WI, USA", "style": "compact", "showIcon": true, "showTemperature": true, "showCondition": false, "showHighLow": false, "temperatureUnit": "fahrenheit", "color": "primary"}]},
+      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
+      {"type": "calendar_next", "source": "system_calendar", "maxEvents": 3, "showTime": true, "showCalendarColor": true, "timeRange": "today", "emptyText": "No events today", "font": "sf-pro", "size": 13, "color": "primary"},
+      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
+      {"type": "checklist", "title": "Today", "items": [{"id": "1", "text": "Morning workout", "checked": false}, {"id": "2", "text": "Review emails", "checked": false}, {"id": "3", "text": "Deep work block", "checked": false}], "resetsDaily": true, "showProgress": true, "interactive": true, "checkedColor": "positive", "uncheckedColor": "muted", "strikethrough": true, "font": "sf-pro", "size": 13, "color": "primary"}
+    ]
+  }
+}

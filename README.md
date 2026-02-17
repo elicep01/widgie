@@ -24,3 +24,27 @@ Press `Cmd+Shift+W`, describe what you want, and pane generates a widget for you
 - API keys are stored in Keychain.
 - pane requires a provider API key to generate widgets.
 - The app name is `pane`.
+
+## Real AI E2E tests
+
+Run the end-to-end AI pipeline suite (generation, schema validation, verification, correction) with a real provider key:
+
+```bash
+PANE_RUN_E2E_AI_TESTS=1 \
+OPENAI_API_KEY="$OPENAI_API_KEY" \
+OPENAI_MODEL="gpt-4o" \
+OPENAI_VERIFICATION_MODEL="gpt-4o-mini" \
+xcodebuild -project pane.xcodeproj -scheme pane -configuration Debug -destination "platform=macOS,arch=arm64" -derivedDataPath /tmp/pane-build -only-testing:paneTests/PipelineE2ETests test
+```
+
+Use Claude instead by setting `PANE_E2E_PROVIDER=claude` and `CLAUDE_API_KEY`.
+
+pane also supports lightweight on-disk prompt-example retrieval for generation guidance.
+You can override or extend examples by creating:
+
+- `~/Library/Application Support/pane/prompt_examples.json`
+- `~/Library/Application Support/pane/prompt_examples/<file>.json` (optional, for `expectedFile` references)
+
+The example index can be either:
+- a top-level array of example objects, or
+- `{ "examples": [ ... ] }`

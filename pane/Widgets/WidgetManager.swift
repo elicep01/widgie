@@ -40,7 +40,14 @@ final class WidgetManager {
             return
         }
 
-        let window = WidgetWindow(config: config, settingsStore: settingsStore)
+        var initialConfig = config
+        if initialConfig.position == nil {
+            let size = CGSize(width: initialConfig.size.width.cgFloat, height: initialConfig.size.height.cgFloat)
+            let origin = nextAutoOrigin(for: size)
+            initialConfig.position = WidgetPosition(x: origin.x.double, y: origin.y.double)
+        }
+
+        let window = WidgetWindow(config: initialConfig, settingsStore: settingsStore)
         if let isLocked {
             window.setLocked(isLocked)
         }
@@ -49,6 +56,11 @@ final class WidgetManager {
         wireCallbacks(for: window)
         windows[config.id] = window
         window.orderFrontRegardless()
+
+        // Persist resolved placement immediately so relaunch restores exact positions.
+        var persisted = window.config
+        persisted.position = WidgetPosition(x: window.frame.origin.x.double, y: window.frame.origin.y.double)
+        window.update(config: persisted)
         store.save(window.config, isLocked: window.isPositionLocked)
         notifyWidgetListChanged()
     }
@@ -278,6 +290,45 @@ final class WidgetManager {
         }
 
         return "\(baseName) Copy"
+    }
+
+    private func nextAutoOrigin(for size: CGSize) -> CGPoint {
+        guard let frame = NSScreen.main?.visibleFrame else {
+            return CGPoint(x: 80, y: 420)
+        }
+
+        let margin: CGFloat = 40
+        let spacing: CGFloat = 20
+        let occupied = windows.values.map { $0.frame.insetBy(dx: -12, dy: -12) }
+
+        let minX = frame.minX + margin
+        let maxX = max(minX, frame.maxX - margin - size.width)
+        let minY = frame.minY + margin
+
+        var y = frame.maxY - margin - size.height
+        while y >= minY {
+            var x = minX
+            while x <= maxX {
+                let candidate = CGRect(x: x, y: y, width: size.width, height: size.height)
+                if occupied.allSatisfy({ !$0.intersects(candidate) }) {
+                    return candidate.origin
+                }
+                x += size.width + spacing
+            }
+            y -= size.height + spacing
+        }
+
+        let existingSizes = windows.values.map {
+            CGSize(width: $0.config.size.width.cgFloat, height: $0.config.size.height.cgFloat)
+        }
+        let fallback = positionManager.gridOrigins(
+            for: existingSizes + [size],
+            in: frame,
+            spacing: spacing,
+            margin: margin
+        ).last
+
+        return fallback ?? CGPoint(x: minX, y: frame.maxY - margin - size.height)
     }
 
     private func notifyWidgetListChanged() {

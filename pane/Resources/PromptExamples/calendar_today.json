@@ -1,0 +1,20 @@
+{
+  "name": "Today Events",
+  "size": {"width": 260, "height": 200},
+  "theme": "obsidian",
+  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "cornerRadius": 18,
+  "padding": {"top": 16, "bottom": 16, "leading": 16, "trailing": 16},
+  "content": {
+    "type": "calendar_next",
+    "source": "system_calendar",
+    "maxEvents": 5,
+    "showTime": true,
+    "showCalendarColor": true,
+    "timeRange": "today",
+    "emptyText": "Nothing scheduled today",
+    "font": "sf-pro",
+    "size": 13,
+    "color": "primary"
+  }
+}
