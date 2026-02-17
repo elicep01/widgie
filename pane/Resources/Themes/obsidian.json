@@ -1,0 +1,22 @@
+{
+  "name": "obsidian",
+  "colors": {
+    "primary": "#E6EDF3",
+    "secondary": "#8B949E",
+    "accent": "#58A6FF",
+    "positive": "#3FB950",
+    "negative": "#F85149",
+    "warning": "#D29922",
+    "muted": "#484F58"
+  },
+  "surface": {
+    "innerBorderColor": "#FFFFFF",
+    "innerBorderOpacity": 0.06,
+    "innerBorderWidth": 0.5,
+    "shadowColor": "#000000",
+    "shadowOpacity": 0.35,
+    "shadowRadius": 20.0,
+    "shadowX": 0.0,
+    "shadowY": 8.0
+  }
+}

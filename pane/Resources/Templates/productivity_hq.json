@@ -1,0 +1,76 @@
+{
+  "id": "productivity-hq",
+  "name": "Productivity HQ",
+  "description": "Checklist, day progress, and quote.",
+  "config": {
+    "version": "1.0",
+    "name": "Productivity HQ",
+    "description": "productivity dashboard",
+    "size": { "width": 320, "height": 360 },
+    "theme": "paper",
+    "background": {
+      "type": "solid",
+      "color": "#F4EFE6"
+    },
+    "cornerRadius": 20,
+    "padding": { "top": 18, "bottom": 18, "leading": 18, "trailing": 18 },
+    "refreshInterval": 60,
+    "content": {
+      "type": "vstack",
+      "alignment": "leading",
+      "spacing": 12,
+      "children": [
+        {
+          "type": "text",
+          "content": "Today",
+          "font": "sf-pro",
+          "size": 18,
+          "weight": "semibold",
+          "color": "primary"
+        },
+        {
+          "type": "day_progress",
+          "startHour": 8,
+          "endHour": 23,
+          "style": "bar",
+          "showPercentage": true,
+          "showTimeRemaining": true,
+          "color": "accent",
+          "label": "Day"
+        },
+        { "type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal" },
+        {
+          "type": "checklist",
+          "title": "Daily Goals",
+          "items": [
+            { "id": "goal1", "text": "Deep work block", "checked": false },
+            { "id": "goal2", "text": "Inbox zero", "checked": false },
+            { "id": "goal3", "text": "Workout", "checked": false }
+          ],
+          "resetsDaily": true,
+          "showProgress": true,
+          "checkedColor": "positive",
+          "uncheckedColor": "muted",
+          "strikethrough": true,
+          "interactive": true,
+          "font": "sf-pro",
+          "size": 14,
+          "color": "primary"
+        },
+        { "type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal" },
+        {
+          "type": "quote",
+          "source": "curated",
+          "category": "motivation",
+          "refreshInterval": "daily",
+          "font": "new-york",
+          "size": 13,
+          "weight": "regular",
+          "color": "secondary",
+          "authorColor": "muted",
+          "showQuotationMarks": true
+        }
+      ]
+    }
+  }
+}

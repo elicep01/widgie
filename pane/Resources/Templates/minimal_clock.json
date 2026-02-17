@@ -1,0 +1,46 @@
+{
+  "id": "minimal-clock",
+  "name": "Minimal Clock",
+  "description": "Simple local clock with date.",
+  "config": {
+    "version": "1.0",
+    "name": "Minimal Clock",
+    "description": "minimal dark clock",
+    "size": { "width": 170, "height": 170 },
+    "theme": "transparent",
+    "background": {
+      "type": "blur",
+      "material": "hudWindow",
+      "tintColor": "#000000",
+      "tintOpacity": 0.4
+    },
+    "cornerRadius": 20,
+    "padding": { "top": 20, "bottom": 20, "leading": 20, "trailing": 20 },
+    "refreshInterval": 60,
+    "content": {
+      "type": "vstack",
+      "alignment": "center",
+      "spacing": 4,
+      "children": [
+        {
+          "type": "clock",
+          "style": "digital",
+          "timezone": "local",
+          "format": "HH:mm",
+          "font": "sf-mono",
+          "size": 48,
+          "weight": "ultralight",
+          "color": "primary"
+        },
+        {
+          "type": "date",
+          "format": "EEEE, MMM d",
+          "font": "sf-pro",
+          "size": 13,
+          "weight": "regular",
+          "color": "muted"
+        }
+      ]
+    }
+  }
+}

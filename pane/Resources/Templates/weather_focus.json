@@ -1,0 +1,73 @@
+{
+  "id": "weather-focus",
+  "name": "Weather Focus",
+  "description": "Current weather plus local time.",
+  "config": {
+    "version": "1.0",
+    "name": "Weather Focus",
+    "description": "weather and clock",
+    "size": { "width": 320, "height": 180 },
+    "theme": "obsidian",
+    "background": {
+      "type": "blur",
+      "material": "hudWindow",
+      "tintColor": "#0D1117",
+      "tintOpacity": 0.72
+    },
+    "cornerRadius": 20,
+    "padding": { "top": 16, "bottom": 16, "leading": 16, "trailing": 16 },
+    "refreshInterval": 60,
+    "content": {
+      "type": "vstack",
+      "alignment": "leading",
+      "spacing": 10,
+      "children": [
+        {
+          "type": "hstack",
+          "alignment": "center",
+          "spacing": 10,
+          "children": [
+            {
+              "type": "clock",
+              "style": "digital",
+              "timezone": "local",
+              "format": "HH:mm",
+              "font": "sf-mono",
+              "size": 34,
+              "weight": "semibold",
+              "color": "primary"
+            },
+            { "type": "spacer" },
+            {
+              "type": "date",
+              "format": "EEE, MMM d",
+              "font": "sf-pro",
+              "size": 12,
+              "weight": "medium",
+              "color": "secondary"
+            }
+          ]
+        },
+        { "type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal" },
+        {
+          "type": "weather",
+          "location": "Madison, WI",
+          "showIcon": true,
+          "showTemperature": true,
+          "showCondition": true,
+          "showHighLow": true,
+          "temperatureUnit": "fahrenheit",
+          "style": "compact",
+          "color": "primary"
+        }
+      ]
+    },
+    "dataSources": {
+      "weather": {
+        "provider": "open-meteo",
+        "location": "Madison, WI",
+        "refreshInterval": 1800
+      }
+    }
+  }
+}

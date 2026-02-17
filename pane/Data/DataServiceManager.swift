@@ -1,0 +1,156 @@
+import Foundation
+
+actor DataServiceManager {
+    static let shared = DataServiceManager()
+
+    private let cache = CacheManager()
+    private let weatherProvider = WeatherProvider()
+    private let stockProvider = StockProvider()
+    private let cryptoProvider = CryptoProvider()
+    private let batteryProvider = BatteryProvider()
+    private let systemStatsProvider = SystemStatsProvider()
+    private let musicProvider = MusicProvider()
+    private let rssProvider = RSSProvider()
+    private let screenTimeProvider = ScreenTimeProvider()
+
+    func weather(location: String, fahrenheit: Bool, forceRefresh: Bool = false) async -> WeatherSnapshot? {
+        let normalizedLocation = location
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let key = "weather_\(normalizedLocation.lowercased())_\(fahrenheit)"
+        if !forceRefresh, let cached = await cache.load(WeatherSnapshot.self, key: key) {
+            return cached
+        }
+
+        for attempt in 0..<3 {
+            do {
+                let value = try await weatherProvider.fetch(location: normalizedLocation, fahrenheit: fahrenheit)
+                await cache.store(value, key: key, ttl: 30 * 60)
+                return value
+            } catch {
+                if attempt < 2 {
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                }
+            }
+        }
+        return await cache.load(WeatherSnapshot.self, key: key)
+    }
+
+    func stock(symbol: String, period: String, forceRefresh: Bool = false) async -> MarketSnapshot? {
+        let normalized = symbol.uppercased()
+        let key = "stock_\(normalized)_\(period)"
+        if !forceRefresh, let cached = await cache.load(MarketSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await stockProvider.fetch(symbol: normalized, range: period)
+            await cache.store(value, key: key, ttl: 60)
+            return value
+        } catch {
+            return await cache.load(MarketSnapshot.self, key: key)
+        }
+    }
+
+    func crypto(symbol: String, currency: String, forceRefresh: Bool = false) async -> MarketSnapshot? {
+        let normalized = symbol.uppercased()
+        let normalizedCurrency = currency.uppercased()
+        let key = "crypto_\(normalized)_\(normalizedCurrency)"
+        if !forceRefresh, let cached = await cache.load(MarketSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await cryptoProvider.fetch(symbol: normalized, currency: normalizedCurrency)
+            await cache.store(value, key: key, ttl: 2 * 60)
+            return value
+        } catch {
+            return await cache.load(MarketSnapshot.self, key: key)
+        }
+    }
+
+    @MainActor
+    func calendarNext(maxEvents: Int, timeRange: String, forceRefresh: Bool = false) async -> [CalendarEventSnapshot] {
+        let calendarProvider = CalendarProvider()
+        let key = "calendar_\(maxEvents)_\(timeRange)"
+        if !forceRefresh, let cached = await cache.load([CalendarEventSnapshot].self, key: key) {
+            return cached
+        }
+
+        let value = await calendarProvider.fetch(maxEvents: maxEvents, timeRange: timeRange)
+        await cache.store(value, key: key, ttl: 5 * 60)
+        return value
+    }
+
+    @MainActor
+    func reminders(maxItems: Int, forceRefresh: Bool = false) async -> [ReminderSnapshot] {
+        let reminderProvider = ReminderProvider()
+        let key = "reminders_\(maxItems)"
+        if !forceRefresh, let cached = await cache.load([ReminderSnapshot].self, key: key) {
+            return cached
+        }
+
+        let value = await reminderProvider.fetch(maxItems: maxItems)
+        await cache.store(value, key: key, ttl: 5 * 60)
+        return value
+    }
+
+    func battery(forceRefresh: Bool = false) async -> BatterySnapshot {
+        let key = "battery"
+        if !forceRefresh, let cached = await cache.load(BatterySnapshot.self, key: key) {
+            return cached
+        }
+
+        let value = batteryProvider.fetch()
+        await cache.store(value, key: key, ttl: 60)
+        return value
+    }
+
+    func systemStats(forceRefresh: Bool = false) async -> SystemStatsSnapshot {
+        let key = "system_stats"
+        if !forceRefresh, let cached = await cache.load(SystemStatsSnapshot.self, key: key) {
+            return cached
+        }
+
+        let value = systemStatsProvider.fetch()
+        await cache.store(value, key: key, ttl: 30)
+        return value
+    }
+
+    func musicNowPlaying(forceRefresh: Bool = false) async -> MusicSnapshot {
+        let key = "music_now_playing"
+        if !forceRefresh, let cached = await cache.load(MusicSnapshot.self, key: key) {
+            return cached
+        }
+
+        let value = musicProvider.fetch()
+        await cache.store(value, key: key, ttl: 1)
+        return value
+    }
+
+    func news(feedURL: String, maxItems: Int, forceRefresh: Bool = false) async -> [NewsHeadlineSnapshot] {
+        let key = "rss_\(feedURL)_\(maxItems)"
+        if !forceRefresh, let cached = await cache.load([NewsHeadlineSnapshot].self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await rssProvider.fetch(feedURL: feedURL, maxItems: maxItems)
+            await cache.store(value, key: key, ttl: 30 * 60)
+            return value
+        } catch {
+            return await cache.load([NewsHeadlineSnapshot].self, key: key) ?? []
+        }
+    }
+
+    func screenTime(maxApps: Int, forceRefresh: Bool = false) async -> ScreenTimeSnapshot {
+        let key = "screen_time_\(maxApps)"
+        if !forceRefresh, let cached = await cache.load(ScreenTimeSnapshot.self, key: key) {
+            return cached
+        }
+
+        let value = screenTimeProvider.fetch(maxApps: maxApps)
+        await cache.store(value, key: key, ttl: 5 * 60)
+        return value
+    }
+}

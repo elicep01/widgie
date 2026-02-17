@@ -1,0 +1,21 @@
+{
+  "colors": {
+    "primary": "#F3F7FF",
+    "secondary": "#8FA6C4",
+    "accent": "#18F0FF",
+    "positive": "#1CFF8A",
+    "negative": "#FF4E9A",
+    "warning": "#FFD447",
+    "muted": "#3C4D6F"
+  },
+  "surface": {
+    "innerBorderColor": "#18F0FF",
+    "innerBorderOpacity": 0.16,
+    "innerBorderWidth": 0.9,
+    "shadowColor": "#000000",
+    "shadowOpacity": 0.42,
+    "shadowRadius": 24,
+    "shadowX": 0,
+    "shadowY": 10
+  }
+}
