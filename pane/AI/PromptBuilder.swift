@@ -18,6 +18,7 @@ struct PromptContext {
 struct PromptBuilder {
     private let componentSchema: String
     private let exampleRetriever: PromptExampleRetriever
+    private let patternLibrary: String
 
     init(
         componentSchema: String? = nil,
@@ -25,6 +26,7 @@ struct PromptBuilder {
     ) {
         self.componentSchema = componentSchema ?? Self.loadComponentSchema()
         self.exampleRetriever = exampleRetriever
+        self.patternLibrary = Self.loadPatternLibrary()
     }
 
     func generationSystemPrompt(defaultTheme: WidgetTheme, context: PromptContext, prompt: String) -> String {
@@ -72,6 +74,12 @@ struct PromptBuilder {
         - If user asks celsius/°C, use celsius. If user asks fahrenheit/°F, use fahrenheit.
         - If unit not explicit, infer sensibly from location context.
         
+        Mood / wellness / habit requests:
+        - "mood tracker", "mood log", "feeling tracker", "emotion tracker", "wellness tracker" → use `habit_tracker` with habits like [{"id":"mood1","name":"Happy","icon":"face.smiling","target":1}, {"id":"mood2","name":"Calm","icon":"leaf","target":1}, {"id":"mood3","name":"Anxious","icon":"bolt.heart","target":1}]
+        - "journal", "diary", "sticky note", "memo" → use `note` with `editable: true`
+        - "habit tracker", "daily habits", "routine tracker" → use `habit_tracker`
+        - NEVER invent component types like "mood_tracker", "journal_entry", "emotion_tracker" — they do not exist in the schema and will cause a hard failure.
+
         Stock ticker rules:
         - If user requests multiple symbols, include one `stock` component per symbol.
         - Use `hstack` for ticker-style rows with optional `divider` components.
@@ -79,6 +87,10 @@ struct PromptBuilder {
         - Never invent unsupported component types like `stocks` or `ticker`.
         - Crypto assets (bitcoin, ethereum, solana, dogecoin, etc.) must use `crypto`, not `stock`.
         - If user says "bitcoin stock" or "ethereum stock", interpret intent as crypto market data and use `crypto` with symbols BTC/ETH.
+        - For metals, use supported stock symbols:
+          - gold -> `stock` symbol `GLD`
+          - silver -> `stock` symbol `SLV`
+        - If user requests a mixed market set (for example bitcoin + ethereum + gold + silver), include ALL requested assets and do not drop any.
         - For "live updates" market prompts, use a short refresh interval (for example 60s) and include change/percent fields.
         - If ticker is unknown, choose the closest obvious symbol and proceed.
 
@@ -86,6 +98,14 @@ struct PromptBuilder {
         \(examplesSection)
 
         Apply the patterns from examples to this request, but adapt intelligently. Do not copy blindly.
+
+        ## COMPREHENSIVE WIDGET PATTERN LIBRARY
+        IMPORTANT:
+        - The pattern library may use conceptual names like Text/VStack/Grid/api:URL for readability.
+        - Translate every pattern into pane's real schema and supported component types/fields only.
+        - Never emit conceptual types directly; emit schema-valid pane JSON only.
+
+        \(patternLibrary)
 
         4. Size widgets to content density.
         Principle: no wasted space.
@@ -122,6 +142,31 @@ struct PromptBuilder {
 
         COMPONENT SCHEMA
         \(componentSchema)
+
+        USING THE PATTERN LIBRARY:
+
+        When user makes a request:
+        1. Search the library for similar patterns
+        2. MIX AND MATCH components from different examples
+        3. Adapt layouts (change HStack to VStack, add Grid, etc.)
+        4. Use the data source patterns for ANY API
+
+        Examples of mixing patterns:
+        - User: "time in pune, tempe, seattle with weather on right"
+          Use Example 1 (multi-location time) pattern
+        - User: "bitcoin ethereum gold silver prices"
+          Combine Example 2 (crypto) and Example 3 (commodities)
+          Use Grid layout with 2x2 = 4 items
+        - User: "polymarket profile with top 3 markets"
+          Use Example 5 (polymarket profile)
+          Add a list of top markets below stats
+
+        REMEMBER:
+        - You have 50+ examples to learn from
+        - Mix and match freely
+        - ANY API can be fetched using the generic pattern
+        - Complex layouts = combining HStack, VStack, Grid
+        - NEVER say "I can't do that" - combine patterns
         """
     }
 
@@ -168,6 +213,8 @@ struct PromptBuilder {
         11. Empty-space check: fail if large areas are blank and size can be reduced without harming readability.
         12. Multi-symbol stock check: if user named N symbols, ensure N stock components or explicit equivalent representation exists.
         13. Asset-class accuracy: crypto assets should use `crypto`; equities should use `stock`.
+        14. Metals coverage: if user asks for gold/silver, ensure both are represented (for pane use stock symbols GLD/SLV unless the prompt explicitly asks otherwise).
+        15. Asset completeness: fail if any explicitly requested asset (BTC/ETH/gold/silver/etc.) is missing.
 
         RESPONSE FORMAT
         - If everything is correct, respond with exactly: PASS
@@ -292,6 +339,16 @@ struct PromptBuilder {
         guard let url = Bundle.main.url(forResource: "ComponentSchema", withExtension: "json"),
               let text = try? String(contentsOf: url, encoding: .utf8) else {
             return "{\"types\":[\"text\",\"icon\",\"divider\",\"spacer\",\"progress_ring\",\"progress_bar\",\"chart\",\"clock\",\"analog_clock\",\"date\",\"countdown\",\"timer\",\"stopwatch\",\"world_clocks\",\"pomodoro\",\"day_progress\",\"year_progress\",\"weather\",\"stock\",\"crypto\",\"calendar_next\",\"reminders\",\"battery\",\"system_stats\",\"music_now_playing\",\"news_headlines\",\"screen_time\",\"checklist\",\"habit_tracker\",\"quote\",\"note\",\"shortcut_launcher\",\"link_bookmarks\",\"vstack\",\"hstack\",\"container\"]}"
+        }
+
+        return text
+    }
+
+    private static func loadPatternLibrary() -> String {
+        guard let url = Bundle.main.url(forResource: "WidgetPatternLibrary", withExtension: "md"),
+              let text = try? String(contentsOf: url, encoding: .utf8),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "Pattern library unavailable. Still generate high-quality widgets by combining the available schema components."
         }
 
         return text

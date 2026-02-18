@@ -14,6 +14,15 @@ struct SchemaValidator {
         "checklist", "habit_tracker", "quote", "note", "shortcut_launcher", "link_bookmarks",
         "vstack", "hstack", "container"
     ]
+    private let orderedComponentTypes: [String] = [
+        "text", "icon", "divider", "spacer", "progress_ring", "progress_bar", "chart",
+        "clock", "analog_clock", "date", "countdown", "timer", "stopwatch", "world_clocks",
+        "pomodoro", "day_progress", "year_progress",
+        "weather", "stock", "crypto", "calendar_next", "reminders", "battery", "system_stats",
+        "music_now_playing", "news_headlines", "screen_time",
+        "checklist", "habit_tracker", "quote", "note", "shortcut_launcher", "link_bookmarks",
+        "vstack", "hstack", "container"
+    ]
 
     private let componentTypeAliases: [String: String] = [
         "cryptocurrency": "crypto",
@@ -30,6 +39,10 @@ struct SchemaValidator {
         "ticker": "stock",
         "equity": "stock",
         "equities": "stock",
+        "commodity": "stock",
+        "commodities": "stock",
+        "metal": "stock",
+        "metals": "stock",
         "analog": "analog_clock",
         "anolog": "analog_clock",
         "analogclock": "analog_clock",
@@ -47,6 +60,31 @@ struct SchemaValidator {
         "horizontal_stack": "hstack",
         "stack_v": "vstack",
         "stack_h": "hstack",
+        "grid": "vstack",
+        "matrix": "vstack",
+        "table": "vstack",
+        "zstack": "vstack",
+        // Mood / wellness aliases → habit_tracker
+        "mood_tracker": "habit_tracker",
+        "moodtracker": "habit_tracker",
+        "mood": "habit_tracker",
+        "moods": "habit_tracker",
+        "wellness_tracker": "habit_tracker",
+        "wellnesstracker": "habit_tracker",
+        "feeling_tracker": "habit_tracker",
+        "emotion_tracker": "habit_tracker",
+        "daily_tracker": "habit_tracker",
+        "tracker": "habit_tracker",
+        // Journal / notes aliases → note
+        "journal": "note",
+        "diary": "note",
+        "memo": "note",
+        "sticky": "note",
+        "sticky_note": "note",
+        // Habits
+        "habits": "habit_tracker",
+        "routine": "habit_tracker",
+        "daily_habits": "habit_tracker",
     ]
 
     private let widgetAllowedKeys: Set<String> = [
@@ -266,7 +304,12 @@ struct SchemaValidator {
                 cleaned["location"] = location
             }
             if let symbols = coerceStringArray(source["symbols"]), !symbols.isEmpty {
-                cleaned["symbols"] = symbols
+                let lowerName = name.lowercased()
+                if lowerName.contains("crypto") {
+                    cleaned["symbols"] = symbols.map { canonicalCryptoSymbol($0) }
+                } else {
+                    cleaned["symbols"] = symbols.map { canonicalStockSymbol($0) }
+                }
             }
 
             if !cleaned.isEmpty {
@@ -680,10 +723,10 @@ struct SchemaValidator {
             component["location"] = nonEmptyString(component["location"]) ?? "Current Location"
 
         case "stock":
-            component["symbol"] = nonEmptyString(component["symbol"]) ?? "AAPL"
+            component["symbol"] = canonicalStockSymbol(nonEmptyString(component["symbol"]) ?? "AAPL")
 
         case "crypto":
-            component["symbol"] = nonEmptyString(component["symbol"]) ?? "BTC"
+            component["symbol"] = canonicalCryptoSymbol(nonEmptyString(component["symbol"]) ?? "BTC")
             component["currency"] = nonEmptyString(component["currency"]) ?? "USD"
 
         case "calendar_next":
@@ -942,11 +985,13 @@ struct SchemaValidator {
             }
         }
 
-        let closest = allowedComponentTypes
+        let closest = orderedComponentTypes
             .map { ($0, editDistance(normalized, $0)) }
             .min { lhs, rhs in lhs.1 < rhs.1 }
 
-        if let closest, closest.1 <= 4 {
+        // Keep auto-repair conservative to avoid mapping unrelated layout words (e.g. "grid")
+        // to unrelated atomic components (e.g. "icon").
+        if let closest, closest.1 <= 2 {
             return closest.0
         }
 
@@ -1703,6 +1748,48 @@ struct SchemaValidator {
         }
 
         throw AIWidgetServiceError.schemaValidationFailed("Invalid color token '\(token)' at \(path).")
+    }
+
+    private func canonicalStockSymbol(_ raw: String) -> String {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+
+        switch normalized {
+        case "GOLD", "XAU", "XAUUSD", "XAUUSD=X", "GC", "GC=F":
+            return "GLD"
+        case "SILVER", "XAG", "XAGUSD", "XAGUSD=X", "SI", "SI=F":
+            return "SLV"
+        case "BITCOIN":
+            return "BTC"
+        case "ETHEREUM":
+            return "ETH"
+        default:
+            return normalized
+        }
+    }
+
+    private func canonicalCryptoSymbol(_ raw: String) -> String {
+        let normalized = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+
+        switch normalized {
+        case "BITCOIN":
+            return "BTC"
+        case "ETHEREUM":
+            return "ETH"
+        case "DOGECOIN":
+            return "DOGE"
+        case "SOLANA":
+            return "SOL"
+        case "CARDANO":
+            return "ADA"
+        case "RIPPLE":
+            return "XRP"
+        default:
+            return normalized
+        }
     }
 
     private static func describe(_ error: DecodingError) -> String {

@@ -23,7 +23,7 @@ struct WidgetConfig: Codable, Identifiable {
         name: String,
         description: String,
         size: WidgetSize = .medium,
-        minSize: WidgetSize? = WidgetSize(width: 170, height: 170),
+        minSize: WidgetSize? = nil,
         maxSize: WidgetSize? = WidgetSize(width: 800, height: 600),
         position: WidgetPosition? = nil,
         theme: WidgetTheme = .obsidian,

@@ -14,6 +14,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     var onSizeChanged: ((WidgetSize) -> Void)?
     var onDragFeedbackRequested: ((CGRect) -> WidgetDragFeedback)?
     var onDragEnded: (() -> Void)?
+    var onAutoSizeCompleted: (() -> Void)?
 
     var isPositionLocked: Bool { isLocked }
 
@@ -29,6 +30,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
     private var dragAnchorScreenPoint: NSPoint?
     private var dragOrigin: NSPoint = .zero
+    private var pendingMouseDownEvent: NSEvent?
     private var isDragging = false {
         didSet { refreshContent() }
     }
@@ -125,10 +127,15 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
+        // Store event but DO NOT forward to SwiftUI yet.
+        // We can't know at mouseDown time whether this is a click or a drag.
+        // Forwarding now would fire overlay buttons (e.g. Duplicate) the moment
+        // the user begins a drag gesture. Instead, forward the full click cycle
+        // in mouseUp only if no drag occurred.
+        pendingMouseDownEvent = event
         dragAnchorScreenPoint = NSEvent.mouseLocation
         dragOrigin = frame.origin
         isDragging = false
-        super.mouseDown(with: event)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -174,8 +181,16 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         if isDragging {
+            pendingMouseDownEvent = nil
             finishDragging()
         } else {
+            // It was a click, not a drag — now forward the full click cycle to SwiftUI
+            // so buttons (Edit, Duplicate, Lock, Remove) fire on release, not press.
+            if let pending = pendingMouseDownEvent {
+                super.mouseDown(with: pending)
+                pendingMouseDownEvent = nil
+            }
+            super.mouseUp(with: event)
             activate()
         }
     }
@@ -259,7 +274,13 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         if allowAutoSize {
+            // First pass: immediate measurement (SwiftUI may not have rendered yet).
             applyContentFitIfNeeded()
+            // Second pass: deferred so SwiftUI has completed its first layout cycle.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+                self?.applyContentFitIfNeeded()
+                self?.onAutoSizeCompleted?()
+            }
         }
     }
 
@@ -651,11 +672,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     }
 
     private var minimumSize: CGSize {
-        let configured = config.minSize ?? WidgetSize(width: 96, height: 64)
-        return CGSize(
-            width: max(80, configured.width.cgFloat),
-            height: max(56, configured.height.cgFloat)
-        )
+        return inferredMinimumSize()
     }
 
     private var maximumSize: CGSize {
@@ -668,6 +685,77 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             width: max(minimumSize.width, configured.width.cgFloat),
             height: max(minimumSize.height, configured.height.cgFloat)
         )
+    }
+
+    private func inferredMinimumSize() -> CGSize {
+        let flattened = flattenedComponents(from: config.content)
+        let visible = flattened.filter { component in
+            !component.type.isLayoutType && component.type != .divider && component.type != .spacer
+        }
+
+        guard let primary = visible.first else {
+            return CGSize(width: 80, height: 50)
+        }
+
+        if visible.count == 1 {
+            return inferredMinimumSizeForSingleComponent(primary)
+        }
+
+        if visible.count <= 3 {
+            if config.content.type == .hstack {
+                return CGSize(width: 140, height: 60)
+            }
+            return CGSize(width: 100, height: 80)
+        }
+
+        if visible.count <= 6 {
+            return CGSize(width: 120, height: 90)
+        }
+
+        return CGSize(width: 140, height: 110)
+    }
+
+    private func inferredMinimumSizeForSingleComponent(_ component: ComponentConfig) -> CGSize {
+        switch component.type {
+        case .analogClock:
+            return CGSize(width: 80, height: 80)
+        case .timer:
+            if component.style?.lowercased() == "ring" {
+                return CGSize(width: 90, height: 90)
+            }
+            return CGSize(width: 100, height: 50)
+        case .progressRing, .pomodoro:
+            return CGSize(width: 80, height: 80)
+        case .battery:
+            if component.style?.lowercased() == "ring" {
+                return CGSize(width: 80, height: 80)
+            }
+            return CGSize(width: 80, height: 50)
+        case .weather:
+            return CGSize(width: 100, height: 70)
+        case .checklist, .calendarNext, .reminders, .newsHeadlines, .habitTracker:
+            return CGSize(width: 120, height: 100)
+        case .clock, .countdown, .date, .text, .stock, .crypto, .worldClocks, .dayProgress, .yearProgress, .systemStats:
+            return CGSize(width: 80, height: 50)
+        default:
+            return CGSize(width: 80, height: 60)
+        }
+    }
+
+    private func flattenedComponents(from component: ComponentConfig) -> [ComponentConfig] {
+        var items: [ComponentConfig] = [component]
+
+        if let child = component.child {
+            items.append(contentsOf: flattenedComponents(from: child))
+        }
+
+        if let children = component.children {
+            for nested in children {
+                items.append(contentsOf: flattenedComponents(from: nested))
+            }
+        }
+
+        return items
     }
 
     func windowDidMove(_ notification: Notification) {
@@ -715,8 +803,10 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             height: targetHeight
         )
 
+        // Use immediate (non-animated) resize so windowDidMove doesn't fire
+        // with stale isApplyingAutoSize=false during an async animation.
         isApplyingAutoSize = true
-        setFrame(targetFrame, display: true, animate: true)
+        setFrame(targetFrame, display: true)
         isApplyingAutoSize = false
 
         config.size = WidgetSize(width: targetFrame.width.double, height: targetFrame.height.double)
@@ -818,6 +908,12 @@ private struct WidgetPanelContentView: View {
     }
 }
 
+private extension ComponentType {
+    var isLayoutType: Bool {
+        self == .vstack || self == .hstack || self == .container
+    }
+}
+
 private struct ResizeHandlesOverlay: View {
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
@@ -869,7 +965,7 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static var visibleHandles: [ResizeHandle] { [.bottomRight] }
+    static var visibleHandles: [ResizeHandle] { [.bottomRight, .bottom, .right] }
 
     var affectsLeft: Bool {
         self == .topLeft || self == .left || self == .bottomLeft
@@ -909,11 +1005,11 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
         case .topRight:
             return CGPoint(x: size.width, y: 0)
         case .right:
-            return CGPoint(x: size.width, y: size.height / 2)
+            return CGPoint(x: max(0, size.width - 9), y: size.height / 2)
         case .bottomRight:
             return CGPoint(x: max(0, size.width - 9), y: max(0, size.height - 9))
         case .bottom:
-            return CGPoint(x: size.width / 2, y: size.height)
+            return CGPoint(x: size.width / 2, y: max(0, size.height - 9))
         case .bottomLeft:
             return CGPoint(x: 0, y: size.height)
         case .left:
