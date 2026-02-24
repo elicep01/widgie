@@ -29,8 +29,17 @@ struct PromptBuilder {
         self.patternLibrary = Self.loadPatternLibrary()
     }
 
-    func generationSystemPrompt(defaultTheme: WidgetTheme, context: PromptContext, prompt: String) -> String {
-        let retrievedExamples = exampleRetriever.formattedExamples(for: prompt, limit: 6)
+    func generationSystemPrompt(
+        defaultTheme: WidgetTheme,
+        context: PromptContext,
+        prompt: String,
+        extraExamples: [PromptExample] = [],
+        userStyleProfile: String? = nil
+    ) -> String {
+        let retriever = extraExamples.isEmpty
+            ? exampleRetriever
+            : PromptExampleRetriever(extraExamples: extraExamples)
+        let retrievedExamples = retriever.formattedExamples(for: prompt, limit: 6)
         let examplesSection: String
         if retrievedExamples.isEmpty {
             examplesSection = "No curated example matched strongly; still produce a complete valid config."
@@ -53,6 +62,11 @@ struct PromptBuilder {
         - NEVER leave required fields empty.
 
         YOUR RESPONSIBILITIES
+        0. Deliberate before output.
+        - Internally evaluate: intent, layout, visual style, data source availability, refresh behavior, and user interaction requirements.
+        - Decide whether the widget should be static display, auto-refreshing data, or interactive input.
+        - If a requirement cannot be done with available components, provide the closest workable result and include a short in-widget note.
+
         1. Understand intent, not just keywords.
         Users type casually and make typos. Interpret what they mean.
         - "anolog clock greenland" means analog clock with timezone "America/Nuuk"
@@ -80,6 +94,33 @@ struct PromptBuilder {
         - "habit tracker", "daily habits", "routine tracker" → use `habit_tracker`
         - NEVER invent component types like "mood_tracker", "journal_entry", "emotion_tracker" — they do not exist in the schema and will cause a hard failure.
 
+        Freeform writing / scratch pad requests:
+        - "jot down", "on my mind", "scratch pad", "brain dump", "quick note", "blank note", "dump thoughts", "ideas", "thoughts" → use `note` with `editable: true` and EMPTY `content` (do not pre-fill with sample text — the user wants to type their own content).
+        - Always produce an editable, empty note for freeform writing requests. Never pre-populate it with dummy text.
+
+        To-do / task list / checklist rules:
+        - "to do list", "todo", "checklist", "task list", "shopping list" → use `checklist` with `interactive: true` so users can check off items.
+        - ALWAYS set `interactive: true` on checklist components — without it, items cannot be checked off.
+        - Pre-populate with a few placeholder items (e.g., "Task 1", "Task 2") only when the user did not specify items.
+        - If user says "jot down tasks" or "quick tasks to remember" without specifying a structured list, prefer `note` with `editable: true` over `checklist`.
+
+        Quick launcher rules:
+        - For launcher/shortcuts/app-dock requests, use `shortcut_launcher`.
+        - Every shortcut must include `name` and `action`.
+        - App launch actions must use `open:<bundle-id>` (example: open:com.apple.Safari).
+        - If bundle ID is unclear, use URL fallback (`url:`) or a reasonable built-in app default.
+        - Keep launcher sets concise (typically 4-8 shortcuts) and readable.
+
+        GitHub repo stats requests:
+        - For any GitHub repo request (stars, forks, issues, watchers, stats, tracker), use `github_repo_stats`.
+        - Set `source` to "owner/repo" (e.g. "SuperCmdLabs/SuperCmd"). Extract this from any GitHub URL the user provides.
+        - Optional `showComponents` array filters which stats appear: ["stars","forks","issues","watchers","description"]. Default (omit field) shows all.
+        - The component fetches live data from the GitHub API and auto-refreshes every 30 minutes.
+        - Example for "github repo stat tracker for https://github.com/SuperCmdLabs/SuperCmd":
+          {"type":"github_repo_stats","source":"SuperCmdLabs/SuperCmd"}
+        - NEVER invent types like `github_stats`, `api_fetch`, `data_source`, `http_widget`, `repo_tracker` — they do not exist.
+        - For non-GitHub URLs, use `link_bookmarks`.
+
         Stock ticker rules:
         - If user requests multiple symbols, include one `stock` component per symbol.
         - Use `hstack` for ticker-style rows with optional `divider` components.
@@ -105,23 +146,39 @@ struct PromptBuilder {
         - Translate every pattern into pane's real schema and supported component types/fields only.
         - Never emit conceptual types directly; emit schema-valid pane JSON only.
 
+        CRITICAL SCHEMA TRANSLATIONS — always use these native component types, never conceptual equivalents:
+        - Clock / digital time → {"type":"clock","format":"HH:mm","timezone":"local"} — NEVER a Text with dataSource
+        - 12-hour clock → {"type":"clock","format":"h:mm a","timezone":"local"}
+        - Analog clock → {"type":"analog_clock","timezone":"local"}
+        - World clocks → {"type":"world_clocks","clocks":[{"timezone":"...","label":"..."}]}
+        - Weather → {"type":"weather","location":"City, Country"}
+        - Crypto price → {"type":"crypto","symbol":"BTC","currency":"USD"}
+        - Stock price → {"type":"stock","symbol":"AAPL"}
+        The pattern library's `Text + dataSource:"currentTime:..."` notation is CONCEPTUAL ONLY and does not exist in the schema. Always emit a real `clock` component instead.
+
         \(patternLibrary)
 
-        4. Size widgets to content density.
-        Principle: no wasted space.
-        - One-line/single-value content should be compact and usually wide (width > height).
-        - Do not make square widgets for single-line countdowns/clocks/timers.
-        - Lists/dashboards should scale height to item count.
-        - Keep padding and spacing balanced but compact.
-        - Target high content density: avoid blank/dead areas; choose the tightest comfortable size.
-        - If content is a single row, keep height minimal and increase width only as needed.
-        - If content has two short rows, use a shallow rectangle rather than a tall card.
+        4. Size and layout must match Apple wallpaper widget classes.
+        - Use ONLY these exact size values:
+          - Small Square: 170x170
+          - Medium: 320x180
+          - Wide: 480x180
+          - Large: 320x360
+          - Dashboard: 480x360
+        - Never output custom dimensions outside these classes.
+        - Choose the smallest class that fits the requested content without clipping.
+        - Use Medium/Wide for single-row glanceable widgets (clock, stocks, weather summary).
+        - Use Large/Dashboard for multi-section dashboards, checklists, and content-heavy layouts.
+        - Keep internal spacing balanced and consistent; do not produce sparse empty interiors.
 
-        5. Design quality.
+        5. Design quality and theme compliance.
         - Default theme is \(defaultTheme.rawValue) unless user requests otherwise.
-        - Use typography hierarchy: large for primary data, small for labels/secondary data.
-        - Use semantic colors where possible.
-        - Keep layouts glanceable and readable.
+        - ALWAYS use semantic color tokens for text and accents: "primary", "secondary", "accent",
+          "positive", "negative", "warning", "muted". Do NOT hardcode hex colors for theme-dependent
+          elements — use tokens so the theme system controls colors.
+        - Only use direct hex colors for structural backgrounds that are intentionally theme-independent.
+        - Use typography hierarchy: large for primary data (24–42pt), small for labels (11–13pt).
+        - Keep layouts glanceable and readable at a glance.
 
         6. Edit behavior.
         For edits, preserve everything the user did not ask to change.
@@ -130,7 +187,9 @@ struct PromptBuilder {
         - Return ONLY one valid JSON object.
         - No markdown, no code fences, no explanation.
         - Use only component types and fields from schema.
-        - Omit minSize/maxSize unless explicitly needed; keep sizing content-driven and tight.
+        - Use one of the Apple widget size classes exactly.
+        - Prefer interactive components when the user intent implies editing/toggling/launching.
+        - Omit minSize/maxSize unless explicitly needed.
         - If user asks for data, prefer available data components:
           weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time.
         - If data request is outside available components, use `text` or `note` fallback instead of failing.
@@ -139,6 +198,7 @@ struct PromptBuilder {
         - Today's date: \(context.currentDateString)
         - User timezone: \(context.userTimezone)
         - User location: \(context.userLocation)
+        \(userStyleProfile.map { "\n        \($0)" } ?? "")
 
         COMPONENT SCHEMA
         \(componentSchema)
@@ -149,7 +209,7 @@ struct PromptBuilder {
         1. Search the library for similar patterns
         2. MIX AND MATCH components from different examples
         3. Adapt layouts (change HStack to VStack, add Grid, etc.)
-        4. Use the data source patterns for ANY API
+        4. Use only supported built-in data components; otherwise fall back gracefully
 
         Examples of mixing patterns:
         - User: "time in pune, tempe, seattle with weather on right"
@@ -164,7 +224,7 @@ struct PromptBuilder {
         REMEMBER:
         - You have 50+ examples to learn from
         - Mix and match freely
-        - ANY API can be fetched using the generic pattern
+        - Use only built-in providers; unsupported APIs must degrade gracefully
         - Complex layouts = combining HStack, VStack, Grid
         - NEVER say "I can't do that" - combine patterns
         """

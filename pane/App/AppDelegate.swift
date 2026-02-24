@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        coordinator?.openCommandBar()
-        return true
+        // Keep command bar strictly hotkey/menu driven; don't pop it on app reopen.
+        return false
     }
 }

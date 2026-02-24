@@ -17,6 +17,8 @@ final class GlobalHotkeyListener {
     private let hotKeyID = UInt32(1)
     private let signature: OSType = 0x57464745
     private var registration: HotkeyRegistration
+    private var lastTriggerDate: Date = .distantPast
+    private let minimumTriggerInterval: TimeInterval = 0.35
     private(set) var isRunning = false
 
     init(registration: HotkeyRegistration) {
@@ -71,6 +73,11 @@ final class GlobalHotkeyListener {
 
                 if pressedHotKeyID.signature == listener.signature,
                    pressedHotKeyID.id == listener.hotKeyID {
+                    let now = Date()
+                    guard now.timeIntervalSince(listener.lastTriggerDate) >= listener.minimumTriggerInterval else {
+                        return noErr
+                    }
+                    listener.lastTriggerDate = now
                     listener.onTrigger?()
                 }
 

@@ -42,7 +42,7 @@ final class CommandBarWindow {
         }
         viewModel.prepare(prefill: prefill, editing: editing)
 
-        positionPanel()
+        positionPanel(expanded: false)
         NSApp.activate(ignoringOtherApps: true)
 
         panel.alphaValue = 0
@@ -53,6 +53,31 @@ final class CommandBarWindow {
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = 1
         }
+    }
+
+    func showClarification(
+        questions: [ClarificationQuestion],
+        originalPrompt: String,
+        onSubmit: @escaping (String, [ClarificationQuestion], [String: [String]]) -> Void
+    ) {
+        viewModel.onClarificationSubmit = onSubmit
+        viewModel.showClarification(questions: questions, originalPrompt: originalPrompt)
+        expandForClarification()
+    }
+
+    func showFeedback(
+        widgetID: UUID,
+        originalPrompt: String,
+        onAccepted: @escaping () -> Void,
+        onTweak: @escaping (UUID, String) -> Void
+    ) {
+        viewModel.onFeedbackAccepted = { [weak self] in
+            onAccepted()
+            self?.hide()
+        }
+        viewModel.onFeedbackTweak = onTweak
+        viewModel.showFeedback(widgetID: widgetID, originalPrompt: originalPrompt)
+        contractToFeedbackSize()
     }
 
     func hide() {
@@ -67,15 +92,49 @@ final class CommandBarWindow {
         viewModel.setStatus(message, isError: isError)
     }
 
-    private func positionPanel() {
+    func clearAgentTrace() {
+        viewModel.clearAgentTrace()
+    }
+
+    func appendAgentTrace(_ line: String) {
+        viewModel.appendAgentTrace(line)
+    }
+
+    private func positionPanel(expanded: Bool) {
         guard let screenFrame = NSScreen.main?.visibleFrame else { return }
 
-        let width = min(1180, max(840, screenFrame.width - 96))
-        let height: CGFloat = 380
+        // Match Spotlight's feel: centered horizontally, ~35% from top of visible area.
+        let width = min(860, max(680, screenFrame.width - 160))
+        let height: CGFloat = expanded ? 520 : 380
         let x = screenFrame.midX - (width / 2)
-        let y = screenFrame.maxY - (screenFrame.height * 0.22)
+        let panelCenterY = screenFrame.maxY - (screenFrame.height * 0.35)
 
-        panel.setFrame(NSRect(x: x, y: y - height / 2, width: width, height: height), display: false)
+        panel.setFrame(NSRect(x: x, y: panelCenterY - height / 2, width: width, height: height), display: false)
+    }
+
+    private func expandForClarification() {
+        animatePanelHeight(520)
+    }
+
+    private func contractToFeedbackSize() {
+        animatePanelHeight(200)
+    }
+
+    private func animatePanelHeight(_ height: CGFloat) {
+        guard let screenFrame = NSScreen.main?.visibleFrame else { return }
+
+        let width = min(860, max(680, screenFrame.width - 160))
+        let x = screenFrame.midX - (width / 2)
+        let panelCenterY = screenFrame.maxY - (screenFrame.height * 0.35)
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.22
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(
+                NSRect(x: x, y: panelCenterY - height / 2, width: width, height: height),
+                display: true
+            )
+        }
     }
 }
 

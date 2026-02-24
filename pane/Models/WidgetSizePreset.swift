@@ -30,4 +30,31 @@ enum WidgetSizePreset: String, CaseIterable, Identifiable {
             return .dashboard
         }
     }
+
+    /// Discrete resize order used by desktop handle drag. This mimics native widget
+    /// class switching instead of freeform pixel resizing.
+    static let nativeResizeOrder: [WidgetSizePreset] = [
+        .small, .medium, .wide, .large, .dashboard
+    ]
+
+    static func nearest(to size: WidgetSize) -> WidgetSizePreset {
+        nativeResizeOrder.min { lhs, rhs in
+            distanceSquared(size, lhs.size) < distanceSquared(size, rhs.size)
+        } ?? .medium
+    }
+
+    static func stepped(from preset: WidgetSizePreset, deltaSteps: Int) -> WidgetSizePreset {
+        let order = nativeResizeOrder
+        guard let index = order.firstIndex(of: preset) else {
+            return .medium
+        }
+        let nextIndex = max(0, min(order.count - 1, index + deltaSteps))
+        return order[nextIndex]
+    }
+
+    private static func distanceSquared(_ lhs: WidgetSize, _ rhs: WidgetSize) -> Double {
+        let dw = lhs.width - rhs.width
+        let dh = lhs.height - rhs.height
+        return (dw * dw) + (dh * dh)
+    }
 }

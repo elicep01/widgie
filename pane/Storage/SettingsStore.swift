@@ -20,43 +20,19 @@ enum AIProvider: String, Codable, CaseIterable, Identifiable {
 
 enum HotkeyPreset: String, Codable, CaseIterable, Identifiable {
     case cmdShiftW
-    case cmdOptionW
-    case cmdShiftSpace
 
     var id: String { rawValue }
 
     var displayName: String {
-        switch self {
-        case .cmdShiftW:
-            return "Cmd+Shift+W"
-        case .cmdOptionW:
-            return "Cmd+Option+W"
-        case .cmdShiftSpace:
-            return "Cmd+Shift+Space"
-        }
+        "Cmd+Shift+W"
     }
 
     var registration: HotkeyRegistration {
-        switch self {
-        case .cmdShiftW:
-            return HotkeyRegistration(
-                keyCode: UInt32(kVK_ANSI_W),
-                modifiers: UInt32(cmdKey | shiftKey),
-                displayName: displayName
-            )
-        case .cmdOptionW:
-            return HotkeyRegistration(
-                keyCode: UInt32(kVK_ANSI_W),
-                modifiers: UInt32(cmdKey | optionKey),
-                displayName: displayName
-            )
-        case .cmdShiftSpace:
-            return HotkeyRegistration(
-                keyCode: UInt32(kVK_Space),
-                modifiers: UInt32(cmdKey | shiftKey),
-                displayName: displayName
-            )
-        }
+        HotkeyRegistration(
+            keyCode: UInt32(kVK_ANSI_W),
+            modifiers: UInt32(cmdKey | shiftKey),
+            displayName: displayName
+        )
     }
 }
 
@@ -164,8 +140,8 @@ final class SettingsStore: ObservableObject {
         selectedProvider = AIProvider(rawValue: defaults.string(forKey: Keys.provider) ?? "") ?? .openAI
         hotkeyPreset = HotkeyPreset(rawValue: defaults.string(forKey: Keys.hotkey) ?? "") ?? .cmdShiftW
         defaultTheme = WidgetTheme(rawValue: defaults.string(forKey: Keys.defaultTheme) ?? "") ?? .obsidian
-        openAIModel = defaults.string(forKey: Keys.openAIModel) ?? "gpt-4.1-mini"
-        claudeModel = defaults.string(forKey: Keys.claudeModel) ?? "claude-3-5-sonnet-latest"
+        openAIModel = defaults.string(forKey: Keys.openAIModel) ?? "o3-mini"
+        claudeModel = defaults.string(forKey: Keys.claudeModel) ?? "claude-opus-4-5"
         openAIAPIKey = keychainStore.string(for: Keys.openAIAPIKey) ?? ""
         claudeAPIKey = keychainStore.string(for: Keys.claudeAPIKey) ?? ""
         defaultLocation = defaults.string(forKey: Keys.defaultLocation) ?? "Madison, WI"

@@ -65,6 +65,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
     private var hoverActivationWorkItem: DispatchWorkItem?
     private var passivationWorkItem: DispatchWorkItem?
+    private let resizeStepThreshold: CGFloat = 60
 
     init(
         config: WidgetConfig,
@@ -87,7 +88,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         placeInitialPosition()
         installEventMonitors()
         setPassiveMode(enabled: true)
-        WidgetAnimator.animateAppearance(of: self)
     }
 
     deinit {
@@ -111,9 +111,83 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         passivationWorkItem?.cancel()
     }
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { hasEditableContent(config.content) }
 
     override var canBecomeMain: Bool { false }
+
+    // Override sendEvent so our drag/resize/context-menu logic fires BEFORE
+    // the event reaches any child view (e.g. NSTextView inside TextEditor).
+    // Without this, NSTextView absorbs all mouse events and blocks drag + right-click.
+    override func sendEvent(_ event: NSEvent) {
+        guard !isPassive else {
+            super.sendEvent(event)
+            return
+        }
+
+        switch event.type {
+        case .leftMouseDown:
+            if isClickOnResizeHandle(event) {
+                // Resize handle area — let SwiftUI's DragGesture own this event.
+                super.sendEvent(event)
+            } else {
+                mouseDown(with: event)
+                if pendingMouseDownEvent == nil {
+                    // mouseDown short-circuited (double-click, locked, etc.) — forward normally.
+                    super.sendEvent(event)
+                }
+                // Otherwise pendingMouseDownEvent is set; we suppress the event from
+                // the view hierarchy and will re-dispatch it in mouseUp if it's a click.
+            }
+
+        case .leftMouseDragged:
+            mouseDragged(with: event)
+            if !isDragging {
+                // Haven't committed to a window drag yet — let views handle it too
+                // (e.g. SwiftUI DragGesture on the resize handle, or small cursor movement).
+                super.sendEvent(event)
+            }
+
+        case .leftMouseUp:
+            let wasResizing = isResizing
+            mouseUp(with: event)
+            if wasResizing {
+                // Let SwiftUI complete its DragGesture so onResizeEnd fires cleanly.
+                super.sendEvent(event)
+            }
+
+        case .rightMouseDown:
+            // Forward directly to the hosting view so SwiftUI's .contextMenu fires
+            // instead of NSTextView's built-in editing menu.
+            if let hostingView {
+                hostingView.rightMouseDown(with: event)
+            } else {
+                super.sendEvent(event)
+            }
+
+        default:
+            super.sendEvent(event)
+        }
+    }
+
+    // Returns true when a left-mouse-down event lands in the resize handle corner.
+    private func isClickOnResizeHandle(_ event: NSEvent) -> Bool {
+        guard !isLocked, !isPassive, (isActive || isResizing) else {
+            return false
+        }
+
+        // `event.locationInWindow` uses bottom-left origin.
+        // ResizeHandle positions are defined in SwiftUI space (top-left origin),
+        // so convert the handle center before distance checking.
+        let loc = event.locationInWindow
+        let size = CGSize(width: frame.width, height: frame.height)
+        let handlePosition = ResizeHandle.bottomRight.position(in: size)
+        let handleCenter = CGPoint(x: handlePosition.x, y: size.height - handlePosition.y)
+
+        // Keep this tighter than the visual control to avoid accidental resize
+        // when users try to drag the widget body.
+        let radius: CGFloat = 11
+        return hypot(loc.x - handleCenter.x, loc.y - handleCenter.y) <= radius
+    }
 
     override func mouseDown(with event: NSEvent) {
         guard !isPassive else {
@@ -122,7 +196,17 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         activate()
 
-        guard !isLocked else {
+        // Double-click opens the edit panel regardless of lock state.
+        if event.clickCount == 2 {
+            onEditRequested?()
+            pendingMouseDownEvent = nil
+            return
+        }
+
+        // For locked widgets or widgets with interactive content (buttons,
+        // checklists, launchers), forward clicks to SwiftUI immediately so
+        // the buttons fire on press rather than being deferred to mouseUp.
+        guard !isLocked, !config.hasInteractiveContent else {
             super.mouseDown(with: event)
             return
         }
@@ -152,7 +236,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         var targetOrigin = nextOrigin
 
         if !isDragging {
+            // Require a minimum movement before committing to a window drag.
+            // This prevents accidental drags and lets small movements fall
+            // through to the view hierarchy (text cursor, resize gesture, etc.).
+            guard hypot(delta.x, delta.y) >= 5 else { return }
             isDragging = true
+            NSCursor.closedHand.set()
             WidgetAnimator.animateDragStart(of: self)
         }
 
@@ -187,6 +276,10 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             // It was a click, not a drag — now forward the full click cycle to SwiftUI
             // so buttons (Edit, Duplicate, Lock, Remove) fire on release, not press.
             if let pending = pendingMouseDownEvent {
+                // Become key before forwarding so TextEditor can become first responder.
+                if canBecomeKey, !isKeyWindow {
+                    makeKey()
+                }
                 super.mouseDown(with: pending)
                 pendingMouseDownEvent = nil
             }
@@ -274,11 +367,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         if allowAutoSize {
-            // First pass: immediate measurement (SwiftUI may not have rendered yet).
-            applyContentFitIfNeeded()
-            // Second pass: deferred so SwiftUI has completed its first layout cycle.
+            // Keep initial size class stable (Apple-like behavior): do not auto-fit
+            // to arbitrary content bounds on first render.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-                self?.applyContentFitIfNeeded()
                 self?.onAutoSizeCompleted?()
             }
         }
@@ -364,6 +455,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         setFrameOrigin(targetOrigin)
 
         isDragging = false
+        // Restore cursor — open hand if still hovering, arrow otherwise.
+        if isPointerInside {
+            NSCursor.openHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
         let position = WidgetPosition(x: targetOrigin.x.double, y: targetOrigin.y.double)
         config.position = position
         onPositionChanged?(position)
@@ -431,7 +528,11 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         hoverActivationWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30, execute: workItem)
+        // Interactive widgets (buttons, checklists, launchers) activate instantly
+        // so clicks register without waiting. Non-interactive widgets use a small
+        // delay to prevent accidental activation when the cursor passes over.
+        let delay: Double = config.hasInteractiveContent ? 0.02 : 0.12
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func cancelHoverActivation() {
@@ -459,7 +560,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         passivationWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
     }
 
     private func cancelPassivation() {
@@ -498,10 +599,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         let currentPoint = NSEvent.mouseLocation
         if resizeSession == nil || resizeSession?.handle != handle {
+            let currentPreset = WidgetSizePreset.nearest(to: config.size)
             resizeSession = ResizeSession(
                 handle: handle,
                 initialMouseLocation: currentPoint,
                 initialFrame: frame,
+                initialPreset: currentPreset,
                 aspectRatio: max(frame.width / max(frame.height, 1), 0.1)
             )
             isResizing = true
@@ -511,13 +614,22 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        let keepAspectRatio = NSEvent.modifierFlags.contains(.shift)
-        let resizedFrame = frameForResize(
-            session: resizeSession,
-            currentPoint: currentPoint,
-            keepAspectRatio: keepAspectRatio
-        )
-        applyResizeFrame(resizedFrame)
+        // Native-style behavior: dragging the resize handle switches between
+        // predefined size classes instead of freeform dimensions.
+        let dx = currentPoint.x - resizeSession.initialMouseLocation.x
+        let dy = currentPoint.y - resizeSession.initialMouseLocation.y
+        let signedMagnitude = (dx + dy) / 2
+        let stepDelta = Int((signedMagnitude / resizeStepThreshold).rounded(.towardZero))
+
+        let targetPreset = WidgetSizePreset.stepped(from: resizeSession.initialPreset, deltaSteps: stepDelta)
+        let targetSize = targetPreset.size
+
+        if abs(frame.width - targetSize.width.cgFloat) < 0.5,
+           abs(frame.height - targetSize.height.cgFloat) < 0.5 {
+            return
+        }
+
+        applyPresetResize(size: targetSize, anchoredTop: resizeSession.initialFrame.maxY, anchoredLeft: resizeSession.initialFrame.minX)
     }
 
     private func endResizeDrag() {
@@ -527,7 +639,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         resizeSession = nil
         isResizing = false
-
         config.position = WidgetPosition(x: frame.origin.x.double, y: frame.origin.y.double)
         onPositionChanged?(config.position ?? WidgetPosition(x: frame.origin.x.double, y: frame.origin.y.double))
         onSizeChanged?(config.size)
@@ -538,10 +649,46 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
     }
 
+    private func applyPresetResize(size: WidgetSize, anchoredTop: CGFloat, anchoredLeft: CGFloat) {
+        let targetFrame = NSRect(
+            x: anchoredLeft,
+            y: anchoredTop - size.height.cgFloat,
+            width: size.width.cgFloat,
+            height: size.height.cgFloat
+        )
+        setFrame(targetFrame, display: true)
+        config.size = size
+        config.position = WidgetPosition(x: targetFrame.origin.x.double, y: targetFrame.origin.y.double)
+        installContent(allowAutoSize: false)
+    }
+
     private func applyResizeFrame(_ resizedFrame: NSRect) {
         setFrame(resizedFrame, display: true)
         config.size = WidgetSize(width: resizedFrame.width.double, height: resizedFrame.height.double)
         config.position = WidgetPosition(x: resizedFrame.origin.x.double, y: resizedFrame.origin.y.double)
+        // Refresh content so WidgetRenderer's scaleFactor adapts during drag.
+        installContent(allowAutoSize: false)
+    }
+
+    private func applyWallpaperSizeSnap() {
+        let snappedSize = config.size.snappedToAppleWallpaperPreset()
+        let targetWidth = snappedSize.width.cgFloat
+        let targetHeight = snappedSize.height.cgFloat
+
+        if abs(frame.width - targetWidth) < 0.5, abs(frame.height - targetHeight) < 0.5 {
+            return
+        }
+
+        let anchoredTop = frame.maxY
+        let snappedFrame = NSRect(
+            x: frame.origin.x,
+            y: anchoredTop - targetHeight,
+            width: targetWidth,
+            height: targetHeight
+        )
+        setFrame(snappedFrame, display: true)
+        config.size = snappedSize
+        config.position = WidgetPosition(x: snappedFrame.origin.x.double, y: snappedFrame.origin.y.double)
     }
 
     private func frameForResize(
@@ -742,6 +889,19 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
     }
 
+    private func hasEditableContent(_ component: ComponentConfig) -> Bool {
+        if component.type == .note && component.editable == true {
+            return true
+        }
+        if let children = component.children, children.contains(where: { hasEditableContent($0) }) {
+            return true
+        }
+        if let child = component.child {
+            return hasEditableContent(child)
+        }
+        return false
+    }
+
     private func flattenedComponents(from component: ComponentConfig) -> [ComponentConfig] {
         var items: [ComponentConfig] = [component]
 
@@ -787,6 +947,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         let minSize = minimumSize
         let maxSize = maximumSize
 
+        // The config's own dimensions are the ceiling for auto-sizing.
+        // Content may shrink the widget to a tighter fit, but must never
+        // cause it to grow beyond the explicitly specified size.
+        targetWidth = min(targetWidth, config.size.width.cgFloat)
+        targetHeight = min(targetHeight, config.size.height.cgFloat)
+
         targetWidth = targetWidth.clamped(minSize.width, maxSize.width)
         targetHeight = targetHeight.clamped(minSize.height, maxSize.height)
 
@@ -810,7 +976,17 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         isApplyingAutoSize = false
 
         config.size = WidgetSize(width: targetFrame.width.double, height: targetFrame.height.double)
-        let position = WidgetPosition(x: targetFrame.origin.x.double, y: targetFrame.origin.y.double)
+            .snappedToAppleWallpaperPreset()
+        let snappedTargetFrame = NSRect(
+            x: targetFrame.origin.x,
+            y: current.maxY - config.size.height.cgFloat,
+            width: config.size.width.cgFloat,
+            height: config.size.height.cgFloat
+        )
+        isApplyingAutoSize = true
+        setFrame(snappedTargetFrame, display: true)
+        isApplyingAutoSize = false
+        let position = WidgetPosition(x: snappedTargetFrame.origin.x.double, y: snappedTargetFrame.origin.y.double)
         config.position = position
         onSizeChanged?(config.size)
         onPositionChanged?(position)
@@ -843,6 +1019,14 @@ private struct WidgetPanelContentView: View {
                 RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous)
                     .stroke(Color.accentColor.opacity(isActive ? 0.32 : 0), lineWidth: isActive ? 1 : 0)
             )
+            .onHover { inside in
+                guard isHoverEngaged, !isLocked, !isDragging else { return }
+                if inside {
+                    NSCursor.openHand.set()
+                } else {
+                    NSCursor.arrow.set()
+                }
+            }
             .overlay(alignment: .topTrailing) {
                 if isLocked {
                     Image(systemName: "lock.fill")
@@ -869,7 +1053,7 @@ private struct WidgetPanelContentView: View {
                 }
 
                 Menu("Resize") {
-                    ForEach(WidgetSizePreset.allCases) { preset in
+                    ForEach(WidgetSizePreset.nativeResizeOrder) { preset in
                         Button(preset.title) {
                             onResizePreset(preset)
                         }
@@ -924,10 +1108,11 @@ private struct ResizeHandlesOverlay: View {
                 ForEach(ResizeHandle.visibleHandles) { handle in
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.7))
-                            .frame(width: 8, height: 8)
+                            .fill(Color.white)
+                            .frame(width: 12, height: 12)
+                            .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1.5)
                     }
-                    .frame(width: 18, height: 18)
+                    .frame(width: 24, height: 24)
                     .background(Color.clear)
                     .contentShape(Rectangle())
                     .position(handle.position(in: geometry.size))
@@ -965,7 +1150,7 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static var visibleHandles: [ResizeHandle] { [.bottomRight, .bottom, .right] }
+    static var visibleHandles: [ResizeHandle] { [.bottomRight] }
 
     var affectsLeft: Bool {
         self == .topLeft || self == .left || self == .bottomLeft
@@ -997,23 +1182,24 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
     }
 
     func position(in size: CGSize) -> CGPoint {
+        let inset: CGFloat = 9
         switch self {
         case .topLeft:
-            return CGPoint(x: 0, y: 0)
+            return CGPoint(x: inset, y: inset)
         case .top:
-            return CGPoint(x: size.width / 2, y: 0)
+            return CGPoint(x: size.width / 2, y: inset)
         case .topRight:
-            return CGPoint(x: size.width, y: 0)
+            return CGPoint(x: size.width - inset, y: inset)
         case .right:
-            return CGPoint(x: max(0, size.width - 9), y: size.height / 2)
+            return CGPoint(x: size.width - inset, y: size.height / 2)
         case .bottomRight:
-            return CGPoint(x: max(0, size.width - 9), y: max(0, size.height - 9))
+            return CGPoint(x: size.width - inset, y: size.height - inset)
         case .bottom:
-            return CGPoint(x: size.width / 2, y: max(0, size.height - 9))
+            return CGPoint(x: size.width / 2, y: size.height - inset)
         case .bottomLeft:
-            return CGPoint(x: 0, y: size.height)
+            return CGPoint(x: inset, y: size.height - inset)
         case .left:
-            return CGPoint(x: 0, y: size.height / 2)
+            return CGPoint(x: inset, y: size.height / 2)
         }
     }
 }
@@ -1022,6 +1208,7 @@ private struct ResizeSession {
     let handle: ResizeHandle
     let initialMouseLocation: NSPoint
     let initialFrame: NSRect
+    let initialPreset: WidgetSizePreset
     let aspectRatio: CGFloat
 }
 

@@ -17,6 +17,9 @@ struct WidgetConfig: Codable, Identifiable {
     var content: ComponentConfig
     var dataSources: [String: DataSourceConfig]?
 
+    /// True when the widget tree contains buttons or other clickable elements.
+    var hasInteractiveContent: Bool { content.hasInteractiveContent }
+
     init(
         version: String = "1.0",
         id: UUID = UUID(),
@@ -24,7 +27,7 @@ struct WidgetConfig: Codable, Identifiable {
         description: String,
         size: WidgetSize = .medium,
         minSize: WidgetSize? = nil,
-        maxSize: WidgetSize? = WidgetSize(width: 800, height: 600),
+        maxSize: WidgetSize? = WidgetSize(width: 500, height: 350),
         position: WidgetPosition? = nil,
         theme: WidgetTheme = .obsidian,
         background: BackgroundConfig? = nil,
@@ -82,7 +85,7 @@ struct WidgetConfig: Codable, Identifiable {
         description = try container.decodeIfPresent(String.self, forKey: .description) ?? name
         size = try container.decodeIfPresent(WidgetSize.self, forKey: .size) ?? .medium
         minSize = try container.decodeIfPresent(WidgetSize.self, forKey: .minSize)
-        maxSize = try container.decodeIfPresent(WidgetSize.self, forKey: .maxSize)
+        maxSize = try container.decodeIfPresent(WidgetSize.self, forKey: .maxSize) ?? WidgetSize(width: 500, height: 350)
         position = try container.decodeIfPresent(WidgetPosition.self, forKey: .position)
         background = try container.decodeIfPresent(BackgroundConfig.self, forKey: .background) ?? BackgroundConfig.default(for: decodedTheme)
         cornerRadius = try container.decodeIfPresent(Double.self, forKey: .cornerRadius) ?? 20
@@ -122,6 +125,25 @@ struct WidgetSize: Codable {
     static let wide = WidgetSize(width: 480, height: 180)
     static let large = WidgetSize(width: 320, height: 360)
     static let dashboard = WidgetSize(width: 480, height: 360)
+
+    static let appleWallpaperPresets: [WidgetSize] = [
+        .tiny, .medium, .wide, .large, .dashboard
+    ]
+
+    func snappedToAppleWallpaperPreset() -> WidgetSize {
+        guard let nearest = Self.appleWallpaperPresets.min(by: { lhs, rhs in
+            distanceSquared(to: lhs) < distanceSquared(to: rhs)
+        }) else {
+            return self
+        }
+        return nearest
+    }
+
+    private func distanceSquared(to other: WidgetSize) -> Double {
+        let dw = width - other.width
+        let dh = height - other.height
+        return (dw * dw) + (dh * dh)
+    }
 }
 
 struct WidgetPosition: Codable {
