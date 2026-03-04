@@ -1,0 +1,70 @@
+{
+  "id": "stock-ticker",
+  "name": "Stock Ticker",
+  "description": "Live AAPL, GOOGL, MSFT prices in a compact row.",
+  "category": "finance",
+  "config": {
+    "name": "Stock Ticker",
+    "description": "Multi-stock ticker row",
+    "size": {
+      "width": 290,
+      "height": 50
+    },
+    "theme": "obsidian",
+    "cornerRadius": 12,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "refreshInterval": 60,
+    "content": {
+      "type": "hstack",
+      "alignment": "center",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "stock",
+          "symbol": "AAPL",
+          "showChange": true,
+          "showChart": false,
+          "size": 12,
+          "color": "primary"
+        },
+        {
+          "type": "divider",
+          "color": "muted",
+          "thickness": 0.5,
+          "direction": "vertical"
+        },
+        {
+          "type": "stock",
+          "symbol": "GOOGL",
+          "showChange": true,
+          "showChart": false,
+          "size": 12,
+          "color": "primary"
+        },
+        {
+          "type": "divider",
+          "color": "muted",
+          "thickness": 0.5,
+          "direction": "vertical"
+        },
+        {
+          "type": "stock",
+          "symbol": "MSFT",
+          "showChange": true,
+          "showChart": false,
+          "size": 12,
+          "color": "primary"
+        }
+      ]
+    },
+    "maxSize": {
+      "width": 360,
+      "height": 70
+    }
+  }
+}

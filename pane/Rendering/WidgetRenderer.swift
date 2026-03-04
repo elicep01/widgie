@@ -1,16 +1,49 @@
 import AppKit
 import SwiftUI
 
+// MARK: - Widget Scale Environment
+
+private struct WidgetScaleFactorKey: EnvironmentKey {
+    static let defaultValue: Double = 1.0
+}
+
+extension EnvironmentValues {
+    fileprivate var widgetScaleFactor: Double {
+        get { self[WidgetScaleFactorKey.self] }
+        set { self[WidgetScaleFactorKey.self] = newValue }
+    }
+}
+
+// MARK: -
+
 struct WidgetRenderer: View {
     let config: WidgetConfig
     private var surfaceStyle: ThemeSurfaceStyle { ThemeResolver.surface(for: config.theme) }
+
+    /// Scale factor driven by widget width so content adapts when resizing presets are applied.
+    /// Reference width = 320pt (medium preset) → scale 1.0.
+    /// Small (170pt) → ~0.72, Wide/Dashboard (480pt) → ~1.1.
+    private var scaleFactor: Double {
+        max(0.68, min(1.12, config.size.width / 320.0))
+    }
+
+    private var scaledPadding: EdgeInsets {
+        let s = scaleFactor
+        let p = config.padding
+        return EdgeInsets(
+            top: (p.top * s).cgFloat,
+            leading: (p.leading * s).cgFloat,
+            bottom: (p.bottom * s).cgFloat,
+            trailing: (p.trailing * s).cgFloat
+        )
+    }
 
     var body: some View {
         ZStack {
             renderWidgetBackground(config.background)
 
             renderComponent(config.content)
-                .padding(config.padding.edgeInsets)
+                .padding(scaledPadding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -28,6 +61,7 @@ struct WidgetRenderer: View {
             x: surfaceStyle.shadowX.cgFloat,
             y: surfaceStyle.shadowY.cgFloat
         )
+        .environment(\.widgetScaleFactor, scaleFactor)
     }
 
     private func renderComponent(_ component: ComponentConfig) -> AnyView {
@@ -44,6 +78,18 @@ struct WidgetRenderer: View {
             )
 
         case .icon:
+            // Defensive fallback: if schema repair produced an icon wrapper with children
+            // (for example after unknown layout type recovery), render children instead
+            // of collapsing to a placeholder symbol.
+            if let children = component.children, !children.isEmpty {
+                return AnyView(
+                    HStack(alignment: verticalAlignment(for: component.alignment), spacing: (component.spacing ?? 12).cgFloat) {
+                        ForEach(children.indices, id: \.self) { index in
+                            renderComponent(children[index])
+                        }
+                    }
+                )
+            }
             return AnyView(
                 Image(systemName: component.name ?? "questionmark.circle")
                     .font(.system(size: (component.size ?? 20).cgFloat))
@@ -161,10 +207,13 @@ struct WidgetRenderer: View {
         case .linkBookmarks:
             return AnyView(LinkBookmarksComponentView(component: component, theme: config.theme))
 
+        case .githubRepoStats:
+            return AnyView(GitHubStatsComponentView(component: component, theme: config.theme))
+
         case .vstack:
             let children = component.children ?? []
             return AnyView(
-                VStack(alignment: horizontalAlignment(for: component.alignment), spacing: (component.spacing ?? 8).cgFloat) {
+                VStack(alignment: horizontalAlignment(for: component.alignment), spacing: ((component.spacing ?? 6) * scaleFactor).cgFloat) {
                     ForEach(children.indices, id: \.self) { index in
                         renderComponent(children[index])
                     }
@@ -174,7 +223,7 @@ struct WidgetRenderer: View {
         case .hstack:
             let children = component.children ?? []
             return AnyView(
-                HStack(alignment: verticalAlignment(for: component.alignment), spacing: (component.spacing ?? 12).cgFloat) {
+                HStack(alignment: verticalAlignment(for: component.alignment), spacing: ((component.spacing ?? 8) * scaleFactor).cgFloat) {
                     ForEach(children.indices, id: \.self) { index in
                         renderComponent(children[index])
                     }
@@ -288,7 +337,7 @@ struct WidgetRenderer: View {
 
     private func font(for component: ComponentConfig) -> Font {
         let weight = fontWeight(for: component.weight)
-        let size = (component.size ?? 14).cgFloat
+        let size = ((component.size ?? 14) * scaleFactor).cgFloat
 
         switch (component.font ?? "sf-pro").lowercased() {
         case "sf-mono":
@@ -375,16 +424,17 @@ private struct ClockComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
             Text(clockFormatter.string(from: time.now))
-                .font(.system(size: (component.size ?? 42).cgFloat, weight: .light, design: .monospaced))
+                .font(.system(size: ((component.size ?? 42) * scale).cgFloat, weight: .light, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color, theme: theme))
 
             if let label = component.label, !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
         }
@@ -415,9 +465,10 @@ private struct AnalogClockComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        let size = (component.size ?? 120).cgFloat
+        let size = ((component.size ?? 120) * scale).cgFloat
         let current = time.now
         var calendar = Calendar.current
         calendar.timeZone = resolvedTimezone(component.timezone)
@@ -425,7 +476,7 @@ private struct AnalogClockComponentView: View {
         let minute = calendar.component(.minute, from: current)
         let second = calendar.component(.second, from: current)
 
-        return VStack(spacing: 8) {
+        return VStack(spacing: (8 * scale).cgFloat) {
             ZStack {
                 Circle()
                     .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6), lineWidth: 1.2)
@@ -457,7 +508,7 @@ private struct AnalogClockComponentView: View {
 
             if let label = component.label, !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
         }
@@ -488,10 +539,11 @@ private struct DateComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
         Text(formatter.string(from: time.now))
-            .font(.system(size: (component.size ?? 13).cgFloat, weight: .medium))
+            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
             .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
             .frame(maxWidth: .infinity, alignment: alignment)
     }
@@ -520,17 +572,18 @@ private struct CountdownComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: stackAlignment, spacing: 4) {
+        VStack(alignment: stackAlignment, spacing: (4 * scale).cgFloat) {
             if let label = component.label, !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
 
             Text(remainingText(now: time.now))
-                .font(.system(size: (component.size ?? 18).cgFloat, weight: .semibold, design: .monospaced))
+                .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .semibold, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
         }
         .frame(maxWidth: .infinity, alignment: alignment)
@@ -592,6 +645,7 @@ private struct TimerComponentView: View {
     @State private var remaining: Int
     @State private var isRunning: Bool
     @State private var lastTick: Date?
+    @Environment(\.widgetScaleFactor) private var scale
 
     init(component: ComponentConfig, theme: WidgetTheme) {
         self.component = component
@@ -602,10 +656,10 @@ private struct TimerComponentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: (7 * scale).cgFloat) {
             if let label = component.label, !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
 
@@ -646,8 +700,8 @@ private struct TimerComponentView: View {
         Group {
             switch resolvedStyle {
             case "ring":
-                let ringDiameter = max(86, min(144, (component.size ?? 24).cgFloat * 3.25))
-                let clockFont = max(16, min(40, ringDiameter * 0.26))
+                let ringDiameter = max(72, min(144, (component.size ?? 24).cgFloat * 3.25 * scale.cgFloat))
+                let clockFont = max(14, min(40, ringDiameter * 0.26))
                 ZStack {
                     Circle()
                         .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
@@ -664,9 +718,9 @@ private struct TimerComponentView: View {
                 }
                 .frame(width: ringDiameter, height: ringDiameter)
             case "bar":
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
                     Text(formatClock(remaining))
-                        .font(.system(size: (component.size ?? 20).cgFloat, weight: .semibold, design: .monospaced))
+                        .font(.system(size: ((component.size ?? 20) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
@@ -677,11 +731,11 @@ private struct TimerComponentView: View {
                                 .frame(width: geometry.size.width * progress.cgFloat)
                         }
                     }
-                    .frame(height: 8)
+                    .frame(height: (8 * scale).cgFloat)
                 }
             default:
                 Text(formatClock(remaining))
-                    .font(.system(size: (component.size ?? 28).cgFloat, weight: .semibold, design: .monospaced))
+                    .font(.system(size: ((component.size ?? 28) * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
             }
         }
@@ -745,17 +799,18 @@ private struct StopwatchComponentView: View {
     @State private var elapsed: Int = 0
     @State private var isRunning: Bool = false
     @State private var lastTick: Date?
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: (7 * scale).cgFloat) {
             if let label = component.label, !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
 
             Text(formatClock(elapsed))
-                .font(.system(size: (component.size ?? 32).cgFloat, weight: .semibold, design: .monospaced))
+                .font(.system(size: ((component.size ?? 32) * scale).cgFloat, weight: .semibold, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
 
             if component.showControls ?? true {
@@ -821,18 +876,19 @@ private struct WorldClocksComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             ForEach(entries.indices, id: \.self) { index in
                 let entry = entries[index]
-                HStack(spacing: 10) {
+                HStack(spacing: (10 * scale).cgFloat) {
                     Text(entry.label ?? shortTimezoneName(entry.timezone))
-                        .font(.system(size: (component.size ?? 14).cgFloat, weight: .medium))
+                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                    Spacer(minLength: 8)
+                    Spacer(minLength: 4)
                     Text(timeString(for: entry.timezone))
-                        .font(.system(size: (component.size ?? 14).cgFloat, weight: .semibold, design: .monospaced))
+                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                 }
             }
@@ -886,6 +942,7 @@ private struct PomodoroComponentView: View {
     @State private var isRunning: Bool
     @State private var completedSessions: Int = 0
     @State private var lastTick: Date?
+    @Environment(\.widgetScaleFactor) private var scale
 
     init(component: ComponentConfig, theme: WidgetTheme) {
         self.component = component
@@ -895,15 +952,15 @@ private struct PomodoroComponentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: (7 * scale).cgFloat) {
             HStack {
                 Text(phase.title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: (12 * scale).cgFloat, weight: .semibold))
                     .foregroundStyle(phaseColor)
                 Spacer(minLength: 8)
                 if component.showSessionCount ?? true {
                     Text("S\(completedSessions)")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
             }
@@ -940,9 +997,9 @@ private struct PomodoroComponentView: View {
         Group {
             switch (component.style ?? "ring").lowercased() {
             case "bar":
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
                     Text(formatClock(remaining))
-                        .font(.system(size: (component.size ?? 22).cgFloat, weight: .semibold, design: .monospaced))
+                        .font(.system(size: ((component.size ?? 22) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(phaseColor)
 
                     GeometryReader { geometry in
@@ -954,13 +1011,14 @@ private struct PomodoroComponentView: View {
                                 .frame(width: geometry.size.width * phaseProgress.cgFloat)
                         }
                     }
-                    .frame(height: 8)
+                    .frame(height: (8 * scale).cgFloat)
                 }
             case "digital":
                 Text(formatClock(remaining))
-                    .font(.system(size: (component.size ?? 24).cgFloat, weight: .semibold, design: .monospaced))
+                    .font(.system(size: ((component.size ?? 24) * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(phaseColor)
             default:
+                let ringSize = (92 * scale).cgFloat
                 ZStack {
                     Circle()
                         .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
@@ -969,10 +1027,10 @@ private struct PomodoroComponentView: View {
                         .stroke(phaseColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     Text(formatClock(remaining))
-                        .font(.system(size: (component.size ?? 16).cgFloat, weight: .semibold, design: .monospaced))
+                        .font(.system(size: ((component.size ?? 16) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(phaseColor)
                 }
-                .frame(width: 92, height: 92)
+                .frame(width: ringSize, height: ringSize)
             }
         }
     }
@@ -1097,18 +1155,20 @@ private struct DayProgressComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if let label = component.label, !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
 
             Group {
                 switch (component.style ?? "bar").lowercased() {
                 case "ring":
+                    let dayRingSize = (72 * scale).cgFloat
                     ZStack {
                         Circle()
                             .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
@@ -1120,7 +1180,7 @@ private struct DayProgressComponentView: View {
                             )
                             .rotationEffect(.degrees(-90))
                     }
-                    .frame(width: 72, height: 72)
+                    .frame(width: dayRingSize, height: dayRingSize)
                 case "text":
                     EmptyView()
                 default:
@@ -1133,19 +1193,19 @@ private struct DayProgressComponentView: View {
                                 .frame(width: geometry.size.width * progress.cgFloat)
                         }
                     }
-                    .frame(height: 8)
+                    .frame(height: (7 * scale).cgFloat)
                 }
             }
 
             if component.showPercentage ?? true {
                 Text("\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .font(.system(size: (13 * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
             }
 
             if component.showTimeRemaining ?? true {
                 Text(timeRemainingText)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
         }
@@ -1217,16 +1277,18 @@ private struct YearProgressComponentView: View {
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             Text(component.label ?? String(Calendar.current.component(.year, from: time.now)))
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                 .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
 
             Group {
                 switch (component.style ?? "bar").lowercased() {
                 case "ring":
+                    let yearRingSize = (72 * scale).cgFloat
                     ZStack {
                         Circle()
                             .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
@@ -1238,7 +1300,7 @@ private struct YearProgressComponentView: View {
                             )
                             .rotationEffect(.degrees(-90))
                     }
-                    .frame(width: 72, height: 72)
+                    .frame(width: yearRingSize, height: yearRingSize)
                 case "text":
                     EmptyView()
                 default:
@@ -1251,13 +1313,13 @@ private struct YearProgressComponentView: View {
                                 .frame(width: geometry.size.width * progress.cgFloat)
                         }
                     }
-                    .frame(height: 8)
+                    .frame(height: (7 * scale).cgFloat)
                 }
             }
 
             if component.showPercentage ?? true {
                 Text("\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                    .font(.system(size: (13 * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
             }
         }
@@ -1367,24 +1429,25 @@ private struct WeatherComponentView: View {
 
     @State private var snapshot: WeatherSnapshot?
     @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if loadState == .loading && snapshot == nil {
-                LoadingShimmerView(theme: theme, lines: 4, lineHeight: 11)
+                LoadingShimmerView(theme: theme, lines: 4, lineHeight: (11 * scale).cgFloat)
             } else if loadState == .failed && snapshot == nil {
                 DataErrorFallbackView(message: "Couldn't load weather", theme: theme)
             } else if let snapshot {
-                HStack(spacing: 8) {
+                HStack(spacing: (8 * scale).cgFloat) {
                     if component.showIcon ?? true {
                         Image(systemName: snapshot.conditionSymbol)
-                            .font(.system(size: 18))
+                            .font(.system(size: (18 * scale).cgFloat))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
                     }
 
                     if component.showTemperature ?? true {
                         Text(snapshot.temperature.map { "\($0.roundedInt)\(snapshot.unitSymbol)" } ?? "--")
-                            .font(.system(size: (component.size ?? 30).cgFloat, weight: .semibold, design: .monospaced))
+                            .font(.system(size: ((component.size ?? 28) * scale).cgFloat, weight: .semibold, design: .monospaced))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                     }
 
@@ -1393,36 +1456,36 @@ private struct WeatherComponentView: View {
 
                 if component.showCondition ?? true {
                     Text(snapshot.condition)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
 
                 if component.showHighLow ?? true {
                     Text("H \(snapshot.high?.roundedInt ?? 0) • L \(snapshot.low?.roundedInt ?? 0)")
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                 }
 
                 if component.showHumidity == true, let humidity = snapshot.humidity {
                     Text("Humidity \(humidity.roundedInt)%")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
 
                 if component.showWind == true, let wind = snapshot.windSpeed {
                     Text("Wind \(wind.roundedInt) mph")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
 
                 if component.showFeelsLike == true, let feelsLike = snapshot.feelsLike {
                     Text("Feels like \(feelsLike.roundedInt)\(snapshot.unitSymbol)")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
             } else {
                 Text("--")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
         }
@@ -1478,29 +1541,30 @@ private struct StockComponentView: View {
 
     @State private var snapshot: MarketSnapshot?
     @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if loadState == .loading && snapshot == nil {
-                LoadingShimmerView(theme: theme, lines: 3, lineHeight: 10)
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else if loadState == .failed && snapshot == nil {
                 DataErrorFallbackView(message: "Couldn't load stock data", theme: theme)
             } else {
                 HStack {
                     Text((component.symbol ?? snapshot?.symbol ?? "STOCK").uppercased())
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                     Spacer(minLength: 8)
                     if component.showPrice ?? true {
                         Text(snapshot?.price.map(formatPrice) ?? "--")
-                            .font(.system(size: (component.size ?? 18).cgFloat, weight: .semibold, design: .monospaced))
+                            .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .semibold, design: .monospaced))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                     }
                 }
 
                 if component.showChange ?? true {
                     Text(changeText(snapshot))
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(changeColor(snapshot))
                 }
 
@@ -1508,7 +1572,7 @@ private struct StockComponentView: View {
                     SparklineChartView(
                         values: snapshot?.history ?? [],
                         color: changeColor(snapshot),
-                        height: (component.height ?? 38).cgFloat
+                        height: ((component.height ?? 34) * scale).cgFloat
                     )
                 }
             }
@@ -1564,31 +1628,32 @@ private struct CryptoComponentView: View {
 
     @State private var snapshot: MarketSnapshot?
     @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if loadState == .loading && snapshot == nil {
-                LoadingShimmerView(theme: theme, lines: 3, lineHeight: 10)
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else if loadState == .failed && snapshot == nil {
                 DataErrorFallbackView(message: "Couldn't load crypto data", theme: theme)
             } else {
                 HStack {
                     Text((component.symbol ?? snapshot?.symbol ?? "BTC").uppercased())
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                     Spacer(minLength: 8)
                     Text(snapshot?.price.map(formatPrice) ?? "--")
-                        .font(.system(size: (component.size ?? 18).cgFloat, weight: .semibold, design: .monospaced))
+                        .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                 }
 
                 if let percent = snapshot?.changePercent {
                     Text(String(format: "%+.2f%%", percent))
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(percent >= 0 ? ThemeResolver.color(for: "positive", theme: theme) : ThemeResolver.color(for: "negative", theme: theme))
                 } else {
                     Text("--")
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
 
@@ -1596,7 +1661,7 @@ private struct CryptoComponentView: View {
                     SparklineChartView(
                         values: snapshot?.history ?? [],
                         color: ThemeResolver.color(for: component.color ?? "accent", theme: theme),
-                        height: (component.height ?? 38).cgFloat
+                        height: ((component.height ?? 34) * scale).cgFloat
                     )
                 }
             }
@@ -1636,29 +1701,30 @@ private struct CalendarNextComponentView: View {
 
     @State private var events: [CalendarEventSnapshot] = []
     @State private var hasLoaded = false
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if !hasLoaded {
-                LoadingShimmerView(theme: theme, lines: 3, lineHeight: 10)
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else if events.isEmpty {
                 Text(component.emptyText ?? "No upcoming events")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             } else {
                 ForEach(events.prefix(max(1, component.maxEvents ?? 3))) { event in
-                    HStack(spacing: 8) {
+                    HStack(spacing: (8 * scale).cgFloat) {
                         Circle()
                             .fill(ThemeResolver.color(for: "accent", theme: theme))
-                            .frame(width: 6, height: 6)
+                            .frame(width: (6 * scale).cgFloat, height: (6 * scale).cgFloat)
                         Text(event.title)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                             .lineLimit(1)
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 4)
                         if component.showTime ?? true {
                             Text(calendarTimeText(event.startDate, allDay: event.isAllDay))
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
                                 .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                         }
                     }
@@ -1695,32 +1761,34 @@ private struct RemindersComponentView: View {
 
     @State private var reminders: [ReminderSnapshot] = []
     @State private var hasLoaded = false
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if !hasLoaded {
-                LoadingShimmerView(theme: theme, lines: 3, lineHeight: 10)
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else if reminders.isEmpty {
                 Text("No reminders")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             } else {
                 ForEach(reminders.prefix(max(1, component.maxItems ?? 5))) { reminder in
-                    HStack(spacing: 8) {
+                    HStack(spacing: (8 * scale).cgFloat) {
                         if component.showCheckbox ?? true {
                             Image(systemName: reminder.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: (12 * scale).cgFloat))
                                 .foregroundStyle(reminder.isCompleted ? ThemeResolver.color(for: "positive", theme: theme) : ThemeResolver.color(for: "muted", theme: theme))
                         }
                         Text(reminder.title)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                             .strikethrough(reminder.isCompleted)
                             .lineLimit(1)
 
-                        Spacer(minLength: 8)
+                        Spacer(minLength: 4)
                         if component.showDueDate ?? true, let due = reminder.dueDate {
                             Text(reminderDueText(due))
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
                                 .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                         }
                     }
@@ -1755,12 +1823,13 @@ private struct BatteryComponentView: View {
     let theme: WidgetTheme
 
     @State private var snapshot: BatterySnapshot?
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
         Group {
             switch (component.style ?? "ring").lowercased() {
             case "bar":
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
                     batteryText
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
@@ -1771,11 +1840,12 @@ private struct BatteryComponentView: View {
                                 .frame(width: geo.size.width * percentage.cgFloat)
                         }
                     }
-                    .frame(height: 8)
+                    .frame(height: (7 * scale).cgFloat)
                 }
             case "text":
                 batteryText
             default:
+                let ringSize = (74 * scale).cgFloat
                 ZStack {
                     Circle()
                         .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
@@ -1784,9 +1854,9 @@ private struct BatteryComponentView: View {
                         .stroke(fillColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                     batteryText
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
                 }
-                .frame(width: 74, height: 74)
+                .frame(width: ringSize, height: ringSize)
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
@@ -1813,7 +1883,7 @@ private struct BatteryComponentView: View {
 
     private var batteryText: some View {
         Text(snapshot?.percentage.map { "\($0.roundedInt)%" } ?? "--")
-            .font(.system(size: (component.size ?? 14).cgFloat, weight: .semibold, design: .monospaced))
+            .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .semibold, design: .monospaced))
             .foregroundStyle(fillColor)
     }
 
@@ -1834,9 +1904,10 @@ private struct SystemStatsComponentView: View {
     let theme: WidgetTheme
 
     @State private var snapshot: SystemStatsSnapshot?
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
             statRow(title: "CPU", value: snapshot?.cpuPercent)
             statRow(title: "MEM", value: snapshot?.memoryPercent)
             statRow(title: "DISK", value: snapshot?.storagePercent)
@@ -1852,14 +1923,14 @@ private struct SystemStatsComponentView: View {
 
     @ViewBuilder
     private func statRow(title: String, value: Double?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: (3 * scale).cgFloat) {
             HStack {
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                Spacer(minLength: 6)
+                Spacer(minLength: 4)
                 Text(value.map { "\($0.roundedInt)%" } ?? "--")
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
             }
 
@@ -1872,7 +1943,7 @@ private struct SystemStatsComponentView: View {
                         .frame(width: geo.size.width * max(0, min(1, (value ?? 0) / 100)).cgFloat)
                 }
             }
-            .frame(height: 7)
+            .frame(height: (6 * scale).cgFloat)
         }
     }
 
@@ -1893,17 +1964,18 @@ private struct MusicNowPlayingComponentView: View {
     let theme: WidgetTheme
 
     @State private var snapshot: MusicSnapshot?
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             Text(snapshot?.title ?? "Nothing Playing")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: (13 * scale).cgFloat, weight: .semibold))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                 .lineLimit(1)
 
             if component.showArtist ?? true {
                 Text(snapshot?.artist ?? "Music")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                     .lineLimit(1)
             }
@@ -1918,7 +1990,7 @@ private struct MusicNowPlayingComponentView: View {
                             .frame(width: geo.size.width * (snapshot?.progress ?? 0).cgFloat)
                     }
                 }
-                .frame(height: 6)
+                .frame(height: (5 * scale).cgFloat)
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
@@ -1948,25 +2020,26 @@ private struct NewsHeadlinesComponentView: View {
 
     @State private var headlines: [NewsHeadlineSnapshot] = []
     @State private var hasLoaded = false
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if !hasLoaded {
-                LoadingShimmerView(theme: theme, lines: 3, lineHeight: 10)
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else if headlines.isEmpty {
                 Text("No headlines")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             } else {
                 ForEach(headlines.prefix(max(1, component.maxItems ?? 3))) { headline in
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
                         Text(headline.title)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                             .lineLimit(2)
                         if component.showSource ?? true, let source = headline.source {
                             Text(source)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: (10 * scale).cgFloat, weight: .medium))
                                 .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                                 .lineLimit(1)
                         }
@@ -2003,21 +2076,22 @@ private struct ScreenTimeComponentView: View {
     let theme: WidgetTheme
 
     @State private var snapshot: ScreenTimeSnapshot?
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             Text(snapshot?.total ?? "Screen Time Unavailable")
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
 
             ForEach(snapshot?.topApps.prefix(max(1, component.maxApps ?? 3)) ?? []) { app in
                 HStack {
                     Text(app.name)
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                    Spacer(minLength: 6)
+                    Spacer(minLength: 4)
                     Text(app.durationText)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .font(.system(size: (10 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
             }
@@ -2056,12 +2130,13 @@ private struct ChecklistComponentView: View {
 
     @State private var items: [ChecklistRuntimeItem] = []
     @State private var hasLoaded = false
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
             if let title = component.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: (13 * scale).cgFloat, weight: .semibold))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
             }
 
@@ -2070,8 +2145,9 @@ private struct ChecklistComponentView: View {
                     guard component.interactive ?? true else { return }
                     toggle(itemID: item.id)
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: (8 * scale).cgFloat) {
                         Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: (14 * scale).cgFloat))
                             .foregroundStyle(
                                 ThemeResolver.color(
                                     for: item.checked
@@ -2082,7 +2158,7 @@ private struct ChecklistComponentView: View {
                             )
 
                         Text(item.text)
-                            .font(.system(size: (component.size ?? 13).cgFloat, weight: .medium))
+                            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                             .lineLimit(1)
                             .strikethrough((component.strikethrough ?? true) && item.checked)
@@ -2096,7 +2172,7 @@ private struct ChecklistComponentView: View {
             }
 
             if component.showProgress ?? true {
-                HStack(spacing: 6) {
+                HStack(spacing: (6 * scale).cgFloat) {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule()
@@ -2106,10 +2182,10 @@ private struct ChecklistComponentView: View {
                                 .frame(width: geo.size.width * progress.cgFloat)
                         }
                     }
-                    .frame(height: 7)
+                    .frame(height: (6 * scale).cgFloat)
 
                     Text("\(Int((progress * 100).rounded()))%")
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                 }
             }
@@ -2199,20 +2275,22 @@ private struct HabitTrackerComponentView: View {
     let theme: WidgetTheme
 
     @State private var habits: [HabitRuntimeItem] = []
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
             ForEach(habits) { habit in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: (3 * scale).cgFloat) {
+                    HStack(spacing: (8 * scale).cgFloat) {
                         Image(systemName: habit.icon)
+                            .font(.system(size: (13 * scale).cgFloat))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
                         Text(habit.name)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.system(size: (12 * scale).cgFloat, weight: .semibold))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                        Spacer(minLength: 6)
+                        Spacer(minLength: 4)
                         Text("\(habit.count)/\(habit.target)")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .font(.system(size: (11 * scale).cgFloat, weight: .semibold, design: .monospaced))
                             .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
 
                         if component.interactive ?? true {
@@ -2220,7 +2298,7 @@ private struct HabitTrackerComponentView: View {
                                 increment(habitID: habit.id)
                             } label: {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 14))
+                                    .font(.system(size: (14 * scale).cgFloat))
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
@@ -2236,11 +2314,11 @@ private struct HabitTrackerComponentView: View {
                                 .frame(width: geo.size.width * min(1, max(0, Double(habit.count) / Double(max(1, habit.target)))).cgFloat)
                         }
                     }
-                    .frame(height: 7)
+                    .frame(height: (6 * scale).cgFloat)
 
                     if component.showStreak ?? false {
                         Text("Streak: \(habit.streak) day\(habit.streak == 1 ? "" : "s")")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: (10 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                     }
                 }
@@ -2312,21 +2390,22 @@ private struct NoteComponentView: View {
 
     @State private var text: String = ""
     @State private var hasLoaded = false
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if let title = component.title, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: (12 * scale).cgFloat, weight: .semibold))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             }
 
             if component.editable ?? true {
                 TextEditor(text: $text)
-                    .font(.system(size: (component.size ?? 13).cgFloat, weight: .regular))
-                    .foregroundColor(.primary)
+                    .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                    .foregroundColor(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                     .scrollContentBackground(.hidden)
-                    .frame(minHeight: 68)
+                    .frame(minHeight: (60 * scale).cgFloat)
                     .onChange(of: text) { _, newValue in
                         Task {
                             await UserDataStore.shared.setNote(newValue, for: componentKey)
@@ -2334,7 +2413,7 @@ private struct NoteComponentView: View {
                     }
             } else {
                 Text(text)
-                    .font(.system(size: (component.size ?? 13).cgFloat, weight: .regular))
+                    .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -2376,17 +2455,18 @@ private struct QuoteComponentView: View {
 
     @State private var quoteText: String = ""
     @State private var authorText: String?
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             Text(displayedQuote)
-                .font(.system(size: (component.size ?? 14).cgFloat, weight: .regular, design: .serif))
+                .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular, design: .serif))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
                 .fixedSize(horizontal: false, vertical: true)
 
             if let authorText, !authorText.isEmpty {
                 Text(authorText)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: component.authorColor ?? "muted", theme: theme))
             }
         }
@@ -2473,41 +2553,44 @@ private struct ShortcutLauncherComponentView: View {
     let component: ComponentConfig
     let theme: WidgetTheme
 
+    @Environment(\.widgetScaleFactor) private var scale
+
     var body: some View {
         let shortcuts = component.shortcuts ?? []
         Group {
             if (component.style ?? "grid").lowercased() == "list" {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
                     ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, shortcut in
                         Button {
                             launch(shortcut.action)
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: (8 * scale).cgFloat) {
                                 Image(systemName: shortcut.icon ?? "bolt.circle.fill")
+                                    .font(.system(size: (13 * scale).cgFloat))
                                 Text(shortcut.name)
                                 Spacer(minLength: 0)
                             }
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                         }
                         .buttonStyle(.plain)
                     }
                 }
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 10)], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: (56 * scale).cgFloat), spacing: (8 * scale).cgFloat)], spacing: (8 * scale).cgFloat) {
                     ForEach(Array(shortcuts.enumerated()), id: \.offset) { _, shortcut in
                         Button {
                             launch(shortcut.action)
                         } label: {
-                            VStack(spacing: 4) {
+                            VStack(spacing: (4 * scale).cgFloat) {
                                 Image(systemName: shortcut.icon ?? "bolt.circle.fill")
-                                    .font(.system(size: (component.iconSize ?? 24).cgFloat, weight: .regular))
+                                    .font(.system(size: ((component.iconSize ?? 22) * scale).cgFloat, weight: .regular))
                                 Text(shortcut.name)
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: (10 * scale).cgFloat, weight: .medium))
                                     .lineLimit(1)
                             }
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                            .frame(maxWidth: .infinity, minHeight: 52)
+                            .frame(maxWidth: .infinity, minHeight: (44 * scale).cgFloat)
                         }
                         .buttonStyle(.plain)
                     }
@@ -2566,41 +2649,44 @@ private struct LinkBookmarksComponentView: View {
     let component: ComponentConfig
     let theme: WidgetTheme
 
+    @Environment(\.widgetScaleFactor) private var scale
+
     var body: some View {
         let links = component.links ?? []
         Group {
             if (component.style ?? "grid").lowercased() == "list" {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
                     ForEach(Array(links.enumerated()), id: \.offset) { _, link in
                         Button {
                             open(link.url)
                         } label: {
-                            HStack(spacing: 8) {
+                            HStack(spacing: (8 * scale).cgFloat) {
                                 Image(systemName: link.icon ?? "link")
+                                    .font(.system(size: (13 * scale).cgFloat))
                                 Text(link.name)
                                 Spacer(minLength: 0)
                             }
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                         }
                         .buttonStyle(.plain)
                     }
                 }
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 10)], spacing: 10) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: (56 * scale).cgFloat), spacing: (8 * scale).cgFloat)], spacing: (8 * scale).cgFloat) {
                     ForEach(Array(links.enumerated()), id: \.offset) { _, link in
                         Button {
                             open(link.url)
                         } label: {
-                            VStack(spacing: 4) {
+                            VStack(spacing: (4 * scale).cgFloat) {
                                 Image(systemName: link.icon ?? "link")
-                                    .font(.system(size: (component.iconSize ?? 22).cgFloat))
+                                    .font(.system(size: ((component.iconSize ?? 20) * scale).cgFloat))
                                 Text(link.name)
-                                    .font(.system(size: 10, weight: .medium))
+                                    .font(.system(size: (10 * scale).cgFloat, weight: .medium))
                                     .lineLimit(1)
                             }
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                            .frame(maxWidth: .infinity, minHeight: 50)
+                            .frame(maxWidth: .infinity, minHeight: (44 * scale).cgFloat)
                         }
                         .buttonStyle(.plain)
                     }
@@ -2627,14 +2713,123 @@ private struct LinkBookmarksComponentView: View {
     }
 }
 
+private struct GitHubStatsComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var snapshot: GitHubRepoSnapshot?
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
+            if loadState == .loading && snapshot == nil {
+                LoadingShimmerView(theme: theme, lines: 4, lineHeight: (10 * scale).cgFloat)
+            } else if loadState == .failed && snapshot == nil {
+                DataErrorFallbackView(message: "Couldn't load repo data", theme: theme)
+            } else if let snap = snapshot {
+                HStack(spacing: (6 * scale).cgFloat) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                    Text(snap.fullName)
+                        .font(.system(size: (12 * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    if let lang = snap.language {
+                        Text(lang)
+                            .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                            .padding(.horizontal, (6 * scale).cgFloat)
+                            .padding(.vertical, (2 * scale).cgFloat)
+                            .background(ThemeResolver.color(for: "muted", theme: theme).opacity(0.3))
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    }
+                }
+
+                if let desc = snap.description, !desc.isEmpty, showField("description") {
+                    Text(desc)
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                        .lineLimit(2)
+                }
+
+                HStack(spacing: (14 * scale).cgFloat) {
+                    if showField("stars") {
+                        statItem(icon: "star.fill", value: formatCount(snap.stars), color: "warning")
+                    }
+                    if showField("forks") {
+                        statItem(icon: "tuningfork", value: formatCount(snap.forks), color: "secondary")
+                    }
+                    if showField("issues") {
+                        statItem(icon: "exclamationmark.circle", value: formatCount(snap.openIssues), color: "secondary")
+                    }
+                    if showField("watchers") {
+                        statItem(icon: "eye", value: formatCount(snap.watchers), color: "secondary")
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: alignment)
+        .polling(every: 30 * 60) {
+            await MainActor.run {
+                if snapshot == nil { loadState = .loading }
+            }
+            let repo = component.source ?? ""
+            guard !repo.isEmpty else {
+                await MainActor.run { loadState = .failed }
+                return
+            }
+            let value = await DataServiceManager.shared.githubRepo(repo: repo)
+            await MainActor.run {
+                snapshot = value
+                loadState = value == nil ? .failed : .ready
+            }
+        }
+    }
+
+    private func statItem(icon: String, value: String, color: String) -> some View {
+        HStack(spacing: (4 * scale).cgFloat) {
+            Image(systemName: icon)
+                .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                .foregroundStyle(ThemeResolver.color(for: color, theme: theme))
+            Text(value)
+                .font(.system(size: (13 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+        }
+    }
+
+    private func showField(_ name: String) -> Bool {
+        guard let fields = component.showComponents else { return true }
+        return fields.contains(name)
+    }
+
+    private func formatCount(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1_000 { return String(format: "%.1fk", Double(n) / 1_000) }
+        return "\(n)"
+    }
+
+    private var alignment: Alignment {
+        switch component.alignment?.lowercased() {
+        case "center": return .center
+        case "trailing": return .trailing
+        default: return .leading
+        }
+    }
+}
+
 private struct ProgressRingComponentView: View {
     let widgetID: UUID
     let component: ComponentConfig
     let theme: WidgetTheme
 
     @State private var progress: Double = 0
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
+        let ringSize = ((component.size ?? 66) * scale).cgFloat
         ZStack {
             Circle()
                 .stroke(ThemeResolver.color(for: component.trackColor ?? "muted", theme: theme).opacity(0.35), lineWidth: (component.lineWidth ?? 6).cgFloat)
@@ -2648,10 +2843,10 @@ private struct ProgressRingComponentView: View {
                 .rotationEffect(.degrees(-90))
 
             Text("\(Int((progress * 100).rounded()))%")
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: (11 * scale).cgFloat, weight: .semibold, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
         }
-        .frame(width: (component.size ?? 66).cgFloat, height: (component.size ?? 66).cgFloat)
+        .frame(width: ringSize, height: ringSize)
         .frame(maxWidth: .infinity, alignment: alignment)
         .polling(every: 30) {
             let resolved = await resolveProgressValue(source: component.source, widgetID: widgetID, component: component)
@@ -2679,9 +2874,10 @@ private struct ProgressBarComponentView: View {
     let theme: WidgetTheme
 
     @State private var progress: Double = 0
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule()
@@ -2691,11 +2887,11 @@ private struct ProgressBarComponentView: View {
                         .frame(width: geo.size.width * progress.cgFloat)
                 }
             }
-            .frame(height: (component.height ?? 8).cgFloat)
+            .frame(height: ((component.height ?? 8) * scale).cgFloat)
 
             if component.showPercentage ?? true {
                 Text("\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
             }
         }
@@ -2725,12 +2921,13 @@ private struct ChartComponentView: View {
     let theme: WidgetTheme
 
     @State private var values: [Double] = []
+    @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
         SparklineChartView(
             values: values,
             color: ThemeResolver.color(for: component.color ?? "accent", theme: theme),
-            height: (component.height ?? 40).cgFloat
+            height: ((component.height ?? 38) * scale).cgFloat
         )
         .frame(maxWidth: .infinity, alignment: alignment)
         .polling(every: 60) {
@@ -2848,7 +3045,7 @@ private struct PollingModifier: ViewModifier {
             .onAppear {
                 start()
             }
-            .onChange(of: interval) { _ in
+            .onChange(of: interval) {
                 start()
             }
             .onDisappear {

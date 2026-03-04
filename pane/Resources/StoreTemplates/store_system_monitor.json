@@ -1,0 +1,51 @@
+{
+  "id": "system-monitor",
+  "name": "System Monitor",
+  "description": "CPU, memory, and storage usage at a glance.",
+  "category": "system",
+  "config": {
+    "name": "System Monitor",
+    "description": "CPU/Memory/Storage bars",
+    "size": {
+      "width": 200,
+      "height": 90
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "refreshInterval": 10,
+    "content": {
+      "type": "vstack",
+      "alignment": "leading",
+      "spacing": 4,
+      "children": [
+        {
+          "type": "text",
+          "content": "System",
+          "size": 11,
+          "weight": "semibold",
+          "color": "primary"
+        },
+        {
+          "type": "system_stats",
+          "style": "bars",
+          "showCPU": true,
+          "showMemory": true,
+          "showStorage": true,
+          "barColor": "accent",
+          "labelColor": "muted",
+          "size": 10
+        }
+      ]
+    },
+    "maxSize": {
+      "width": 260,
+      "height": 120
+    }
+  }
+}

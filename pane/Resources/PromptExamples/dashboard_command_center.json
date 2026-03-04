@@ -1,56 +1,124 @@
 {
   "name": "Command Center",
-  "size": {"width": 420, "height": 400},
+  "size": {
+    "width": 320,
+    "height": 160
+  },
   "theme": "obsidian",
-  "background": {"type": "gradient", "colors": ["#0D1117", "#161B22"], "direction": "topToBottom"},
-  "cornerRadius": 22,
-  "padding": {"top": 20, "bottom": 20, "leading": 22, "trailing": 22},
+  "background": {
+    "type": "gradient",
+    "colors": [
+      "#0D1117",
+      "#161B22"
+    ],
+    "direction": "topToBottom"
+  },
+  "cornerRadius": 18,
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
-    "type": "vstack",
-    "alignment": "leading",
+    "type": "hstack",
+    "alignment": "top",
     "spacing": 14,
     "children": [
       {
-        "type": "hstack",
+        "type": "vstack",
         "alignment": "center",
-        "spacing": 20,
+        "spacing": 5,
         "children": [
-          {"type": "pomodoro", "workDuration": 1500, "breakDuration": 300, "longBreakDuration": 900, "sessionsBeforeLongBreak": 4, "showSessionCount": true, "style": "ring", "workColor": "negative", "breakColor": "positive", "showControls": true},
           {
-            "type": "vstack",
-            "alignment": "leading",
-            "spacing": 6,
-            "children": [
-              {"type": "clock", "style": "digital", "timezone": "local", "format": "h:mm a", "font": "sf-mono", "size": 22, "weight": "light", "color": "primary"},
-              {"type": "date", "format": "EEEE, MMM d", "font": "sf-pro", "size": 12, "weight": "regular", "color": "muted"},
-              {"type": "day_progress", "startHour": 8, "endHour": 22, "style": "bar", "showPercentage": true, "showTimeRemaining": false, "color": "accent", "label": ""}
-            ]
+            "type": "pomodoro",
+            "workDuration": 1500,
+            "breakDuration": 300,
+            "longBreakDuration": 900,
+            "sessionsBeforeLongBreak": 4,
+            "showSessionCount": true,
+            "style": "ring",
+            "workColor": "negative",
+            "breakColor": "positive",
+            "showControls": true
+          },
+          {
+            "type": "clock",
+            "style": "digital",
+            "timezone": "local",
+            "format": "h:mm a",
+            "font": "sf-mono",
+            "size": 18,
+            "weight": "light",
+            "color": "muted"
           }
         ]
       },
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "calendar_next", "source": "system_calendar", "maxEvents": 2, "showTime": true, "showCalendarColor": true, "timeRange": "today", "emptyText": "Clear schedule", "font": "sf-pro", "size": 13, "color": "primary"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
       {
-        "type": "checklist",
-        "title": "Focus Tasks",
-        "items": [
-          {"id": "1", "text": "Deep work block", "checked": false},
-          {"id": "2", "text": "Review and respond", "checked": false},
-          {"id": "3", "text": "Ship one thing", "checked": false}
-        ],
-        "resetsDaily": true,
-        "showProgress": true,
-        "interactive": true,
-        "checkedColor": "positive",
-        "uncheckedColor": "muted",
-        "strikethrough": true,
-        "font": "sf-pro",
-        "size": 13,
-        "color": "primary"
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
       },
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "quote", "source": "curated", "category": "motivation", "refreshInterval": "daily", "font": "new-york", "size": 12, "weight": "regular", "color": "muted", "authorColor": "muted", "showQuotationMarks": true}
+      {
+        "type": "vstack",
+        "alignment": "leading",
+        "spacing": 5,
+        "children": [
+          {
+            "type": "day_progress",
+            "startHour": 8,
+            "endHour": 22,
+            "style": "bar",
+            "showPercentage": true,
+            "showTimeRemaining": false,
+            "color": "accent",
+            "label": "Day"
+          },
+          {
+            "type": "checklist",
+            "title": "Focus Tasks",
+            "items": [
+              {
+                "id": "1",
+                "text": "Deep work block",
+                "checked": false
+              },
+              {
+                "id": "2",
+                "text": "Review and respond",
+                "checked": false
+              },
+              {
+                "id": "3",
+                "text": "Ship one thing",
+                "checked": false
+              }
+            ],
+            "resetsDaily": true,
+            "showProgress": true,
+            "interactive": true,
+            "checkedColor": "positive",
+            "uncheckedColor": "muted",
+            "strikethrough": true,
+            "font": "sf-pro",
+            "size": 12,
+            "color": "primary"
+          },
+          {
+            "type": "quote",
+            "source": "curated",
+            "category": "motivation",
+            "refreshInterval": "daily",
+            "font": "new-york",
+            "size": 11,
+            "weight": "regular",
+            "color": "muted",
+            "authorColor": "muted",
+            "showQuotationMarks": false
+          }
+        ]
+      }
     ]
   }
 }

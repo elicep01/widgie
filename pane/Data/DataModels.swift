@@ -83,3 +83,14 @@ struct ScreenTimeAppSnapshot: Codable, Identifiable {
     var name: String
     var durationText: String
 }
+
+struct GitHubRepoSnapshot: Codable {
+    var fullName: String
+    var description: String?
+    var stars: Int
+    var forks: Int
+    var openIssues: Int
+    var watchers: Int
+    var language: String?
+    var updatedAt: Date
+}

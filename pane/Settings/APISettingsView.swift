@@ -6,6 +6,14 @@ struct APISettingsView: View {
     @StateObject private var openAIModelCatalog = OpenAIModelCatalog()
     private let providers: [AIProvider] = [.openAI, .claude]
 
+    private let claudeModels: [(id: String, label: String)] = [
+        ("claude-opus-4-5",            "Claude Opus 4.5  ★ Best reasoning"),
+        ("claude-sonnet-4-5",          "Claude Sonnet 4.5  — Balanced"),
+        ("claude-haiku-4-5-20251001",  "Claude Haiku 4.5  — Fast / cheap"),
+        ("claude-3-5-sonnet-latest",   "Claude 3.5 Sonnet"),
+        ("claude-3-5-haiku-latest",    "Claude 3.5 Haiku"),
+    ]
+
     var body: some View {
         Form {
             Picker("Provider", selection: $settingsStore.selectedProvider) {
@@ -63,11 +71,22 @@ struct APISettingsView: View {
             }
 
             Section("Claude") {
-                TextField("Model", text: $settingsStore.claudeModel)
-                    .textFieldStyle(.roundedBorder)
-
                 SecureField("API Key", text: $settingsStore.claudeAPIKey)
                     .textFieldStyle(.roundedBorder)
+
+                Picker("Model", selection: $settingsStore.claudeModel) {
+                    ForEach(claudeModels, id: \.id) { entry in
+                        Text(entry.label).tag(entry.id)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+
+            Section("Agent") {
+                Toggle("Enable web discovery", isOn: $settingsStore.enableWebDiscovery)
+                Text("Allows agent planning to resolve unknown sources from DuckDuckGo and Wikipedia with attribution in Agent Trace.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             Text("API keys are stored in Keychain and used only for widget generation.")

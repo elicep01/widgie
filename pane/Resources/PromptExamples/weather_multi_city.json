@@ -1,20 +1,73 @@
 {
   "name": "Multi-City Weather",
-  "size": {"width": 480, "height": 130},
+  "size": {
+    "width": 360,
+    "height": 70
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 18,
-  "padding": {"top": 14, "bottom": 14, "leading": 16, "trailing": 16},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "hstack",
     "alignment": "top",
     "spacing": 16,
     "children": [
-      {"type": "weather", "location": "Madison, WI, USA", "style": "compact", "showIcon": true, "showTemperature": true, "showCondition": true, "showHighLow": false, "temperatureUnit": "fahrenheit", "color": "primary"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"},
-      {"type": "weather", "location": "Tempe, AZ, USA", "style": "compact", "showIcon": true, "showTemperature": true, "showCondition": true, "showHighLow": false, "temperatureUnit": "fahrenheit", "color": "primary"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"},
-      {"type": "weather", "location": "San Francisco, CA, USA", "style": "compact", "showIcon": true, "showTemperature": true, "showCondition": true, "showHighLow": false, "temperatureUnit": "fahrenheit", "color": "primary"}
+      {
+        "type": "weather",
+        "location": "Madison, WI, USA",
+        "style": "compact",
+        "showIcon": true,
+        "showTemperature": true,
+        "showCondition": true,
+        "showHighLow": false,
+        "temperatureUnit": "fahrenheit",
+        "color": "primary"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
+      },
+      {
+        "type": "weather",
+        "location": "Tempe, AZ, USA",
+        "style": "compact",
+        "showIcon": true,
+        "showTemperature": true,
+        "showCondition": true,
+        "showHighLow": false,
+        "temperatureUnit": "fahrenheit",
+        "color": "primary"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
+      },
+      {
+        "type": "weather",
+        "location": "San Francisco, CA, USA",
+        "style": "compact",
+        "showIcon": true,
+        "showTemperature": true,
+        "showCondition": true,
+        "showHighLow": false,
+        "temperatureUnit": "fahrenheit",
+        "color": "primary"
+      }
     ]
   }
 }

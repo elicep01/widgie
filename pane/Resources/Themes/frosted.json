@@ -1,12 +1,12 @@
 {
   "colors": {
-    "primary": "#1A1A1A",
+    "primary":   "#1A1A1A",
     "secondary": "#5D6470",
-    "accent": "#0A84FF",
-    "positive": "#2FA56A",
-    "negative": "#D14B4B",
-    "warning": "#B27B1D",
-    "muted": "#A4ACB8"
+    "accent":    "#0066CC",
+    "positive":  "#1A7A4E",
+    "negative":  "#C23333",
+    "warning":   "#8A6000",
+    "muted":     "#6B7280"
   },
   "surface": {
     "innerBorderColor": "#FFFFFF",

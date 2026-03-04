@@ -37,7 +37,7 @@ enum HotkeyPreset: String, Codable, CaseIterable, Identifiable {
 }
 
 extension Notification.Name {
-    static let settingsDidChange = Notification.Name("pane.SettingsDidChange")
+    static let settingsDidChange = Notification.Name("widgie.SettingsDidChange")
 }
 
 @MainActor
@@ -130,6 +130,13 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var enableWebDiscovery: Bool {
+        didSet {
+            defaults.set(enableWebDiscovery, forKey: Keys.enableWebDiscovery)
+            notifyChange()
+        }
+    }
+
     private let defaults: UserDefaults
     private let keychainStore: KeychainStore
 
@@ -146,9 +153,10 @@ final class SettingsStore: ObservableObject {
         claudeAPIKey = keychainStore.string(for: Keys.claudeAPIKey) ?? ""
         defaultLocation = defaults.string(forKey: Keys.defaultLocation) ?? "Madison, WI"
         useFahrenheit = defaults.object(forKey: Keys.useFahrenheit) as? Bool ?? true
-        launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? false
+        launchAtLogin = defaults.object(forKey: Keys.launchAtLogin) as? Bool ?? true
         snapToGrid = defaults.object(forKey: Keys.snapToGrid) as? Bool ?? true
         gridSize = defaults.object(forKey: Keys.gridSize) as? Double ?? 20
+        enableWebDiscovery = defaults.object(forKey: Keys.enableWebDiscovery) as? Bool ?? true
 
         _ = ensureUsableProviderSelection()
     }
@@ -204,4 +212,5 @@ private enum Keys {
     static let launchAtLogin = "settings.general.launchAtLogin"
     static let snapToGrid = "settings.widgets.snapToGrid"
     static let gridSize = "settings.widgets.gridSize"
+    static let enableWebDiscovery = "settings.ai.enableWebDiscovery"
 }

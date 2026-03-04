@@ -1,21 +1,60 @@
 {
   "name": "Groceries",
-  "size": {"width": 220, "height": 280},
+  "size": {
+    "width": 180,
+    "height": 180
+  },
   "theme": "paper",
-  "background": {"type": "solid", "color": "#1C1917"},
+  "background": {
+    "type": "solid",
+    "color": "#1C1917"
+  },
   "cornerRadius": 20,
-  "padding": {"top": 18, "bottom": 18, "leading": 18, "trailing": 18},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "checklist",
     "title": "Groceries",
     "items": [
-      {"id": "1", "text": "Eggs", "checked": false},
-      {"id": "2", "text": "Milk", "checked": false},
-      {"id": "3", "text": "Bread", "checked": false},
-      {"id": "4", "text": "Chicken", "checked": false},
-      {"id": "5", "text": "Rice", "checked": false},
-      {"id": "6", "text": "Vegetables", "checked": false},
-      {"id": "7", "text": "Fruit", "checked": false}
+      {
+        "id": "1",
+        "text": "Eggs",
+        "checked": false
+      },
+      {
+        "id": "2",
+        "text": "Milk",
+        "checked": false
+      },
+      {
+        "id": "3",
+        "text": "Bread",
+        "checked": false
+      },
+      {
+        "id": "4",
+        "text": "Chicken",
+        "checked": false
+      },
+      {
+        "id": "5",
+        "text": "Rice",
+        "checked": false
+      },
+      {
+        "id": "6",
+        "text": "Vegetables",
+        "checked": false
+      },
+      {
+        "id": "7",
+        "text": "Fruit",
+        "checked": false
+      }
     ],
     "resetsDaily": false,
     "showProgress": true,

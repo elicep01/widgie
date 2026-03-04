@@ -35,6 +35,9 @@ final class CommandBarWindow {
         onSubmit: @escaping (String) -> Void,
         onCancel: @escaping () -> Void
     ) {
+        panel.onEscape = { [weak self] in
+            self?.viewModel.cancel()
+        }
         viewModel.onSubmit = onSubmit
         viewModel.onCancel = { [weak self] in
             onCancel()
@@ -139,6 +142,21 @@ final class CommandBarWindow {
 }
 
 private final class CommandBarPanel: NSPanel {
+    var onEscape: (() -> Void)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    override func cancelOperation(_ sender: Any?) {
+        onEscape?()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            onEscape?()
+            return
+        }
+
+        super.keyDown(with: event)
+    }
 }

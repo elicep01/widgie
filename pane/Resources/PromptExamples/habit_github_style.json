@@ -1,16 +1,47 @@
 {
   "name": "Habit Tracker",
-  "size": {"width": 280, "height": 200},
+  "size": {
+    "width": 230,
+    "height": 130
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 20,
-  "padding": {"top": 18, "bottom": 18, "leading": 18, "trailing": 18},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "habit_tracker",
     "habits": [
-      {"id": "workout", "name": "Workout", "icon": "figure.run", "target": 1, "unit": "session"},
-      {"id": "reading", "name": "Reading", "icon": "book.fill", "target": 30, "unit": "minutes"},
-      {"id": "water", "name": "Water", "icon": "drop.fill", "target": 8, "unit": "glasses"}
+      {
+        "id": "workout",
+        "name": "Workout",
+        "icon": "figure.run",
+        "target": 1,
+        "unit": "session"
+      },
+      {
+        "id": "reading",
+        "name": "Reading",
+        "icon": "book.fill",
+        "target": 30,
+        "unit": "minutes"
+      },
+      {
+        "id": "water",
+        "name": "Water",
+        "icon": "drop.fill",
+        "target": 8,
+        "unit": "glasses"
+      }
     ],
     "style": "grid",
     "interactive": true,

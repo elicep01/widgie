@@ -12,6 +12,7 @@ actor DataServiceManager {
     private let musicProvider = MusicProvider()
     private let rssProvider = RSSProvider()
     private let screenTimeProvider = ScreenTimeProvider()
+    private let gitHubProvider = GitHubProvider()
 
     func weather(location: String, fahrenheit: Bool, forceRefresh: Bool = false) async -> WeatherSnapshot? {
         let normalizedLocation = location
@@ -140,6 +141,22 @@ actor DataServiceManager {
             return value
         } catch {
             return await cache.load([NewsHeadlineSnapshot].self, key: key) ?? []
+        }
+    }
+
+    func githubRepo(repo: String, forceRefresh: Bool = false) async -> GitHubRepoSnapshot? {
+        let key = "github_\(repo.lowercased())"
+        if !forceRefresh, let cached = await cache.load(GitHubRepoSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await gitHubProvider.fetch(repo: repo)
+            await cache.store(value, key: key, ttl: 30 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] GitHub fetch failed for '\(repo)': \(error)")
+            return await cache.load(GitHubRepoSnapshot.self, key: key)
         }
     }
 

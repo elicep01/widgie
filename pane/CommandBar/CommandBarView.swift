@@ -84,14 +84,7 @@ struct CommandBarView: View {
             }
         }
         .onExitCommand {
-            switch viewModel.mode {
-            case .clarifying:
-                viewModel.resetToInput()
-            case .feedback:
-                viewModel.acceptFeedback()
-            case .input:
-                viewModel.cancel()
-            }
+            viewModel.cancel()
         }
     }
 

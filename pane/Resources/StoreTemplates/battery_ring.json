@@ -1,0 +1,36 @@
+{
+  "id": "battery-ring",
+  "name": "Battery",
+  "description": "Ring-style battery indicator with low-threshold color shift.",
+  "category": "system",
+  "config": {
+    "name": "Battery",
+    "description": "Battery ring indicator",
+    "size": {
+      "width": 110,
+      "height": 95
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 8,
+      "trailing": 8
+    },
+    "refreshInterval": 30,
+    "content": {
+      "type": "battery",
+      "style": "ring",
+      "showPercentage": true,
+      "lowThreshold": 20,
+      "color": "positive",
+      "lowColor": "negative",
+      "size": 12
+    },
+    "maxSize": {
+      "width": 150,
+      "height": 130
+    }
+  }
+}

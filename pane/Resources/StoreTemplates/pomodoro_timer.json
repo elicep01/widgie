@@ -1,0 +1,52 @@
+{
+  "id": "pomodoro-timer",
+  "name": "Pomodoro Timer",
+  "description": "Focus ring with work/break cycles and session counter.",
+  "category": "productivity",
+  "config": {
+    "name": "Pomodoro Timer",
+    "description": "Pomodoro focus timer",
+    "size": {
+      "width": 150,
+      "height": 135
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 10,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "content": {
+      "type": "vstack",
+      "alignment": "center",
+      "spacing": 4,
+      "children": [
+        {
+          "type": "pomodoro",
+          "workDuration": 1500,
+          "breakDuration": 300,
+          "longBreakDuration": 900,
+          "sessionsBeforeLongBreak": 4,
+          "showSessionCount": true,
+          "style": "ring",
+          "workColor": "negative",
+          "breakColor": "positive",
+          "showControls": true
+        },
+        {
+          "type": "text",
+          "content": "Focus",
+          "size": 10,
+          "weight": "medium",
+          "color": "muted"
+        }
+      ]
+    },
+    "maxSize": {
+      "width": 200,
+      "height": 175
+    }
+  }
+}

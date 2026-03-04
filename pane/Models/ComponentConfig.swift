@@ -34,6 +34,7 @@ enum ComponentType: String, Codable {
     case note
     case shortcutLauncher = "shortcut_launcher"
     case linkBookmarks = "link_bookmarks"
+    case githubRepoStats = "github_repo_stats"
     case vstack
     case hstack
     case container
@@ -170,6 +171,19 @@ final class ComponentConfig: Codable {
 
     var child: ComponentConfig?
     var children: [ComponentConfig]?
+
+    /// Returns true if this component (or any descendant) requires direct click interaction.
+    var hasInteractiveContent: Bool {
+        let interactiveTypes: Set<ComponentType> = [
+            .shortcutLauncher, .linkBookmarks, .checklist,
+            .pomodoro, .note, .stopwatch, .timer,
+            .musicNowPlaying, .habitTracker, .reminders
+        ]
+        if interactiveTypes.contains(type) { return true }
+        if child?.hasInteractiveContent == true { return true }
+        if children?.contains(where: { $0.hasInteractiveContent }) == true { return true }
+        return false
+    }
 
     init(
         type: ComponentType,

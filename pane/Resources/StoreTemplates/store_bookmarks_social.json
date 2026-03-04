@@ -1,0 +1,26 @@
+{
+  "id": "bookmarks-social",
+  "name": "Social Links",
+  "description": "Quick-access bookmarks to your favorite websites.",
+  "category": "productivity",
+  "config": {
+    "name": "Social Links",
+    "description": "Website bookmarks",
+    "size": { "width": 180, "height": 55 },
+    "theme": "obsidian",
+    "cornerRadius": 12,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "content": {
+      "type": "link_bookmarks",
+      "style": "compact",
+      "links": [
+        { "title": "GitHub", "url": "https://github.com", "icon": "chevron.left.forwardslash.chevron.right" },
+        { "title": "Twitter", "url": "https://twitter.com", "icon": "at" },
+        { "title": "Reddit", "url": "https://reddit.com", "icon": "bubble.left.and.bubble.right" }
+      ],
+      "size": 11,
+      "color": "accent"
+    },
+    "maxSize": { "width": 240, "height": 75 }
+  }
+}

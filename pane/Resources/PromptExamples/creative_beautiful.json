@@ -1,19 +1,67 @@
 {
   "name": "Desktop Zen",
-  "size": {"width": 340, "height": 220},
+  "size": {
+    "width": 280,
+    "height": 150
+  },
   "theme": "obsidian",
-  "background": {"type": "gradient", "colors": ["#0F2027", "#203A43", "#2C5364"], "direction": "topLeftToBottomRight"},
+  "background": {
+    "type": "gradient",
+    "colors": [
+      "#0F2027",
+      "#203A43",
+      "#2C5364"
+    ],
+    "direction": "topLeftToBottomRight"
+  },
   "cornerRadius": 24,
-  "padding": {"top": 28, "bottom": 28, "leading": 28, "trailing": 28},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "vstack",
     "alignment": "center",
     "spacing": 16,
     "children": [
-      {"type": "clock", "style": "digital", "timezone": "local", "format": "h:mm", "font": "sf-mono", "size": 52, "weight": "ultralight", "color": "primary"},
-      {"type": "date", "format": "EEEE, MMMM d", "font": "sf-pro", "size": 14, "weight": "light", "color": "secondary"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "quote", "source": "curated", "category": "motivation", "refreshInterval": "daily", "font": "new-york", "size": 13, "weight": "regular", "color": "secondary", "authorColor": "muted", "showQuotationMarks": true}
+      {
+        "type": "clock",
+        "style": "digital",
+        "timezone": "local",
+        "format": "h:mm",
+        "font": "sf-mono",
+        "size": 52,
+        "weight": "ultralight",
+        "color": "primary"
+      },
+      {
+        "type": "date",
+        "format": "EEEE, MMMM d",
+        "font": "sf-pro",
+        "size": 14,
+        "weight": "light",
+        "color": "secondary"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "quote",
+        "source": "curated",
+        "category": "motivation",
+        "refreshInterval": "daily",
+        "font": "new-york",
+        "size": 13,
+        "weight": "regular",
+        "color": "secondary",
+        "authorColor": "muted",
+        "showQuotationMarks": true
+      }
     ]
   }
 }

@@ -26,6 +26,12 @@ struct PromptExampleRetriever {
         }
     }
 
+    /// Creates a retriever that prepends `extraExamples` (e.g. from `LearnedExampleStore`)
+    /// before the bundled examples, giving them priority in scoring.
+    init(extraExamples: [PromptExample]) {
+        self.examples = extraExamples + Self.loadExamples()
+    }
+
     func formattedExamples(for prompt: String, limit: Int = 4) -> String {
         let selected = retrieveExamples(for: prompt, limit: limit)
         guard !selected.isEmpty else { return "" }
@@ -57,7 +63,7 @@ struct PromptExampleRetriever {
         let normalizedPrompt = Self.normalized(prompt)
         guard !normalizedPrompt.isEmpty else { return [] }
 
-        let promptTokens = Set(Self.tokens(from: normalizedPrompt))
+        let promptTokens = ConceptSynonymMap.expand(Set(Self.tokens(from: normalizedPrompt)))
         var scored: [(example: PromptExample, score: Int)] = []
 
         for example in examples {
@@ -129,10 +135,11 @@ struct PromptExampleRetriever {
 
         // Broad intent boosts.
         let broadSignals: [(category: String, terms: [String])] = [
-            ("market", ["stock", "stocks", "ticker", "bitcoin", "ethereum", "crypto", "btc", "eth"]),
-            ("weather", ["weather", "wether", "temperature", "celsius", "fahrenheit"]),
-            ("time", ["clock", "time", "timezone", "timer", "countdown", "analog", "anolog", "clokc"]),
-            ("dashboard", ["dashboard", "productivity", "checklist", "quote", "focus"]),
+            ("market", ["stock", "stocks", "ticker", "bitcoin", "ethereum", "crypto", "btc", "eth", "gold", "silver", "xau", "xag", "metals", "commodities", "finance", "financial", "portfolio", "trading", "market", "markets", "price", "prices"]),
+            ("weather", ["weather", "wether", "temperature", "celsius", "fahrenheit", "forecast", "rain", "sunny"]),
+            ("time", ["clock", "time", "timezone", "timer", "countdown", "analog", "anolog", "clokc", "watch", "schedule"]),
+            ("dashboard", ["dashboard", "productivity", "checklist", "quote", "focus", "todo", "habit", "habits", "routine", "journal", "diary", "goals"]),
+            ("health", ["mood", "moods", "feeling", "feelings", "emotion", "emotions", "wellness", "habit", "habits", "routine", "tracker", "fitness", "health", "mental", "mindful"]),
             ("creative", ["beautiful", "surprise", "desktop", "bored"])
         ]
 
@@ -165,7 +172,7 @@ struct PromptExampleRetriever {
         }
 
         let url = appSupport
-            .appendingPathComponent("pane", isDirectory: true)
+            .appendingPathComponent("widgie", isDirectory: true)
             .appendingPathComponent("prompt_examples.json")
 
         return decodeExamples(at: url)
@@ -242,7 +249,7 @@ struct PromptExampleRetriever {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         return appSupport
-            .appendingPathComponent("pane", isDirectory: true)
+            .appendingPathComponent("widgie", isDirectory: true)
             .appendingPathComponent("prompt_examples", isDirectory: true)
     }
 
@@ -272,6 +279,16 @@ struct PromptExampleRetriever {
     }
 
     private static let fallbackExamples: [PromptExample] = [
+        PromptExample(
+            id: "fallback-crypto-metals-live",
+            prompt: "bitcoin ethereum gold silver live prices in a grid",
+            intentSummary: "Mixed market widget that includes BTC/ETH as crypto and gold/silver as stock symbols GLD/SLV, with all four assets present.",
+            keySignals: ["bitcoin", "ethereum", "gold", "silver", "grid", "live prices"],
+            categories: ["market"],
+            outputHints: ["include all requested assets", "crypto BTC/ETH", "stock GLD/SLV", "refreshInterval <= 120"],
+            expectedJSON: "{\"name\":\"Markets Live\",\"size\":{\"width\":420,\"height\":210},\"theme\":\"obsidian\",\"background\":{\"type\":\"blur\",\"material\":\"hudWindow\",\"tintColor\":\"#0D1117\",\"tintOpacity\":0.7},\"cornerRadius\":18,\"padding\":{\"top\":14,\"bottom\":14,\"leading\":18,\"trailing\":18},\"content\":{\"type\":\"vstack\",\"alignment\":\"leading\",\"spacing\":10,\"children\":[{\"type\":\"hstack\",\"alignment\":\"center\",\"spacing\":12,\"children\":[{\"type\":\"crypto\",\"symbol\":\"BTC\",\"currency\":\"USD\",\"showPrice\":true,\"showChange\":true,\"showChart\":false,\"color\":\"primary\"},{\"type\":\"divider\",\"color\":\"muted\",\"thickness\":0.5,\"direction\":\"vertical\"},{\"type\":\"crypto\",\"symbol\":\"ETH\",\"currency\":\"USD\",\"showPrice\":true,\"showChange\":true,\"showChart\":false,\"color\":\"primary\"}]},{\"type\":\"hstack\",\"alignment\":\"center\",\"spacing\":12,\"children\":[{\"type\":\"stock\",\"symbol\":\"GLD\",\"showPrice\":true,\"showChange\":true,\"showChangePercent\":true,\"showChart\":false,\"color\":\"primary\",\"positiveColor\":\"positive\",\"negativeColor\":\"negative\"},{\"type\":\"divider\",\"color\":\"muted\",\"thickness\":0.5,\"direction\":\"vertical\"},{\"type\":\"stock\",\"symbol\":\"SLV\",\"showPrice\":true,\"showChange\":true,\"showChangePercent\":true,\"showChart\":false,\"color\":\"primary\",\"positiveColor\":\"positive\",\"negativeColor\":\"negative\"}]}]},\"refreshInterval\":60}",
+            expectedFile: nil
+        ),
         PromptExample(
             id: "fallback-crypto-live",
             prompt: "need bitcoin stock and ethereum stock changes live updates",

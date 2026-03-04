@@ -40,7 +40,7 @@ final class MenuBarController: NSObject {
 
     func start() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.image = NSImage(systemSymbolName: "square.grid.2x2.fill", accessibilityDescription: "pane")
+        item.button?.image = NSImage(systemSymbolName: "square.grid.2x2.fill", accessibilityDescription: "widgie")
         item.button?.imagePosition = .imageOnly
         item.menu = buildMenu()
         statusItem = item
@@ -135,7 +135,7 @@ final class MenuBarController: NSObject {
         settings.target = self
         menu.addItem(settings)
 
-        let quit = NSMenuItem(title: "Quit pane", action: #selector(handleQuit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit widgie", action: #selector(handleQuit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
 

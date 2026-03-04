@@ -1,22 +1,94 @@
 {
   "name": "Tech Stocks",
-  "size": {"width": 520, "height": 130},
+  "size": {
+    "width": 380,
+    "height": 60
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 18,
-  "padding": {"top": 14, "bottom": 14, "leading": 18, "trailing": 18},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "hstack",
     "alignment": "center",
     "spacing": 18,
     "children": [
-      {"type": "stock", "symbol": "AAPL", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": true, "chartPeriod": "1d", "color": "primary", "positiveColor": "positive", "negativeColor": "negative"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"},
-      {"type": "stock", "symbol": "GOOGL", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": true, "chartPeriod": "1d", "color": "primary", "positiveColor": "positive", "negativeColor": "negative"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"},
-      {"type": "stock", "symbol": "MSFT", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": true, "chartPeriod": "1d", "color": "primary", "positiveColor": "positive", "negativeColor": "negative"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"},
-      {"type": "stock", "symbol": "TSLA", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": true, "chartPeriod": "1d", "color": "primary", "positiveColor": "positive", "negativeColor": "negative"}
+      {
+        "type": "stock",
+        "symbol": "AAPL",
+        "showPrice": true,
+        "showChange": true,
+        "showChangePercent": true,
+        "showChart": true,
+        "chartPeriod": "1d",
+        "color": "primary",
+        "positiveColor": "positive",
+        "negativeColor": "negative"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
+      },
+      {
+        "type": "stock",
+        "symbol": "GOOGL",
+        "showPrice": true,
+        "showChange": true,
+        "showChangePercent": true,
+        "showChart": true,
+        "chartPeriod": "1d",
+        "color": "primary",
+        "positiveColor": "positive",
+        "negativeColor": "negative"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
+      },
+      {
+        "type": "stock",
+        "symbol": "MSFT",
+        "showPrice": true,
+        "showChange": true,
+        "showChangePercent": true,
+        "showChart": true,
+        "chartPeriod": "1d",
+        "color": "primary",
+        "positiveColor": "positive",
+        "negativeColor": "negative"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
+      },
+      {
+        "type": "stock",
+        "symbol": "TSLA",
+        "showPrice": true,
+        "showChange": true,
+        "showChangePercent": true,
+        "showChart": true,
+        "chartPeriod": "1d",
+        "color": "primary",
+        "positiveColor": "positive",
+        "negativeColor": "negative"
+      }
     ]
   },
   "refreshInterval": 60

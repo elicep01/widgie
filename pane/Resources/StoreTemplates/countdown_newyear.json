@@ -1,0 +1,30 @@
+{
+  "id": "countdown-newyear",
+  "name": "New Year Countdown",
+  "description": "Days, hours, and minutes until the new year.",
+  "category": "time",
+  "config": {
+    "name": "New Year Countdown",
+    "description": "Countdown to Jan 1",
+    "size": { "width": 200, "height": 65 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "content": {
+      "type": "countdown",
+      "targetDate": "2027-01-01T00:00:00",
+      "label": "New Year",
+      "style": "compact",
+      "showDays": true,
+      "showHours": true,
+      "showMinutes": true,
+      "showSeconds": false,
+      "font": "sf-mono",
+      "size": 20,
+      "weight": "light",
+      "color": "primary",
+      "labelColor": "muted"
+    },
+    "maxSize": { "width": 260, "height": 85 }
+  }
+}

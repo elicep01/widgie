@@ -1,0 +1,38 @@
+{
+  "id": "quote-of-the-day",
+  "name": "Quote of the Day",
+  "description": "Rotating motivational quotes to inspire your day.",
+  "category": "inspiration",
+  "config": {
+    "name": "Quote of the Day",
+    "description": "Daily motivational quote",
+    "size": {
+      "width": 230,
+      "height": 65
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
+    "content": {
+      "type": "quote",
+      "source": "curated",
+      "category": "motivation",
+      "refreshInterval": "daily",
+      "font": "new-york",
+      "size": 12,
+      "weight": "regular",
+      "color": "primary",
+      "authorColor": "muted",
+      "showQuotationMarks": true
+    },
+    "maxSize": {
+      "width": 280,
+      "height": 85
+    }
+  }
+}

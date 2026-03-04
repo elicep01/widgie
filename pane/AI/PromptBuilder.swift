@@ -48,7 +48,7 @@ struct PromptBuilder {
         }
 
         return """
-        You are the AI engine inside "pane", a macOS desktop widget app. Users summon a command bar with Cmd+Shift+W and describe a widget in plain English. Your job is to return one JSON configuration that renders the widget correctly.
+        You are the AI engine inside "widgie", a macOS desktop widget app. Users summon a command bar with Cmd+Shift+W and describe a widget in plain English. Your job is to return one JSON configuration that renders the widget correctly.
 
         YOU ARE THE INTELLIGENCE LAYER. There is no Swift intent-fixing code after you. No timezone dictionaries, no spelling correctors, no duration parsers, no size heuristics. If you are wrong, the user sees a broken widget.
         
@@ -143,8 +143,8 @@ struct PromptBuilder {
         ## COMPREHENSIVE WIDGET PATTERN LIBRARY
         IMPORTANT:
         - The pattern library may use conceptual names like Text/VStack/Grid/api:URL for readability.
-        - Translate every pattern into pane's real schema and supported component types/fields only.
-        - Never emit conceptual types directly; emit schema-valid pane JSON only.
+        - Translate every pattern into widgie's real schema and supported component types/fields only.
+        - Never emit conceptual types directly; emit schema-valid widgie JSON only.
 
         CRITICAL SCHEMA TRANSLATIONS — always use these native component types, never conceptual equivalents:
         - Clock / digital time → {"type":"clock","format":"HH:mm","timezone":"local"} — NEVER a Text with dataSource
@@ -257,7 +257,7 @@ struct PromptBuilder {
 
     func verificationSystemPrompt() -> String {
         """
-        You are a QA reviewer for a widget app called "pane". A user asked for a widget and the AI produced a JSON config.
+        You are a QA reviewer for a widget app called "widgie". A user asked for a widget and the AI produced a JSON config.
 
         Check all of the following:
         1. Intent match: all requested components/features are present.
@@ -273,7 +273,7 @@ struct PromptBuilder {
         11. Empty-space check: fail if large areas are blank and size can be reduced without harming readability.
         12. Multi-symbol stock check: if user named N symbols, ensure N stock components or explicit equivalent representation exists.
         13. Asset-class accuracy: crypto assets should use `crypto`; equities should use `stock`.
-        14. Metals coverage: if user asks for gold/silver, ensure both are represented (for pane use stock symbols GLD/SLV unless the prompt explicitly asks otherwise).
+        14. Metals coverage: if user asks for gold/silver, ensure both are represented (for widgie use stock symbols GLD/SLV unless the prompt explicitly asks otherwise).
         15. Asset completeness: fail if any explicitly requested asset (BTC/ETH/gold/silver/etc.) is missing.
 
         RESPONSE FORMAT
@@ -302,7 +302,7 @@ struct PromptBuilder {
 
     func correctionSystemPrompt() -> String {
         """
-        You are fixing a widget configuration for the app "pane". The previous config failed QA review.
+        You are fixing a widget configuration for the app "widgie". The previous config failed QA review.
 
         Rules:
         - Fix ONLY the listed issues.
@@ -364,7 +364,7 @@ struct PromptBuilder {
     
     func schemaRepairSystemPrompt() -> String {
         """
-        You are repairing an invalid widget JSON response for the app "pane".
+        You are repairing an invalid widget JSON response for the app "widgie".
 
         Rules:
         - Return ONE valid JSON object only.

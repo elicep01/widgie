@@ -2,13 +2,15 @@ import Foundation
 import Security
 
 final class KeychainStore {
-    private let service = "pane"
-    private let legacyService = "WidgetForge"
+    private let service = "widgie"
+    private let legacyServices = ["pane", "WidgetForge"]
 
     func set(_ value: String, for key: String) {
         if value.isEmpty {
             delete(key: key, service: service)
-            delete(key: key, service: legacyService)
+            for legacyService in legacyServices {
+                delete(key: key, service: legacyService)
+            }
             return
         }
 
@@ -29,7 +31,12 @@ final class KeychainStore {
         if let value = string(for: key, service: service) {
             return value
         }
-        return string(for: key, service: legacyService)
+        for legacyService in legacyServices {
+            if let value = string(for: key, service: legacyService) {
+                return value
+            }
+        }
+        return nil
     }
 
     private func string(for key: String, service: String) -> String? {

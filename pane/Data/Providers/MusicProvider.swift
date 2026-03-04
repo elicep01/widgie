@@ -1,7 +1,20 @@
+import AppKit
 import Foundation
 
 struct MusicProvider {
     func fetch() -> MusicSnapshot {
+        // Never auto-launch Music/iTunes just to fetch widget state.
+        guard isMusicRunning else {
+            return MusicSnapshot(
+                title: nil,
+                artist: nil,
+                album: nil,
+                progress: nil,
+                isPlaying: false,
+                updatedAt: Date()
+            )
+        }
+
         let title = runAppleScript("""
         tell application "Music"
             if player state is playing or player state is paused then
@@ -65,6 +78,16 @@ struct MusicProvider {
             isPlaying: (state ?? "").lowercased().contains("playing"),
             updatedAt: Date()
         )
+    }
+
+    private var isMusicRunning: Bool {
+        let musicRunning = !NSRunningApplication
+            .runningApplications(withBundleIdentifier: "com.apple.Music")
+            .isEmpty
+        let iTunesRunning = !NSRunningApplication
+            .runningApplications(withBundleIdentifier: "com.apple.iTunes")
+            .isEmpty
+        return musicRunning || iTunesRunning
     }
 
     private func runAppleScript(_ script: String) -> String? {

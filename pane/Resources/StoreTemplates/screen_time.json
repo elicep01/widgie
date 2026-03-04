@@ -1,0 +1,27 @@
+{
+  "id": "screen-time",
+  "name": "Screen Time",
+  "description": "Track your daily screen usage with category breakdown.",
+  "category": "health",
+  "config": {
+    "name": "Screen Time",
+    "description": "Daily screen time",
+    "size": { "width": 180, "height": 100 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "refreshInterval": 60,
+    "content": {
+      "type": "screen_time",
+      "style": "compact",
+      "showCategories": true,
+      "showDailyGoal": true,
+      "goalHours": 4,
+      "size": 11,
+      "color": "primary",
+      "barColor": "accent",
+      "overColor": "negative"
+    },
+    "maxSize": { "width": 240, "height": 140 }
+  }
+}

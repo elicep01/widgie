@@ -1,0 +1,27 @@
+{
+  "id": "weather-forecast",
+  "name": "3-Day Forecast",
+  "description": "Today, tomorrow, and day-after weather at a glance.",
+  "category": "weather",
+  "config": {
+    "name": "3-Day Forecast",
+    "description": "Three-day weather forecast",
+    "size": { "width": 230, "height": 80 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "refreshInterval": 600,
+    "content": {
+      "type": "weather",
+      "location": "auto",
+      "style": "forecast",
+      "forecastDays": 3,
+      "showIcon": true,
+      "showTemperature": true,
+      "showHighLow": true,
+      "temperatureUnit": "fahrenheit",
+      "color": "primary"
+    },
+    "maxSize": { "width": 300, "height": 110 }
+  }
+}

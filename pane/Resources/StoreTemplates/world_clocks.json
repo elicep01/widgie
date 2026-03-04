@@ -1,0 +1,48 @@
+{
+  "id": "world-clocks",
+  "name": "World Clocks",
+  "description": "New York, London, and Tokyo times side-by-side.",
+  "category": "time",
+  "config": {
+    "name": "World Clocks",
+    "description": "NY / London / Tokyo clocks",
+    "size": {
+      "width": 220,
+      "height": 65
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "content": {
+      "type": "world_clocks",
+      "clocks": [
+        {
+          "timezone": "America/New_York",
+          "label": "New York"
+        },
+        {
+          "timezone": "Europe/London",
+          "label": "London"
+        },
+        {
+          "timezone": "Asia/Tokyo",
+          "label": "Tokyo"
+        }
+      ],
+      "font": "sf-mono",
+      "size": 15,
+      "weight": "light",
+      "color": "primary",
+      "labelColor": "muted"
+    },
+    "maxSize": {
+      "width": 280,
+      "height": 90
+    }
+  }
+}

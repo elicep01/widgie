@@ -1,22 +1,88 @@
 {
   "name": "Portfolio Tracker",
-  "size": {"width": 280, "height": 240},
+  "size": {
+    "width": 240,
+    "height": 160
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 18,
-  "padding": {"top": 16, "bottom": 16, "leading": 18, "trailing": 18},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "vstack",
     "alignment": "leading",
     "spacing": 10,
     "children": [
-      {"type": "text", "content": "Portfolio", "font": "sf-pro", "size": 14, "weight": "semibold", "color": "primary"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "stock", "symbol": "AAPL", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": false, "color": "primary", "positiveColor": "positive", "negativeColor": "negative"},
-      {"type": "stock", "symbol": "NVDA", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": false, "color": "primary", "positiveColor": "positive", "negativeColor": "negative"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "crypto", "symbol": "BTC", "currency": "USD", "showPrice": true, "showChange": true, "showChart": false, "color": "#F7931A"},
-      {"type": "crypto", "symbol": "SOL", "currency": "USD", "showPrice": true, "showChange": true, "showChart": false, "color": "#9945FF"}
+      {
+        "type": "text",
+        "content": "Portfolio",
+        "font": "sf-pro",
+        "size": 14,
+        "weight": "semibold",
+        "color": "primary"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "stock",
+        "symbol": "AAPL",
+        "showPrice": true,
+        "showChange": true,
+        "showChangePercent": true,
+        "showChart": false,
+        "color": "primary",
+        "positiveColor": "positive",
+        "negativeColor": "negative"
+      },
+      {
+        "type": "stock",
+        "symbol": "NVDA",
+        "showPrice": true,
+        "showChange": true,
+        "showChangePercent": true,
+        "showChart": false,
+        "color": "primary",
+        "positiveColor": "positive",
+        "negativeColor": "negative"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "crypto",
+        "symbol": "BTC",
+        "currency": "USD",
+        "showPrice": true,
+        "showChange": true,
+        "showChart": false,
+        "color": "#F7931A"
+      },
+      {
+        "type": "crypto",
+        "symbol": "SOL",
+        "currency": "USD",
+        "showPrice": true,
+        "showChange": true,
+        "showChart": false,
+        "color": "#9945FF"
+      }
     ]
   },
   "refreshInterval": 60

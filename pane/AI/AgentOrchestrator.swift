@@ -17,11 +17,19 @@ enum AgentInteractionMode: String, Codable {
     case launcher
 }
 
+struct AgentSourceAttribution: Codable {
+    var provider: String
+    var title: String
+    var url: String
+}
+
 struct AgentDataPlan: Codable {
     var requestedSources: [String]
     var supportedSources: [String]
     var unsupportedSources: [String]
+    var missingRequirements: [String]
     var refreshHintSeconds: Int?
+    var sourceAttributions: [AgentSourceAttribution]
 }
 
 struct AgentBuildPlan: Codable {
@@ -54,9 +62,14 @@ enum AgentPlanningDecision {
 @MainActor
 final class AgentOrchestrator {
     private let promptClarifier: PromptClarifier
+    private let webSearchConnector: AgentWebSearchConnector
 
-    init(promptClarifier: PromptClarifier = PromptClarifier()) {
+    init(
+        promptClarifier: PromptClarifier = PromptClarifier(),
+        webSearchConnector: AgentWebSearchConnector = NoopAgentWebSearchConnector()
+    ) {
         self.promptClarifier = promptClarifier
+        self.webSearchConnector = webSearchConnector
     }
 
     func plan(
@@ -66,16 +79,36 @@ final class AgentOrchestrator {
         let lower = prompt.lowercased()
         let interaction = inferInteractionMode(from: lower)
         let dataPlan = inferDataPlan(from: lower)
+        let deterministicQuestions = deterministicClarificationQuestions(
+            prompt: prompt,
+            lowerPrompt: lower,
+            interaction: interaction,
+            dataPlan: dataPlan
+        )
+        let webResolution = await webLookupResolutionIfNeeded(prompt: prompt, dataPlan: dataPlan)
 
         var plan = AgentBuildPlan(
             originalPrompt: prompt,
             synthesizedPrompt: prompt,
             phase: .understand,
             interactionMode: interaction,
-            dataPlan: dataPlan,
+            dataPlan: AgentDataPlan(
+                requestedSources: dataPlan.requestedSources,
+                supportedSources: dataPlan.supportedSources,
+                unsupportedSources: dataPlan.unsupportedSources,
+                missingRequirements: dataPlan.missingRequirements,
+                refreshHintSeconds: dataPlan.refreshHintSeconds,
+                sourceAttributions: webResolution.attributions
+            ),
             openQuestions: [],
-            assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan)
+            assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan) + webResolution.assumptions
         )
+
+        if !deterministicQuestions.isEmpty {
+            plan.phase = .clarify
+            plan.openQuestions = deterministicQuestions
+            return .needsClarification(plan: plan, questions: deterministicQuestions)
+        }
 
         guard let clarificationClient else {
             plan.phase = .plan
@@ -88,9 +121,10 @@ final class AgentOrchestrator {
             plan.phase = .plan
             return .ready(plan: plan)
         case .needsQuestions(let questions):
+            let merged = mergeClarificationQuestions(primary: deterministicQuestions, secondary: questions)
             plan.phase = .clarify
-            plan.openQuestions = questions
-            return .needsClarification(plan: plan, questions: questions)
+            plan.openQuestions = merged
+            return .needsClarification(plan: plan, questions: merged)
         }
     }
 
@@ -180,6 +214,46 @@ final class AgentOrchestrator {
             confidence: critiqueResult.confidence,
             issues: critiqueResult.issues
         )
+    }
+
+    func lowConfidenceFollowupQuestions(plan: AgentBuildPlan, issues: [String]) -> [ClarificationQuestion] {
+        var questions: [ClarificationQuestion] = []
+
+        if issues.contains(where: { $0.lowercased().contains("refresh") }) {
+            questions.append(
+                ClarificationQuestion(
+                    id: "refresh-target",
+                    question: "How often should it update?",
+                    options: ["1 min", "5 min", "15 min", "Hourly"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if plan.interactionMode == .userEditable,
+           issues.contains(where: { $0.lowercased().contains("interactive") || $0.lowercased().contains("editable") }) {
+            questions.append(
+                ClarificationQuestion(
+                    id: "interaction-mode",
+                    question: "Should users edit it directly?",
+                    options: ["Yes, editable", "No, display only"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if !plan.dataPlan.unsupportedSources.isEmpty {
+            questions.append(
+                ClarificationQuestion(
+                    id: "fallback-choice",
+                    question: "Fallback for unsupported source?",
+                    options: ["Use bookmarks", "Use note summary", "Use static text"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        return Array(questions.prefix(3))
     }
 
     private func critique(config: WidgetConfig, plan: AgentBuildPlan) -> AgentCritique {
@@ -338,6 +412,7 @@ final class AgentOrchestrator {
         var requested: [String] = []
         var supported: [String] = []
         var unsupported: [String] = []
+        var missingRequirements: [String] = []
 
         for (token, isSupported) in sourceTokens where lowerPrompt.contains(token) {
             requested.append(token)
@@ -346,6 +421,19 @@ final class AgentOrchestrator {
             } else {
                 unsupported.append(token)
             }
+        }
+
+        if supported.contains("weather"), !containsLikelyLocation(lowerPrompt) {
+            missingRequirements.append("weather_location")
+        }
+        if supported.contains("stock"), !containsTickerSymbols(lowerPrompt) {
+            missingRequirements.append("stock_symbols")
+        }
+        if supported.contains("crypto"), !containsTickerSymbols(lowerPrompt) {
+            missingRequirements.append("crypto_symbols")
+        }
+        if lowerPrompt.contains("launcher"), !containsAppNames(lowerPrompt) {
+            missingRequirements.append("launcher_apps")
         }
 
         let refreshHint: Int?
@@ -361,7 +449,9 @@ final class AgentOrchestrator {
             requestedSources: requested,
             supportedSources: supported,
             unsupportedSources: unsupported,
-            refreshHintSeconds: refreshHint
+            missingRequirements: missingRequirements,
+            refreshHintSeconds: refreshHint,
+            sourceAttributions: []
         )
     }
 
@@ -373,9 +463,162 @@ final class AgentOrchestrator {
         if !dataPlan.unsupportedSources.isEmpty {
             assumptions.append("If unsupported sources are requested, prefer link/bookmark fallback.")
         }
+        if !dataPlan.missingRequirements.isEmpty {
+            assumptions.append("Missing source details must be clarified before final rendering.")
+        }
         if let refreshHint = dataPlan.refreshHintSeconds {
             assumptions.append("Target refresh interval around \(refreshHint) seconds when applicable.")
         }
         return assumptions
+    }
+
+    private func deterministicClarificationQuestions(
+        prompt: String,
+        lowerPrompt: String,
+        interaction: AgentInteractionMode,
+        dataPlan: AgentDataPlan
+    ) -> [ClarificationQuestion] {
+        var questions: [ClarificationQuestion] = []
+
+        if dataPlan.missingRequirements.contains("weather_location") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "weather-location",
+                    question: "Which city should weather use?",
+                    options: ["Current city", "New York", "San Francisco", "London"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if dataPlan.missingRequirements.contains("stock_symbols") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "stock-symbols",
+                    question: "Which stocks should it track?",
+                    options: ["AAPL", "MSFT", "NVDA", "TSLA"],
+                    allowsMultiple: true
+                )
+            )
+        }
+
+        if dataPlan.missingRequirements.contains("crypto_symbols") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "crypto-symbols",
+                    question: "Which crypto should it track?",
+                    options: ["BTC", "ETH", "SOL", "DOGE"],
+                    allowsMultiple: true
+                )
+            )
+        }
+
+        if dataPlan.missingRequirements.contains("launcher_apps") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "launcher-apps",
+                    question: "Which apps should launcher include?",
+                    options: ["Safari", "Notes", "Terminal", "Calendar"],
+                    allowsMultiple: true
+                )
+            )
+        }
+
+        if interaction == .userEditable,
+           (lowerPrompt.contains("checklist") || lowerPrompt.contains("note")),
+           !lowerPrompt.contains("editable"),
+           !lowerPrompt.contains("read only"),
+           !lowerPrompt.contains("read-only") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "editable-vs-static",
+                    question: "Should this widget be editable?",
+                    options: ["Yes", "No"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if (lowerPrompt.contains("live") || lowerPrompt.contains("real-time")) && dataPlan.refreshHintSeconds == nil {
+            questions.append(
+                ClarificationQuestion(
+                    id: "refresh-frequency",
+                    question: "How often should it refresh?",
+                    options: ["1 min", "5 min", "15 min", "Hourly"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if !dataPlan.unsupportedSources.isEmpty, !containsURL(prompt) {
+            questions.append(
+                ClarificationQuestion(
+                    id: "unsupported-source-url",
+                    question: "Can you share source URL?",
+                    options: ["Yes, I have URL", "No, use fallback"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        return Array(questions.prefix(3))
+    }
+
+    private func mergeClarificationQuestions(
+        primary: [ClarificationQuestion],
+        secondary: [ClarificationQuestion]
+    ) -> [ClarificationQuestion] {
+        var merged: [ClarificationQuestion] = []
+        var seen = Set<String>()
+
+        for question in primary + secondary {
+            guard !seen.contains(question.id) else { continue }
+            merged.append(question)
+            seen.insert(question.id)
+            if merged.count >= 3 { break }
+        }
+        return merged
+    }
+
+    private func webLookupResolutionIfNeeded(
+        prompt: String,
+        dataPlan: AgentDataPlan
+    ) async -> (assumptions: [String], attributions: [AgentSourceAttribution]) {
+        guard !dataPlan.unsupportedSources.isEmpty else {
+            return ([], [])
+        }
+        do {
+            let results = try await webSearchConnector.search(query: prompt, limit: 2)
+            guard !results.isEmpty else {
+                return (["No web source resolved; use graceful fallback."], [])
+            }
+            let attributions = results.map {
+                AgentSourceAttribution(provider: $0.provider, title: $0.title, url: $0.url)
+            }
+            return (["Web hints found; validate relevance before using."], attributions)
+        } catch {
+            return (["Web search unavailable; use provider fallback and ask user for URL if needed."], [])
+        }
+    }
+
+    private func containsLikelyLocation(_ lowerPrompt: String) -> Bool {
+        let markers = [",", " in ", " at ", "city", "usa", "india", "uk", "london", "tokyo", "new york", "san francisco"]
+        return markers.contains(where: { lowerPrompt.contains($0) })
+    }
+
+    private func containsTickerSymbols(_ lowerPrompt: String) -> Bool {
+        let regex = try? NSRegularExpression(pattern: "\\b[A-Z]{2,5}\\b")
+        let nsText = lowerPrompt.uppercased() as NSString
+        let matches = regex?.matches(in: lowerPrompt.uppercased(), range: NSRange(location: 0, length: nsText.length)) ?? []
+        return !matches.isEmpty
+    }
+
+    private func containsAppNames(_ lowerPrompt: String) -> Bool {
+        let knownApps = ["safari", "notes", "calendar", "mail", "terminal", "finder", "music", "xcode", "chrome"]
+        return knownApps.contains(where: { lowerPrompt.contains($0) })
+    }
+
+    private func containsURL(_ text: String) -> Bool {
+        text.range(of: #"https?://|www\."#, options: .regularExpression) != nil
     }
 }

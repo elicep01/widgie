@@ -1,0 +1,36 @@
+{
+  "id": "day-progress",
+  "name": "Day Progress",
+  "description": "See how much of your day is left with a progress bar.",
+  "category": "time",
+  "config": {
+    "name": "Day Progress",
+    "description": "Day progress bar",
+    "size": {
+      "width": 190,
+      "height": 48
+    },
+    "theme": "obsidian",
+    "cornerRadius": 12,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "content": {
+      "type": "day_progress",
+      "startHour": 7,
+      "endHour": 23,
+      "style": "bar",
+      "showPercentage": true,
+      "showTimeRemaining": true,
+      "color": "accent",
+      "label": "Day"
+    },
+    "maxSize": {
+      "width": 250,
+      "height": 65
+    }
+  }
+}

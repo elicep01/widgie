@@ -1,0 +1,37 @@
+{
+  "id": "weather-compact",
+  "name": "Weather",
+  "description": "Temperature, condition, and high/low for your city.",
+  "category": "weather",
+  "config": {
+    "name": "Weather",
+    "description": "Compact weather widget",
+    "size": {
+      "width": 175,
+      "height": 70
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
+    "content": {
+      "type": "weather",
+      "location": "auto",
+      "style": "compact",
+      "showIcon": true,
+      "showTemperature": true,
+      "showCondition": true,
+      "showHighLow": true,
+      "temperatureUnit": "fahrenheit",
+      "color": "primary"
+    },
+    "maxSize": {
+      "width": 230,
+      "height": 95
+    }
+  }
+}

@@ -132,17 +132,17 @@ struct ThemeResolver {
                 positive: Color(hex: "#3FB950"),
                 negative: Color(hex: "#F85149"),
                 warning: Color(hex: "#D29922"),
-                muted: Color(hex: "#484F58")
+                muted: Color(hex: "#7A8696")   // was #484F58 — 2.3:1 (dark on dark) → 5.0:1
             )
         case .frosted:
             return ThemePalette(
                 primary: Color(hex: "#1A1A1A"),
                 secondary: Color(hex: "#5D6470"),
-                accent: Color(hex: "#0A84FF"),
-                positive: Color(hex: "#2FA56A"),
-                negative: Color(hex: "#D14B4B"),
-                warning: Color(hex: "#B27B1D"),
-                muted: Color(hex: "#A4ACB8")
+                accent: Color(hex: "#0066CC"),  // was #0A84FF — 3.65:1 → 5.56:1
+                positive: Color(hex: "#1A7A4E"), // was #2FA56A — 3.1:1  → 5.4:1
+                negative: Color(hex: "#C23333"), // was #D14B4B — 4.36:1 → 5.5:1
+                warning: Color(hex: "#8A6000"),  // was #B27B1D — 3.67:1 → 5.6:1
+                muted: Color(hex: "#6B7280")     // was #A4ACB8 — 2.3:1  → 4.8:1
             )
         case .neon:
             return ThemePalette(
@@ -152,17 +152,17 @@ struct ThemeResolver {
                 positive: Color(hex: "#1CFF8A"),
                 negative: Color(hex: "#FF4E9A"),
                 warning: Color(hex: "#FFD447"),
-                muted: Color(hex: "#3C4D6F")
+                muted: Color(hex: "#6F8FAE")    // was #3C4D6F — 2.34:1 (dark on dark) → 5.9:1
             )
         case .paper:
             return ThemePalette(
                 primary: Color(hex: "#2C261F"),
                 secondary: Color(hex: "#6A5E50"),
-                accent: Color(hex: "#9D6E3A"),
-                positive: Color(hex: "#567E4A"),
-                negative: Color(hex: "#AD5042"),
-                warning: Color(hex: "#B48633"),
-                muted: Color(hex: "#CDBEAB")
+                accent: Color(hex: "#7A5020"),   // was #9D6E3A — 3.88:1 → 6.1:1
+                positive: Color(hex: "#3D6235"), // was #567E4A — 4.09:1 → 6.1:1
+                negative: Color(hex: "#963830"), // was #AD5042 — 4.58:1 → 6.3:1
+                warning: Color(hex: "#7A5C00"),  // was #B48633 — 2.86:1 → 5.45:1
+                muted: Color(hex: "#726659")     // was #CDBEAB — 1.59:1 → 4.9:1
             )
         case .transparent:
             return ThemePalette(

@@ -5,12 +5,12 @@ import SwiftUI
 final class SettingsWindow {
     private let window: NSWindow
 
-    init(settingsStore: SettingsStore) {
-        let rootView = SettingsRootView(settingsStore: settingsStore)
+    init(settingsStore: SettingsStore, onApplyTheme: ((WidgetTheme) -> Void)? = nil) {
+        let rootView = SettingsRootView(settingsStore: settingsStore, onApplyTheme: onApplyTheme)
         let hostingController = NSHostingController(rootView: rootView)
 
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "pane Settings"
+        window.title = "widgie Settings"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.setFrame(NSRect(x: 0, y: 0, width: 620, height: 420), display: false)
         window.center()
@@ -27,6 +27,7 @@ final class SettingsWindow {
 
 private struct SettingsRootView: View {
     @ObservedObject var settingsStore: SettingsStore
+    let onApplyTheme: ((WidgetTheme) -> Void)?
 
     var body: some View {
         TabView {
@@ -40,7 +41,7 @@ private struct SettingsRootView: View {
                     Label("AI", systemImage: "brain")
                 }
 
-            WidgetDefaultsView(settingsStore: settingsStore)
+            WidgetDefaultsView(settingsStore: settingsStore, onApplyTheme: onApplyTheme)
                 .tabItem {
                     Label("Widgets", systemImage: "square.grid.2x2")
                 }

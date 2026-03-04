@@ -1,0 +1,56 @@
+{
+  "id": "habit-tracker",
+  "name": "Habit Tracker",
+  "description": "Track three daily habits with a GitHub-style contribution grid.",
+  "category": "health",
+  "config": {
+    "name": "Habit Tracker",
+    "description": "3-habit daily tracker",
+    "size": {
+      "width": 230,
+      "height": 100
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "content": {
+      "type": "habit_tracker",
+      "style": "grid",
+      "habits": [
+        {
+          "id": "h1",
+          "name": "Exercise",
+          "icon": "figure.run",
+          "target": 1,
+          "color": "positive"
+        },
+        {
+          "id": "h2",
+          "name": "Read",
+          "icon": "book",
+          "target": 1,
+          "color": "accent"
+        },
+        {
+          "id": "h3",
+          "name": "Water",
+          "icon": "drop.fill",
+          "target": 8,
+          "color": "warning"
+        }
+      ],
+      "showStreak": true,
+      "size": 11,
+      "color": "primary"
+    },
+    "maxSize": {
+      "width": 290,
+      "height": 140
+    }
+  }
+}

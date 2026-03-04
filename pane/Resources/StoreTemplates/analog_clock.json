@@ -1,0 +1,24 @@
+{
+  "id": "analog-clock",
+  "name": "Analog Clock",
+  "description": "Classic round clock face with hour and minute hands.",
+  "category": "time",
+  "config": {
+    "name": "Analog Clock",
+    "description": "Classic analog clock",
+    "size": { "width": 120, "height": 120 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 10, "bottom": 10, "leading": 10, "trailing": 10 },
+    "content": {
+      "type": "analog_clock",
+      "timezone": "local",
+      "showNumbers": true,
+      "showTicks": true,
+      "handColor": "primary",
+      "tickColor": "muted",
+      "secondHandColor": "accent"
+    },
+    "maxSize": { "width": 170, "height": 170 }
+  }
+}

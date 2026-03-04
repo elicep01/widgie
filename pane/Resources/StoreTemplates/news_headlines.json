@@ -1,0 +1,27 @@
+{
+  "id": "news-headlines",
+  "name": "News Headlines",
+  "description": "Top breaking news stories from your preferred source.",
+  "category": "media",
+  "config": {
+    "name": "News Headlines",
+    "description": "Breaking news feed",
+    "size": { "width": 230, "height": 110 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "refreshInterval": 300,
+    "content": {
+      "type": "news_headlines",
+      "source": "top",
+      "maxItems": 3,
+      "showSource": true,
+      "showTime": true,
+      "font": "sf-pro",
+      "size": 11,
+      "color": "primary",
+      "sourceColor": "muted"
+    },
+    "maxSize": { "width": 290, "height": 150 }
+  }
+}

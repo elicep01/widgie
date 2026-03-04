@@ -1,0 +1,37 @@
+<svg width="1200" height="720" viewBox="0 0 1200 720" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="widgie widget gallery mockup">
+  <rect width="1200" height="720" fill="#f3f4f6"/>
+  <rect x="80" y="50" width="1040" height="620" rx="18" fill="#ffffff" stroke="#d1d5db"/>
+  <text x="110" y="95" fill="#111827" font-size="24" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Widget Store</text>
+  <rect x="100" y="120" width="180" height="34" rx="8" fill="#e5e7eb"/>
+  <rect x="104" y="124" width="86" height="26" rx="6" fill="#ffffff"/>
+  <text x="122" y="142" fill="#111827" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Store</text>
+  <text x="204" y="142" fill="#6b7280" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">My Widgets</text>
+  <rect x="860" y="121" width="190" height="32" rx="8" fill="#eff6ff"/>
+  <text x="900" y="142" fill="#1d4ed8" font-size="13" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Create with AI</text>
+
+  <g transform="translate(100 190)">
+    <rect width="300" height="210" rx="14" fill="#111827"/>
+    <text x="20" y="38" fill="#e5e7eb" font-size="16" font-family="-apple-system, BlinkMacSystemFont, sans-serif">GitHub Stats</text>
+    <text x="20" y="72" fill="#93c5fd" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Stars 12.4k</text>
+    <text x="20" y="98" fill="#cbd5e1" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Forks 2.1k</text>
+    <rect x="20" y="160" width="105" height="32" rx="8" fill="#2563eb"/>
+    <text x="50" y="181" fill="#ffffff" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Add</text>
+  </g>
+
+  <g transform="translate(430 190)">
+    <rect width="300" height="210" rx="14" fill="#e5e7eb"/>
+    <text x="20" y="38" fill="#111827" font-size="16" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Weather Compact</text>
+    <text x="20" y="72" fill="#374151" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Seattle 58F Cloudy</text>
+    <rect x="20" y="160" width="105" height="32" rx="8" fill="#2563eb"/>
+    <text x="50" y="181" fill="#ffffff" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Add</text>
+  </g>
+
+  <g transform="translate(760 190)">
+    <rect width="300" height="210" rx="14" fill="#0f172a"/>
+    <text x="20" y="38" fill="#f8fafc" font-size="16" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Checklist</text>
+    <text x="20" y="72" fill="#cbd5e1" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">[x] Ship README</text>
+    <text x="20" y="96" fill="#cbd5e1" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">[ ] Review test plan</text>
+    <rect x="20" y="160" width="105" height="32" rx="8" fill="#2563eb"/>
+    <text x="50" y="181" fill="#ffffff" font-size="14" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Add</text>
+  </g>
+</svg>

@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct paneApp: App {
+struct WidgieApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {

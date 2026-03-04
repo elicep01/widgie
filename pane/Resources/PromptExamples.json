@@ -145,6 +145,15 @@
       "expectedFile": "crypto_live.json"
     },
     {
+      "id": "market-crypto-metals-live",
+      "prompt": "bitcoin ethereum gold silver live prices in a grid",
+      "intentSummary": "Mixed crypto + metals market tracker with all four assets present.",
+      "keySignals": ["bitcoin", "ethereum", "gold", "silver", "live prices", "grid"],
+      "categories": ["market"],
+      "outputHints": ["crypto BTC/ETH", "stock GLD/SLV", "include all 4 assets", "refreshInterval 60"],
+      "expectedFile": "market_crypto_metals_live.json"
+    },
+    {
       "id": "checklist-job-daily",
       "prompt": "daily job search checklist that resets every morning",
       "intentSummary": "Interactive daily-reset checklist for job search.",
@@ -166,8 +175,8 @@
       "id": "habit-github-style",
       "prompt": "habit tracker like github contributions for working out reading and drinking water",
       "intentSummary": "Grid style habit tracker with multiple habits.",
-      "keySignals": ["habit tracker", "github", "workout", "reading", "water"],
-      "categories": ["productivity"],
+      "keySignals": ["habit tracker", "github", "workout", "reading", "water", "habits", "daily habits", "routine", "tracker"],
+      "categories": ["health", "productivity"],
       "outputHints": ["habit_tracker", "grid style"],
       "expectedFile": "habit_github_style.json"
     },
@@ -175,8 +184,8 @@
       "id": "habit-water-today",
       "prompt": "track my water intake today",
       "intentSummary": "Single-habit water tracker for the current day.",
-      "keySignals": ["water intake", "track water", "today"],
-      "categories": ["productivity"],
+      "keySignals": ["water intake", "track water", "today", "tracker", "habit", "daily"],
+      "categories": ["health", "productivity"],
       "outputHints": ["habit_tracker", "single water habit", "rings style"],
       "expectedFile": "habit_water_today.json"
     },
@@ -184,8 +193,8 @@
       "id": "mood-daily",
       "prompt": "daily mood tracker",
       "intentSummary": "Mood check widget with quick action buttons.",
-      "keySignals": ["daily mood tracker", "mood"],
-      "categories": ["creative", "productivity"],
+      "keySignals": ["daily mood tracker", "mood", "mood log", "feeling tracker", "emotion tracker", "wellness tracker", "daily mood"],
+      "categories": ["health", "creative"],
       "outputHints": ["vstack", "shortcut launcher row"],
       "expectedFile": "mood_daily.json"
     },
@@ -289,12 +298,21 @@
       "expectedFile": "bookmarks_social.json"
     },
     {
+      "id": "productivity-daily",
+      "prompt": "productivity HQ with day progress goals and a quote",
+      "intentSummary": "Compact daily focus widget with day progress, goals checklist, and motivational quote in hstack two-column layout.",
+      "keySignals": ["productivity hq", "productivity widget", "daily focus", "day progress goals", "focus widget", "goals and progress", "daily goals", "productivity dashboard"],
+      "categories": ["dashboard", "productivity"],
+      "outputHints": ["hstack layout NOT vstack", "340x160 compact size", "day_progress left column", "checklist right column"],
+      "expectedFile": "productivity_daily.json"
+    },
+    {
       "id": "dashboard-morning",
       "prompt": "morning dashboard with time weather calendar and a checklist",
-      "intentSummary": "Morning productivity dashboard with multiple sections.",
+      "intentSummary": "Compact morning dashboard using hstack: clock/weather/day-progress left, calendar+checklist right.",
       "keySignals": ["morning dashboard", "time", "weather", "calendar", "checklist"],
       "categories": ["dashboard"],
-      "outputHints": ["multi-section vstack", "large size"],
+      "outputHints": ["hstack two-column layout", "380x180 compact", "clock and weather left", "calendar and checklist right"],
       "expectedFile": "dashboard_morning.json"
     },
     {
@@ -312,7 +330,7 @@
       "intentSummary": "Comprehensive productivity command center with multiple sections.",
       "keySignals": ["full productivity", "pomodoro", "checklist", "calendar", "quote"],
       "categories": ["dashboard", "productivity"],
-      "outputHints": ["large multi-section layout", "include all requested components"],
+      "outputHints": ["hstack pomodoro left clock/day-progress/checklist right", "380x200 compact", "include all requested components"],
       "expectedFile": "dashboard_command_center.json"
     },
     {
@@ -332,6 +350,15 @@
       "categories": ["creative"],
       "outputHints": ["gradient or blur background", "multiple component types"],
       "expectedFile": "creative_beautiful.json"
+    },
+    {
+      "id": "github-repo-stats",
+      "prompt": "github repo stat tracker for https://github.com/SuperCmdLabs/SuperCmd",
+      "intentSummary": "Live GitHub repo stats widget showing stars, forks, open issues, and watchers.",
+      "keySignals": ["github", "repo", "stat", "tracker", "stars", "forks", "github.com"],
+      "categories": ["external", "github"],
+      "outputHints": ["use github_repo_stats type", "source = owner/repo extracted from URL", "no showComponents means show all"],
+      "expectedJSON": "{\"name\":\"SuperCmd\",\"description\":\"github repo stat tracker for https://github.com/SuperCmdLabs/SuperCmd\",\"size\":{\"width\":280,\"height\":110},\"theme\":\"dark\",\"background\":{\"type\":\"color\",\"value\":\"widgetBackground\"},\"cornerRadius\":20,\"padding\":{\"top\":14,\"bottom\":14,\"leading\":16,\"trailing\":16},\"refreshInterval\":1800,\"content\":{\"type\":\"github_repo_stats\",\"source\":\"SuperCmdLabs/SuperCmd\"}}"
     }
   ]
 }

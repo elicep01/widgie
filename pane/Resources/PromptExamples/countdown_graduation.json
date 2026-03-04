@@ -1,17 +1,50 @@
 {
   "name": "Graduation Countdown",
-  "size": {"width": 200, "height": 100},
+  "size": {
+    "width": 190,
+    "height": 70
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 18,
-  "padding": {"top": 16, "bottom": 16, "leading": 20, "trailing": 20},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "vstack",
     "alignment": "center",
     "spacing": 4,
     "children": [
-      {"type": "countdown", "targetDate": "2026-05-01T00:00:00Z", "showComponents": ["days", "hours"], "style": "compact", "font": "sf-mono", "size": 34, "weight": "light", "color": "accent", "completedText": "Today"},
-      {"type": "text", "content": "Graduation Day", "font": "sf-pro", "size": 11, "weight": "medium", "color": "muted"}
+      {
+        "type": "countdown",
+        "targetDate": "2026-05-01T00:00:00Z",
+        "showComponents": [
+          "days",
+          "hours"
+        ],
+        "style": "compact",
+        "font": "sf-mono",
+        "size": 34,
+        "weight": "light",
+        "color": "accent",
+        "completedText": "Today"
+      },
+      {
+        "type": "text",
+        "content": "Graduation Day",
+        "font": "sf-pro",
+        "size": 11,
+        "weight": "medium",
+        "color": "muted"
+      }
     ]
   }
 }

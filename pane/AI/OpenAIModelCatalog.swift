@@ -60,9 +60,15 @@ final class OpenAIModelCatalog: ObservableObject {
         let decoded = try JSONDecoder().decode(ModelListResponse.self, from: data)
 
         var ids = decoded.data.map(\.id)
-        ids = ids.filter { $0.hasPrefix("gpt-") }
+        // Allow GPT-4/5 and o-series reasoning models; exclude utility models
         ids = ids.filter { id in
             let lower = id.lowercased()
+            let isGenerationModel = lower.hasPrefix("gpt-4")
+                || lower.hasPrefix("gpt-5")
+                || lower.hasPrefix("o1")
+                || lower.hasPrefix("o3")
+                || lower.hasPrefix("o4")
+            guard isGenerationModel else { return false }
             return !lower.contains("realtime")
                 && !lower.contains("audio")
                 && !lower.contains("tts")
@@ -70,6 +76,7 @@ final class OpenAIModelCatalog: ObservableObject {
                 && !lower.contains("image")
                 && !lower.contains("embedding")
                 && !lower.contains("moderation")
+                && !lower.contains("search")
         }
 
         let uniqueSorted = Array(Set(ids)).sorted(by: modelSort)
@@ -79,28 +86,32 @@ final class OpenAIModelCatalog: ObservableObject {
     private func modelSort(lhs: String, rhs: String) -> Bool {
         let leftPriority = modelPriority(lhs)
         let rightPriority = modelPriority(rhs)
-
         if leftPriority == rightPriority {
             return lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
         }
-
         return leftPriority < rightPriority
     }
 
     private func modelPriority(_ model: String) -> Int {
         switch model {
-        case "gpt-5": return 0
-        case "gpt-5-mini": return 1
-        case "gpt-4.1": return 2
-        case "gpt-4.1-mini": return 3
-        case "gpt-4o": return 4
-        case "gpt-4o-mini": return 5
-        default: return 100
+        // o-series reasoning models — top of list
+        case "o3":          return 0
+        case "o3-mini":     return 1
+        case "o1":          return 2
+        case "o1-mini":     return 3
+        // GPT instruction models
+        case "gpt-4.1":     return 10
+        case "gpt-4.1-mini": return 11
+        case "gpt-4o":      return 12
+        case "gpt-4o-mini": return 13
+        case "gpt-5":       return 14
+        case "gpt-5-mini":  return 15
+        default:            return 100
         }
     }
 
     private var fallbackModels: [String] {
-        ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"]
+        ["o3-mini", "o1-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"]
     }
 }
 

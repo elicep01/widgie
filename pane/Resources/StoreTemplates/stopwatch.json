@@ -1,0 +1,25 @@
+{
+  "id": "stopwatch",
+  "name": "Stopwatch",
+  "description": "A simple stopwatch with start, stop, and lap controls.",
+  "category": "time",
+  "config": {
+    "name": "Stopwatch",
+    "description": "Lap stopwatch",
+    "size": { "width": 160, "height": 70 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "content": {
+      "type": "stopwatch",
+      "showLaps": false,
+      "showControls": true,
+      "font": "sf-mono",
+      "size": 24,
+      "weight": "light",
+      "color": "primary",
+      "controlColor": "accent"
+    },
+    "maxSize": { "width": 220, "height": 95 }
+  }
+}

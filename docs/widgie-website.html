@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>widgie — widgets, summoned</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060608;
+  --bg2: #0c0c10;
+  --surface: rgba(255,255,255,0.03);
+  --surface2: rgba(255,255,255,0.05);
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #eaeaef;
+  --text2: #7a7a85;
+  --text3: #4a4a55;
+  --accent: #6cb4ff;
+  --accent2: #4a9aee;
+  --green: #4ade80;
+  --red: #f87171;
+  --orange: #fbbf24;
+  --purple: #c084fc;
+  --pink: #f472b6;
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'Outfit', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(108,180,255,0.25);
+  color: #fff;
+}
+
+/* ═══════════════ NOISE TEXTURE ═══════════════ */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 256px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ═══════════════ SCROLL ANIMATIONS ═══════════════ */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+.reveal-delay-5 { transition-delay: 0.5s; }
+
+/* ═══════════════ NAV ═══════════════ */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 20px 40px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  backdrop-filter: blur(20px);
+  background: rgba(6,6,8,0.7);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.nav-logo {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 4px;
+  color: var(--text);
+}
+
+.nav-links {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: var(--text2);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  transition: color 0.3s;
+}
+
+.nav-links a:hover { color: var(--text); }
+
+.nav-cta {
+  padding: 8px 20px !important;
+  background: var(--text) !important;
+  color: var(--bg) !important;
+  border-radius: 8px;
+  font-weight: 500 !important;
+  transition: opacity 0.3s !important;
+}
+
+.nav-cta:hover { opacity: 0.85; }
+
+/* ═══════════════ HERO ═══════════════ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 120px 40px 80px;
+  position: relative;
+}
+
+/* Glow orbs */
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 5%;
+  left: 20%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(108,180,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: 10%;
+  right: 15%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(192,132,252,0.04) 0%, transparent 70%);
+  pointer-events: none;
+  animation: orbFloat 10s ease-in-out infinite reverse;
+}
+
+@keyframes orbFloat {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(30px, -20px); }
+}
+
+.hero-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 8px 20px;
+  border: 1px solid rgba(108,180,255,0.2);
+  border-radius: 100px;
+  margin-bottom: 48px;
+  font-weight: 400;
+  position: relative;
+  z-index: 1;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(56px, 9vw, 120px);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -2px;
+  margin-bottom: 32px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero h1 em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.hero-sub {
+  font-size: 19px;
+  font-weight: 300;
+  color: var(--text2);
+  max-width: 520px;
+  line-height: 1.7;
+  margin-bottom: 48px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-hotkey {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text2);
+  position: relative;
+  z-index: 1;
+  transition: border-color 0.3s;
+}
+
+.hero-hotkey:hover { border-color: rgba(255,255,255,0.2); }
+
+.hero-hotkey kbd {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.hero-hotkey span { color: var(--text3); }
+
+/* ═══════════════ DEMO SECTION ═══════════════ */
+.demo-section {
+  padding: 0 40px 120px;
+  position: relative;
+}
+
+.desktop-frame {
+  max-width: 1000px;
+  margin: 0 auto;
+  background: linear-gradient(145deg, #111827 0%, #0f172a 40%, #1e1b4b 100%);
+  border-radius: 16px;
+  aspect-ratio: 16/10;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+/* Stars on wallpaper */
+.desktop-frame::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    radial-gradient(1px 1px at 10% 20%, rgba(255,255,255,0.15), transparent),
+    radial-gradient(1px 1px at 30% 60%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 50% 10%, rgba(255,255,255,0.12), transparent),
+    radial-gradient(1px 1px at 70% 40%, rgba(255,255,255,0.08), transparent),
+    radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.06), transparent),
+    radial-gradient(1px 1px at 85% 15%, rgba(255,255,255,0.1), transparent),
+    radial-gradient(1px 1px at 60% 85%, rgba(255,255,255,0.08), transparent);
+  pointer-events: none;
+}
+
+.mac-titlebar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 28px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  z-index: 5;
+}
+
+.traffic-lights {
+  display: flex;
+  gap: 7px;
+}
+
+.traffic-lights span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.traffic-lights span:nth-child(1) { background: #ff5f57; }
+.traffic-lights span:nth-child(2) { background: #febc2e; }
+.traffic-lights span:nth-child(3) { background: #28c840; }
+
+.mac-menu {
+  margin-left: 16px;
+  display: flex;
+  gap: 18px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.65);
+  font-weight: 500;
+}
+
+.mac-time {
+  position: absolute;
+  right: 12px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  font-family: var(--font-body);
+  font-weight: 400;
+}
+
+/* Command bar on desktop */
+.demo-cmdbar {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 58%;
+  height: 52px;
+  background: rgba(22,22,28,0.88);
+  backdrop-filter: blur(30px);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.5);
+  z-index: 10;
+}
+
+.cmdbar-icon {
+  font-size: 16px;
+  opacity: 0.4;
+}
+
+.cmdbar-text {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 300;
+  color: var(--text);
+  font-family: var(--font-body);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cmdbar-cursor {
+  width: 2px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: cursorBlink 1.2s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes cursorBlink {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.cmdbar-shortcut {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+
+/* Typing animation */
+.typewriter {
+  overflow: hidden;
+  border-right: none;
+  white-space: nowrap;
+  animation: typing 3s steps(50) 1s forwards;
+  width: 0;
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+/* Desktop widgets */
+.desk-widgets {
+  position: absolute;
+  top: 28px;
+  left: 0; right: 0; bottom: 0;
+  z-index: 3;
+}
+
+/* Widget base */
+.w {
+  background: rgba(18,18,24,0.78);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 18px;
+  position: absolute;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease;
+}
+
+.w::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 10%; right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+
+.w:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+/* Widget content styles */
+.w-pad { padding: 16px; }
+
+.w-time {
+  font-family: var(--font-mono);
+  font-weight: 300;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+
+.w-label {
+  font-size: 10px;
+  color: var(--text2);
+  font-weight: 400;
+  margin-top: 3px;
+  letter-spacing: 0.5px;
+}
+
+.w-date-text {
+  font-size: 11px;
+  color: var(--text3);
+  font-weight: 300;
+}
+
+.w-sep {
+  height: 0.5px;
+  background: rgba(255,255,255,0.06);
+  margin: 10px 0;
+}
+
+/* ═══════════════ FEATURES SECTION ═══════════════ */
+.section {
+  padding: 120px 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 400;
+  margin-bottom: 16px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5vw, 56px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 20px;
+}
+
+.section-desc {
+  font-size: 17px;
+  font-weight: 300;
+  color: var(--text2);
+  max-width: 560px;
+  line-height: 1.7;
+}
+
+/* How it works */
+.how-it-works {
+  padding: 120px 40px;
+  position: relative;
+}
+
+.how-it-works::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 10%, var(--border) 50%, transparent 90%);
+}
+
+.hiw-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-top: 64px;
+}
+
+.hiw-step {
+  padding: 40px 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  position: relative;
+  transition: background 0.3s;
+}
+
+.hiw-step:first-child { border-radius: 20px 0 0 20px; }
+.hiw-step:last-child { border-radius: 0 20px 20px 0; }
+
+.hiw-step:hover { background: var(--surface2); }
+
+.hiw-num {
+  font-family: var(--font-mono);
+  font-size: 48px;
+  font-weight: 300;
+  color: rgba(108,180,255,0.15);
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.hiw-step h3 {
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.hiw-step p {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 300;
+  line-height: 1.7;
+}
+
+/* ═══════════════ WIDGET SHOWCASE ═══════════════ */
+.showcase {
+  padding: 120px 40px;
+  position: relative;
+}
+
+.showcase::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 10%, var(--border) 50%, transparent 90%);
+}
+
+.showcase-grid {
+  max-width: 1100px;
+  margin: 64px auto 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.showcase-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  transition: border-color 0.3s, transform 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.showcase-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 15%; right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+}
+
+.showcase-card:hover {
+  border-color: var(--border2);
+  transform: translateY(-4px);
+}
+
+.sc-icon {
+  font-size: 28px;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.sc-title {
+  font-size: 17px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.sc-desc {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 300;
+  line-height: 1.7;
+}
+
+.sc-preview {
+  margin-top: 24px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+/* Mini widget styles for showcase */
+.mini-clock {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 200;
+  color: var(--text);
+  text-align: center;
+  letter-spacing: 2px;
+}
+
+.mini-label {
+  font-size: 10px;
+  color: var(--text3);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.mini-weather {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mini-weather-icon { font-size: 28px; }
+
+.mini-weather-temp {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 300;
+}
+
+.mini-weather-info {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 2px;
+}
+
+.mini-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+  font-weight: 300;
+}
+
+.mini-check-box {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1.5px solid var(--text3);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+}
+
+.mini-check-box.done {
+  background: var(--green);
+  border-color: var(--green);
+  color: #000;
+}
+
+.mini-check.checked-item {
+  color: var(--text3);
+  text-decoration: line-through;
+}
+
+.mini-stock-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.mini-stock-sym {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.mini-stock-price {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 300;
+}
+
+.mini-stock-chg {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.mini-stock-chg.up { color: var(--green); }
+.mini-stock-chg.down { color: var(--red); }
+
+.mini-countdown-num {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 200;
+  color: var(--red);
+  text-align: center;
+  line-height: 1;
+}
+
+.mini-countdown-label {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-top: 6px;
+}
+
+.mini-quote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+.mini-quote-author {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text3);
+  font-style: normal;
+  margin-top: 10px;
+}
+
+/* Progress ring SVG */
+.mini-ring {
+  display: flex;
+  justify-content: center;
+}
+
+/* ═══════════════ PROMPT EXAMPLES ═══════════════ */
+.prompts-section {
+  padding: 120px 40px;
+  position: relative;
+}
+
+.prompts-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 10%, var(--border) 50%, transparent 90%);
+}
+
+.prompts-grid {
+  max-width: 900px;
+  margin: 64px auto 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.prompt-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+
+.prompt-input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 28px;
+  transition: border-color 0.3s;
+}
+
+.prompt-input:hover { border-color: var(--border2); }
+
+.prompt-icon {
+  font-size: 11px;
+  color: var(--accent);
+  margin-bottom: 12px;
+  font-family: var(--font-mono);
+  letter-spacing: 2px;
+}
+
+.prompt-text {
+  font-size: 15px;
+  font-weight: 300;
+  color: var(--text);
+  line-height: 1.5;
+  font-family: var(--font-body);
+}
+
+.prompt-result {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.prompt-result-icon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.prompt-result-text {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 300;
+  line-height: 1.5;
+}
+
+/* ═══════════════ TECH SECTION ═══════════════ */
+.tech-section {
+  padding: 120px 40px;
+  position: relative;
+}
+
+.tech-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 10%, var(--border) 50%, transparent 90%);
+}
+
+.tech-grid {
+  max-width: 900px;
+  margin: 64px auto 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.tech-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+
+.tech-card:hover { border-color: var(--border2); }
+
+.tech-card h4 {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 400;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.tech-card p {
+  font-size: 12px;
+  color: var(--text3);
+  font-weight: 300;
+}
+
+/* ═══════════════ CTA SECTION ═══════════════ */
+.cta-section {
+  padding: 160px 40px;
+  text-align: center;
+  position: relative;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(108,180,255,0.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.cta-title {
+  font-family: var(--font-display);
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -1px;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.cta-title em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.cta-desc {
+  font-size: 17px;
+  font-weight: 300;
+  color: var(--text2);
+  max-width: 440px;
+  margin: 0 auto 48px;
+  line-height: 1.7;
+  position: relative;
+}
+
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 36px;
+  background: #fff;
+  color: #000;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: transform 0.2s, opacity 0.2s;
+  position: relative;
+}
+
+.cta-button:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.cta-button-secondary {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border2);
+  margin-left: 16px;
+}
+
+.cta-button-secondary:hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.25);
+}
+
+/* ═══════════════ FOOTER ═══════════════ */
+footer {
+  padding: 40px;
+  text-align: center;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+footer p {
+  font-size: 12px;
+  color: var(--text3);
+  font-weight: 300;
+}
+
+footer .f-logo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text2);
+  letter-spacing: 3px;
+  margin-bottom: 8px;
+}
+
+/* ═══════════════ RESPONSIVE ═══════════════ */
+@media (max-width: 900px) {
+  .hiw-grid { grid-template-columns: repeat(2, 1fr); }
+  .hiw-step:first-child { border-radius: 20px 0 0 0; }
+  .hiw-step:last-child { border-radius: 0 0 20px 0; }
+  .hiw-step:nth-child(2) { border-radius: 0 20px 0 0; }
+  .hiw-step:nth-child(3) { border-radius: 0 0 0 20px; }
+  .showcase-grid { grid-template-columns: repeat(2, 1fr); }
+  .prompt-row { grid-template-columns: 1fr; }
+  .tech-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  nav { padding: 16px 20px; }
+  .nav-links { gap: 16px; }
+  .hero { padding: 100px 20px 60px; }
+  .section, .how-it-works, .showcase, .prompts-section, .tech-section, .cta-section {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .hiw-grid { grid-template-columns: 1fr; }
+  .hiw-step, .hiw-step:first-child, .hiw-step:last-child, .hiw-step:nth-child(2), .hiw-step:nth-child(3) {
+    border-radius: 16px;
+  }
+  .showcase-grid { grid-template-columns: 1fr; }
+  .tech-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">widgie</div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#widgets">Widgets</a>
+    <a href="#how">How it works</a>
+    <a href="#download" class="nav-cta">Download</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge reveal">widgets, summoned</div>
+  <h1 class="reveal reveal-delay-1">Describe it.<br>It <em>appears.</em></h1>
+  <p class="hero-sub reveal reveal-delay-2">
+    Type what you want in plain English. A beautiful widget 
+    materializes on your desktop. No menus, no templates, 
+    no configuration.
+  </p>
+  <div class="hero-hotkey reveal reveal-delay-3">
+    <kbd>⌘</kbd> <span>+</span> <kbd>⇧</kbd> <span>+</span> <kbd>W</kbd>
+    <span style="margin-left:12px; color:var(--text3);">to summon</span>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="demo-section">
+  <div class="desktop-frame reveal">
+    <div class="mac-titlebar">
+      <div class="traffic-lights"><span></span><span></span><span></span></div>
+      <div class="mac-menu"><b>Finder</b><span>File</span><span>Edit</span><span>View</span></div>
+      <div class="mac-time">Mon Feb 16  10:32 AM</div>
+    </div>
+    
+    <!-- Command bar -->
+    <div class="demo-cmdbar">
+      <span class="cmdbar-icon">⌘</span>
+      <span class="cmdbar-text">dark widget with Tokyo time, weather, and graduation countdown</span>
+      <span class="cmdbar-cursor"></span>
+    </div>
+
+    <div class="desk-widgets">
+      <!-- Clock widget -->
+      <div class="w w-pad" style="top:14px; left:16px; width:130px;">
+        <div class="w-time" style="font-size:28px; text-align:center;">10:32</div>
+        <div class="w-label" style="text-align:center;">Monday</div>
+        <div class="w-date-text" style="text-align:center;">February 16</div>
+      </div>
+
+      <!-- Weather -->
+      <div class="w w-pad" style="top:14px; right:16px; width:150px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:26px;">🌨️</span>
+          <div>
+            <div class="w-time" style="font-size:24px;">28°F</div>
+            <div class="w-label">Light Snow</div>
+          </div>
+        </div>
+        <div class="w-sep"></div>
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--text3);">H:32° L:18° · Madison</div>
+      </div>
+
+      <!-- Countdown -->
+      <div class="w w-pad" style="bottom:14px; left:16px; width:135px; text-align:center;">
+        <div style="font-family:var(--font-mono); font-size:38px; font-weight:200; color:var(--red); line-height:1;">74</div>
+        <div style="font-size:9px; color:var(--text3); text-transform:uppercase; letter-spacing:2px; margin-top:6px;">days left</div>
+        <div class="w-sep"></div>
+        <div style="font-size:10px; color:var(--text2);">Graduation Day 🎓</div>
+      </div>
+
+      <!-- Checklist -->
+      <div class="w w-pad" style="bottom:14px; right:16px; width:175px;">
+        <div style="font-size:12px; font-weight:500; margin-bottom:8px; display:flex; justify-content:space-between;">
+          <span>Daily Goals</span>
+          <span style="color:var(--green); font-family:var(--font-mono); font-size:10px;">2/4</span>
+        </div>
+        <div class="mini-check checked-item" style="font-size:11px; padding:3px 0;">
+          <div class="mini-check-box done" style="width:13px; height:13px;">✓</div>
+          Apply to jobs
+        </div>
+        <div class="mini-check checked-item" style="font-size:11px; padding:3px 0;">
+          <div class="mini-check-box done" style="width:13px; height:13px;">✓</div>
+          LeetCode
+        </div>
+        <div class="mini-check" style="font-size:11px; padding:3px 0;">
+          <div class="mini-check-box" style="width:13px; height:13px;"></div>
+          Update resume
+        </div>
+        <div class="mini-check" style="font-size:11px; padding:3px 0;">
+          <div class="mini-check-box" style="width:13px; height:13px;"></div>
+          Network
+        </div>
+      </div>
+
+      <!-- Stock mini -->
+      <div class="w w-pad" style="top:50%; left:50%; transform:translate(-50%, 40%); width:100px; text-align:center;">
+        <div style="font-family:var(--font-mono); font-size:10px; font-weight:500;">AAPL</div>
+        <div style="font-family:var(--font-mono); font-size:18px; font-weight:300; margin-top:2px;">$242</div>
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--green); margin-top:2px;">▲ 1.24%</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-it-works" id="how">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div class="section-label reveal">How it works</div>
+    <div class="section-title reveal reveal-delay-1">Four seconds from thought<br>to widget</div>
+  </div>
+  <div class="hiw-grid">
+    <div class="hiw-step reveal">
+      <div class="hiw-num">01</div>
+      <h3>Summon</h3>
+      <p>Press ⌘⇧W from anywhere. A command bar appears over your desktop, ready for input.</p>
+    </div>
+    <div class="hiw-step reveal reveal-delay-1">
+      <div class="hiw-num">02</div>
+      <h3>Describe</h3>
+      <p>Type what you want in plain English. "Minimal clock with Tokyo time." "Stock tracker for AAPL." That's it.</p>
+    </div>
+    <div class="hiw-step reveal reveal-delay-2">
+      <div class="hiw-num">03</div>
+      <h3>Generate</h3>
+      <p>AI parses your request, picks components, arranges the layout, and produces a validated configuration. ~2 seconds.</p>
+    </div>
+    <div class="hiw-step reveal reveal-delay-3">
+      <div class="hiw-num">04</div>
+      <h3>Materialize</h3>
+      <p>Your widget fades onto the desktop. Drag it anywhere. Resize it. Right-click to edit. It persists across reboots.</p>
+    </div>
+  </div>
+</section>
+
+<!-- WIDGET SHOWCASE -->
+<section class="showcase" id="widgets">
+  <div style="max-width:1100px; margin:0 auto;">
+    <div class="section-label reveal">Widget Library</div>
+    <div class="section-title reveal reveal-delay-1">Anything you can <em style="font-family:var(--font-display); font-style:italic; color:var(--accent);">describe</em></div>
+    <div class="section-desc reveal reveal-delay-2">30+ composable components. Mix and match clocks, weather, stocks, checklists, timers, quotes — in any combination.</div>
+  </div>
+
+  <div class="showcase-grid">
+    <!-- Clock -->
+    <div class="showcase-card reveal">
+      <span class="sc-icon">⏰</span>
+      <div class="sc-title">Clocks & Time</div>
+      <div class="sc-desc">Digital, analog, world clocks. Any timezone. Countdowns to any date. Pomodoro timers with controls.</div>
+      <div class="sc-preview">
+        <div class="mini-clock">14:32</div>
+        <div class="mini-label">Tokyo · JST</div>
+      </div>
+    </div>
+
+    <!-- Weather -->
+    <div class="showcase-card reveal reveal-delay-1">
+      <span class="sc-icon">🌤️</span>
+      <div class="sc-title">Weather</div>
+      <div class="sc-desc">Current conditions, forecasts, temperature, humidity, wind. Compact or detailed. Any location.</div>
+      <div class="sc-preview">
+        <div class="mini-weather">
+          <span class="mini-weather-icon">☁️</span>
+          <div>
+            <div class="mini-weather-temp">28°F</div>
+            <div class="mini-weather-info">Cloudy · Madison</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checklist -->
+    <div class="showcase-card reveal reveal-delay-2">
+      <span class="sc-icon">✅</span>
+      <div class="sc-title">Checklists & Habits</div>
+      <div class="sc-desc">Interactive to-do lists that reset daily. Habit trackers with streaks. Tap to check off items.</div>
+      <div class="sc-preview">
+        <div class="mini-check checked-item"><div class="mini-check-box done">✓</div> Morning workout</div>
+        <div class="mini-check checked-item"><div class="mini-check-box done">✓</div> Apply to 5 jobs</div>
+        <div class="mini-check"><div class="mini-check-box"></div> LeetCode practice</div>
+      </div>
+    </div>
+
+    <!-- Stocks -->
+    <div class="showcase-card reveal">
+      <span class="sc-icon">📈</span>
+      <div class="sc-title">Stocks & Crypto</div>
+      <div class="sc-desc">Live prices, daily change, sparkline charts. Track any symbol. Updates every minute during market hours.</div>
+      <div class="sc-preview">
+        <div class="mini-stock-row">
+          <span class="mini-stock-sym">AAPL</span>
+          <span class="mini-stock-price">$242.31</span>
+          <span class="mini-stock-chg up">▲ 1.24%</span>
+        </div>
+        <div class="mini-stock-row" style="border-top:1px solid rgba(255,255,255,0.04); margin-top:4px; padding-top:8px;">
+          <span class="mini-stock-sym">GOOGL</span>
+          <span class="mini-stock-price">$187.45</span>
+          <span class="mini-stock-chg down">▼ 0.32%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Countdown -->
+    <div class="showcase-card reveal reveal-delay-1">
+      <span class="sc-icon">⏳</span>
+      <div class="sc-title">Countdowns & Timers</div>
+      <div class="sc-desc">Count down to any date. Interactive stopwatch and pomodoro. Ring, bar, or flip-clock styles.</div>
+      <div class="sc-preview">
+        <div class="mini-countdown-num">74</div>
+        <div class="mini-countdown-label">days remaining</div>
+      </div>
+    </div>
+
+    <!-- Quotes -->
+    <div class="showcase-card reveal reveal-delay-2">
+      <span class="sc-icon">💬</span>
+      <div class="sc-title">Quotes & Notes</div>
+      <div class="sc-desc">Daily motivation, stoic wisdom, custom quotes. Editable notes pinned to your desktop.</div>
+      <div class="sc-preview">
+        <div class="mini-quote">"The only way to do great work is to love what you do."</div>
+        <div class="mini-quote-author">— Steve Jobs</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROMPTS -->
+<section class="prompts-section" id="features">
+  <div style="max-width:900px; margin:0 auto;">
+    <div class="section-label reveal">Just describe it</div>
+    <div class="section-title reveal reveal-delay-1">Plain English in,<br>widget out</div>
+    <div class="section-desc reveal reveal-delay-2">No configuration screens. No drag-and-drop builders. Just say what you want.</div>
+  </div>
+
+  <div class="prompts-grid">
+    <div class="prompt-row reveal">
+      <div class="prompt-input">
+        <div class="prompt-icon">⌘ PROMPT</div>
+        <div class="prompt-text">"minimal dark clock with seconds"</div>
+      </div>
+      <div class="prompt-result">
+        <span class="prompt-result-icon">🕐</span>
+        <span class="prompt-result-text">Digital clock, SF Mono ultralight, dark blur background, live seconds, floating on desktop</span>
+      </div>
+    </div>
+    <div class="prompt-row reveal reveal-delay-1">
+      <div class="prompt-input">
+        <div class="prompt-icon">⌘ PROMPT</div>
+        <div class="prompt-text">"job search checklist that resets every morning"</div>
+      </div>
+      <div class="prompt-result">
+        <span class="prompt-result-icon">📋</span>
+        <span class="prompt-result-text">Interactive checklist with tap-to-check, progress bar, auto-resets at midnight, obsidian theme</span>
+      </div>
+    </div>
+    <div class="prompt-row reveal reveal-delay-2">
+      <div class="prompt-input">
+        <div class="prompt-icon">⌘ PROMPT</div>
+        <div class="prompt-text">"show me AAPL GOOGL MSFT with charts"</div>
+      </div>
+      <div class="prompt-result">
+        <span class="prompt-result-icon">📊</span>
+        <span class="prompt-result-text">Three-column stock ticker, live prices, sparkline charts, green/red change indicators</span>
+      </div>
+    </div>
+    <div class="prompt-row reveal reveal-delay-3">
+      <div class="prompt-input">
+        <div class="prompt-icon">⌘ PROMPT</div>
+        <div class="prompt-text">"world clocks for Madison, Mumbai, and Tokyo"</div>
+      </div>
+      <div class="prompt-result">
+        <span class="prompt-result-icon">🌍</span>
+        <span class="prompt-result-text">Three-column layout, each with digital time + city label, compact horizontal arrangement</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH -->
+<section class="tech-section">
+  <div style="max-width:900px; margin:0 auto;">
+    <div class="section-label reveal">Under the hood</div>
+    <div class="section-title reveal reveal-delay-1">AI writes config.<br>Never code.</div>
+    <div class="section-desc reveal reveal-delay-2">Every widget is a JSON configuration. The rendering engine is deterministic. Same config, same widget. Every time.</div>
+  </div>
+
+  <div class="tech-grid">
+    <div class="tech-card reveal">
+      <h4>Swift + SwiftUI</h4>
+      <p>Native macOS performance</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-1">
+      <h4>AppKit NSPanel</h4>
+      <p>Desktop-level windows</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-2">
+      <h4>Claude / OpenAI</h4>
+      <p>Natural language → JSON config</p>
+    </div>
+    <div class="tech-card reveal">
+      <h4>30+ Components</h4>
+      <p>Infinite combinations</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-1">
+      <h4>Frosted Glass</h4>
+      <p>NSVisualEffectView blur</p>
+    </div>
+    <div class="tech-card reveal reveal-delay-2">
+      <h4>Zero Dependencies</h4>
+      <p>Pure Apple frameworks</p>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section" id="download">
+  <div class="cta-title reveal">Your desktop,<br><em>reimagined.</em></div>
+  <p class="cta-desc reveal reveal-delay-1">
+    Stop settling for Apple's widget panel. 
+    Build exactly what you want with a single sentence.
+  </p>
+  <div class="reveal reveal-delay-2">
+    <a href="#" class="cta-button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"/></svg>
+      Download for macOS
+    </a>
+    <a href="#" class="cta-button cta-button-secondary">View on GitHub</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="f-logo">widgie</div>
+  <p>Built with Swift, SwiftUI, and a healthy obsession with desktop aesthetics.</p>
+</footer>
+
+<script>
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Smooth nav links
+document.querySelectorAll('nav a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+</script>
+</body>
+</html>

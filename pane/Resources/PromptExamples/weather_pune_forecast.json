@@ -1,10 +1,23 @@
 {
   "name": "Pune Weather",
-  "size": {"width": 280, "height": 200},
+  "size": {
+    "width": 220,
+    "height": 130
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 20,
-  "padding": {"top": 18, "bottom": 18, "leading": 20, "trailing": 20},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "weather",
     "location": "Pune, Maharashtra, India",
@@ -20,5 +33,11 @@
     "forecastDays": 5,
     "color": "primary"
   },
-  "dataSources": {"weather": {"provider": "openweather", "location": "Pune, Maharashtra, India", "refreshInterval": 1800}}
+  "dataSources": {
+    "weather": {
+      "provider": "openweather",
+      "location": "Pune, Maharashtra, India",
+      "refreshInterval": 1800
+    }
+  }
 }

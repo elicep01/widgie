@@ -10,21 +10,26 @@ final class ProviderBackedAIService: AIWidgetService {
     private let settingsStore: SettingsStore
     private let rateLimiter: AIRateLimiter
     private let pipeline: GenerationPipeline
+    let learnedExampleStore: LearnedExampleStore
+    let userPreferenceStore: UserPreferenceStore
 
     init(
         settingsStore: SettingsStore,
         promptBuilder: PromptBuilder = PromptBuilder(),
         validator: SchemaValidator = SchemaValidator(),
         rateLimiter: AIRateLimiter? = nil,
-        pipeline: GenerationPipeline? = nil
+        pipeline: GenerationPipeline? = nil,
+        learnedExampleStore: LearnedExampleStore? = nil
     ) {
         self.settingsStore = settingsStore
         self.rateLimiter = rateLimiter ?? .shared
+        self.learnedExampleStore = learnedExampleStore ?? LearnedExampleStore()
+        self.userPreferenceStore = UserPreferenceStore()
         self.pipeline = pipeline ?? GenerationPipeline(
             promptBuilder: promptBuilder,
             validator: validator,
-            callTimeoutSeconds: 25.0,
-            totalPipelineTimeoutSeconds: 140.0
+            callTimeoutSeconds: 90.0,   // reasoning models (o3-mini, o1) need up to 60–90s to think
+            totalPipelineTimeoutSeconds: 300.0
         )
     }
 
@@ -43,7 +48,9 @@ final class ProviderBackedAIService: AIWidgetService {
             defaultTheme: settingsStore.defaultTheme,
             context: promptContext(),
             generationClient: generationClient,
-            verificationClient: verificationClient
+            verificationClient: verificationClient,
+            extraExamples: learnedExampleStore.examples,
+            userStyleProfile: userPreferenceStore.styleProfile
         )
     }
 
@@ -63,7 +70,9 @@ final class ProviderBackedAIService: AIWidgetService {
             defaultTheme: settingsStore.defaultTheme,
             context: promptContext(),
             generationClient: generationClient,
-            verificationClient: verificationClient
+            verificationClient: verificationClient,
+            extraExamples: learnedExampleStore.examples,
+            userStyleProfile: userPreferenceStore.styleProfile
         )
     }
 
@@ -103,36 +112,37 @@ final class ProviderBackedAIService: AIWidgetService {
         }
     }
 
+    /// Returns a lightweight AI client for pre-generation tasks (e.g. clarification).
+    /// Uses the same fast/mini model as verification. Does NOT consume a rate-limit run.
+    func makeClarificationClient() throws -> AIProviderClient {
+        try activeClient(for: .verification)
+    }
+
     private func openAIVerificationModel(from model: String) -> String {
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = trimmed.lowercased()
-        if trimmed.isEmpty {
-            return "gpt-4o-mini"
-        }
-        if lower.contains("mini") || lower.contains("nano") {
-            return trimmed
-        }
-        if lower.hasPrefix("gpt-5") {
-            return "gpt-5-mini"
-        }
-        if lower.hasPrefix("gpt-4.1") {
+        if trimmed.isEmpty { return "gpt-4.1-mini" }
+        // o-series reasoning models are too slow/expensive for the fast QA verification pass.
+        // Always pair them with the fast GPT-4.1 mini verifier.
+        if lower.hasPrefix("o1") || lower.hasPrefix("o3") || lower.hasPrefix("o4") {
             return "gpt-4.1-mini"
         }
-        if lower.hasPrefix("gpt-4o") {
-            return "gpt-4o-mini"
-        }
-        return trimmed
+        if lower.contains("mini") || lower.contains("nano") { return trimmed }
+        if lower.hasPrefix("gpt-5")   { return "gpt-5-mini" }
+        if lower.hasPrefix("gpt-4.1") { return "gpt-4.1-mini" }
+        if lower.hasPrefix("gpt-4o")  { return "gpt-4o-mini" }
+        return "gpt-4.1-mini"
     }
 
     private func claudeVerificationModel(from model: String) -> String {
         let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = trimmed.lowercased()
-        if trimmed.isEmpty {
-            return "claude-3-5-haiku-latest"
+        if trimmed.isEmpty { return "claude-haiku-4-5-20251001" }
+        if lower.contains("haiku") { return trimmed }
+        // Pair Claude 4 generation models with Claude 4 Haiku for fast, cheap verification
+        if lower.hasPrefix("claude-opus-4") || lower.hasPrefix("claude-sonnet-4") {
+            return "claude-haiku-4-5-20251001"
         }
-        if lower.contains("haiku") {
-            return trimmed
-        }
-        return "claude-3-5-haiku-latest"
+        return "claude-haiku-4-5-20251001"
     }
 }

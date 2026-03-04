@@ -222,7 +222,7 @@ struct OpenAIService: AIProviderClient {
             candidates.append(requested)
         }
 
-        for fallback in ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"] {
+        for fallback in ["o3-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini"] {
             if fallback.caseInsensitiveCompare(requested) != .orderedSame {
                 candidates.append(fallback)
             }
@@ -254,6 +254,16 @@ struct OpenAIService: AIProviderClient {
         return false
     }
 
+    /// Reasoning models (o1, o3, o4) need longer timeouts because they run a thinking pass
+    /// before producing output. Standard instruction models (gpt-4.x) are fast at 25s.
+    private var requestTimeout: TimeInterval {
+        let lower = model.lowercased()
+        if lower.hasPrefix("o1") || lower.hasPrefix("o3") || lower.hasPrefix("o4") {
+            return 90
+        }
+        return 25
+    }
+
     private func performRequest<RequestBody: Encodable>(
         url: URL,
         requestBody: RequestBody,
@@ -261,7 +271,7 @@ struct OpenAIService: AIProviderClient {
     ) async throws -> Data {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 25
+        request.timeoutInterval = requestTimeout
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = try JSONEncoder().encode(requestBody)

@@ -1,18 +1,57 @@
 {
   "name": "Daily Zen",
-  "size": {"width": 260, "height": 200},
+  "size": {
+    "width": 220,
+    "height": 130
+  },
   "theme": "transparent",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#000000", "tintOpacity": 0.3},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#000000",
+    "tintOpacity": 0.3
+  },
   "cornerRadius": 20,
-  "padding": {"top": 22, "bottom": 22, "leading": 22, "trailing": 22},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "vstack",
     "alignment": "center",
     "spacing": 14,
     "children": [
-      {"type": "analog_clock", "timezone": "local", "size": 90, "style": "minimal", "hourHandColor": "primary", "minuteHandColor": "primary", "secondHandColor": "accent", "showSecondHand": true, "tickColor": "muted"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "quote", "source": "curated", "category": "stoic", "refreshInterval": "daily", "font": "new-york", "size": 12, "weight": "regular", "color": "secondary", "authorColor": "muted", "showQuotationMarks": true}
+      {
+        "type": "analog_clock",
+        "timezone": "local",
+        "size": 90,
+        "style": "minimal",
+        "hourHandColor": "primary",
+        "minuteHandColor": "primary",
+        "secondHandColor": "accent",
+        "showSecondHand": true,
+        "tickColor": "muted"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "quote",
+        "source": "curated",
+        "category": "stoic",
+        "refreshInterval": "daily",
+        "font": "new-york",
+        "size": 12,
+        "weight": "regular",
+        "color": "secondary",
+        "authorColor": "muted",
+        "showQuotationMarks": true
+      }
     ]
   }
 }

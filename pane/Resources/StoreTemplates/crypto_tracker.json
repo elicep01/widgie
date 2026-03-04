@@ -1,0 +1,58 @@
+{
+  "id": "crypto-tracker",
+  "name": "Crypto Tracker",
+  "description": "Live Bitcoin and Ethereum prices with change indicators.",
+  "category": "finance",
+  "config": {
+    "name": "Crypto Tracker",
+    "description": "BTC + ETH live tracker",
+    "size": {
+      "width": 220,
+      "height": 50
+    },
+    "theme": "obsidian",
+    "cornerRadius": 12,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "refreshInterval": 60,
+    "content": {
+      "type": "hstack",
+      "alignment": "center",
+      "spacing": 8,
+      "children": [
+        {
+          "type": "crypto",
+          "symbol": "BTC",
+          "currency": "USD",
+          "showChange": true,
+          "showChart": false,
+          "size": 12,
+          "color": "primary"
+        },
+        {
+          "type": "divider",
+          "color": "muted",
+          "thickness": 0.5,
+          "direction": "vertical"
+        },
+        {
+          "type": "crypto",
+          "symbol": "ETH",
+          "currency": "USD",
+          "showChange": true,
+          "showChart": false,
+          "size": 12,
+          "color": "primary"
+        }
+      ]
+    },
+    "maxSize": {
+      "width": 280,
+      "height": 70
+    }
+  }
+}

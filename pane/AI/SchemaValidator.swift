@@ -11,7 +11,7 @@ struct SchemaValidator {
         "pomodoro", "day_progress", "year_progress",
         "weather", "stock", "crypto", "calendar_next", "reminders", "battery", "system_stats",
         "music_now_playing", "news_headlines", "screen_time",
-        "checklist", "habit_tracker", "quote", "note", "shortcut_launcher", "link_bookmarks",
+        "checklist", "habit_tracker", "quote", "note", "shortcut_launcher", "link_bookmarks", "github_repo_stats",
         "vstack", "hstack", "container"
     ]
     private let orderedComponentTypes: [String] = [
@@ -20,7 +20,7 @@ struct SchemaValidator {
         "pomodoro", "day_progress", "year_progress",
         "weather", "stock", "crypto", "calendar_next", "reminders", "battery", "system_stats",
         "music_now_playing", "news_headlines", "screen_time",
-        "checklist", "habit_tracker", "quote", "note", "shortcut_launcher", "link_bookmarks",
+        "checklist", "habit_tracker", "quote", "note", "shortcut_launcher", "link_bookmarks", "github_repo_stats",
         "vstack", "hstack", "container"
     ]
 
@@ -85,6 +85,12 @@ struct SchemaValidator {
         "habits": "habit_tracker",
         "routine": "habit_tracker",
         "daily_habits": "habit_tracker",
+        // GitHub repo stats aliases
+        "githubstats": "github_repo_stats",
+        "github_stats": "github_repo_stats",
+        "github_repo": "github_repo_stats",
+        "repo_stats": "github_repo_stats",
+        "repo_tracker": "github_repo_stats",
     ]
 
     private let widgetAllowedKeys: Set<String> = [
@@ -112,6 +118,7 @@ struct SchemaValidator {
         "list", "emptyText", "timeRange", "device", "interactive", "maxEvents", "maxItems", "maxApps",
         "forecastDays", "rotateInterval", "albumArtSize", "lineWidth", "height", "lowThreshold", "showMetrics",
         "direction", "thickness", "spacing", "padding", "background", "cornerRadius", "border", "shadow",
+        "owner", "repo", "showStars", "showForks", "showIssues", "showWatchers", "showDescription",
         "child", "children"
     ]
 
@@ -673,6 +680,29 @@ struct SchemaValidator {
                 component[to] = value
             }
         }
+
+        // Legacy/template GitHub fields.
+        if component["source"] == nil {
+            let owner = nonEmptyString(component["owner"])
+            let repo = nonEmptyString(component["repo"])
+            if let owner, let repo {
+                component["source"] = "\(owner)/\(repo)"
+            } else if let repo {
+                component["source"] = repo
+            }
+        }
+
+        if component["showComponents"] == nil {
+            var fields: [String] = []
+            if coerceBool(component["showStars"]) == true { fields.append("stars") }
+            if coerceBool(component["showForks"]) == true { fields.append("forks") }
+            if coerceBool(component["showIssues"]) == true { fields.append("issues") }
+            if coerceBool(component["showWatchers"]) == true { fields.append("watchers") }
+            if coerceBool(component["showDescription"]) == true { fields.append("description") }
+            if !fields.isEmpty {
+                component["showComponents"] = fields
+            }
+        }
     }
 
     private func fillRequiredDefaults(component: inout [String: Any], type: String) {
@@ -769,7 +799,12 @@ struct SchemaValidator {
             }
 
         case "note":
-            component["content"] = nonEmptyString(component["content"]) ?? "Note"
+            let isEditable = coerceBool(component["editable"]) == true
+            if !isEditable {
+                component["content"] = nonEmptyString(component["content"]) ?? "Note"
+            } else if component["content"] == nil {
+                component["content"] = ""
+            }
 
         case "shortcut_launcher":
             let shortcuts = sanitizeShortcuts(component["shortcuts"])
@@ -782,6 +817,19 @@ struct SchemaValidator {
             component["links"] = links.isEmpty
                 ? [["name": "GitHub", "url": "https://github.com", "icon": "link"]]
                 : links
+
+        case "github_repo_stats":
+            let source = nonEmptyString(component["source"]) ?? "apple/swift"
+            component["source"] = sanitizeGitHubSource(source)
+            if let fields = coerceStringArray(component["showComponents"]) {
+                let allowed = Set(["stars", "forks", "issues", "watchers", "description"])
+                let normalized = fields.map { $0.lowercased() }.filter { allowed.contains($0) }
+                if normalized.isEmpty {
+                    component.removeValue(forKey: "showComponents")
+                } else {
+                    component["showComponents"] = normalized
+                }
+            }
 
         case "progress_ring", "progress_bar":
             component["source"] = nonEmptyString(component["source"]) ?? "placeholder.value"
@@ -1032,6 +1080,33 @@ struct SchemaValidator {
             return nil
         }
         return ISO8601DateFormatter().date(from: text) == nil ? nil : text
+    }
+
+    private func sanitizeGitHubSource(_ raw: String) -> String {
+        let trailingPunct = CharacterSet(charactersIn: ".,;:!?)\"'")
+        let trimmed = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: trailingPunct)
+
+        if let parsed = URL(string: trimmed),
+           let host = parsed.host?.lowercased(),
+           host.contains("github.com") {
+            let parts = parsed.pathComponents
+                .filter { $0 != "/" }
+                .map { $0.trimmingCharacters(in: trailingPunct) }
+            if parts.count >= 2 {
+                let owner = parts[0]
+                var repo = parts[1]
+                if repo.hasSuffix(".git") {
+                    repo = String(repo.dropLast(4))
+                }
+                if !owner.isEmpty, !repo.isEmpty {
+                    return "\(owner)/\(repo)"
+                }
+            }
+        }
+
+        return trimmed
     }
 
     private func sanitizeTimezone(_ raw: Any?) -> String {
@@ -1325,16 +1400,66 @@ struct SchemaValidator {
     }
 
     private func removeJSONComments(from text: String) -> String {
-        let noBlockComments = text.replacingOccurrences(
-            of: #"/\*[\s\S]*?\*/"#,
-            with: "",
-            options: .regularExpression
-        )
-        return noBlockComments.replacingOccurrences(
-            of: #"(?m)//.*$"#,
-            with: "",
-            options: .regularExpression
-        )
+        var output = ""
+        var index = text.startIndex
+        var inString = false
+        var escaped = false
+
+        while index < text.endIndex {
+            let ch = text[index]
+            let next = text.index(after: index)
+
+            if inString {
+                output.append(ch)
+                if escaped {
+                    escaped = false
+                } else if ch == "\\" {
+                    escaped = true
+                } else if ch == "\"" {
+                    inString = false
+                }
+                index = next
+                continue
+            }
+
+            if ch == "\"" {
+                inString = true
+                output.append(ch)
+                index = next
+                continue
+            }
+
+            if ch == "/", next < text.endIndex {
+                let nextChar = text[next]
+                if nextChar == "/" {
+                    // Skip line comment until newline.
+                    index = text.index(after: next)
+                    while index < text.endIndex, text[index] != "\n" {
+                        index = text.index(after: index)
+                    }
+                    continue
+                }
+                if nextChar == "*" {
+                    // Skip block comment.
+                    index = text.index(after: next)
+                    while index < text.endIndex {
+                        let c = text[index]
+                        let n = text.index(after: index)
+                        if c == "*", n < text.endIndex, text[n] == "/" {
+                            index = text.index(after: n)
+                            break
+                        }
+                        index = n
+                    }
+                    continue
+                }
+            }
+
+            output.append(ch)
+            index = next
+        }
+
+        return output
     }
 
     private func autoCloseJSONDelimiters(in text: String) -> String {
@@ -1672,8 +1797,11 @@ struct SchemaValidator {
             }
 
         case .note:
-            guard let content = component.content, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw AIWidgetServiceError.schemaValidationFailed("note.content is required at \(path).")
+            // Editable notes may start empty — the user will type their own content.
+            if component.editable != true {
+                guard let content = component.content, !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw AIWidgetServiceError.schemaValidationFailed("note.content is required at \(path).")
+                }
             }
 
         case .shortcutLauncher:
@@ -1713,6 +1841,11 @@ struct SchemaValidator {
                 try validateComponent(first, path: "\(path).children[0]", depth: depth + 1)
             } else {
                 throw AIWidgetServiceError.schemaValidationFailed("container requires child or children at \(path).")
+            }
+
+        case .githubRepoStats:
+            guard let source = component.source, !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw AIWidgetServiceError.schemaValidationFailed("github_repo_stats.source (owner/repo) is required at \(path).")
             }
 
         case .divider, .spacer:

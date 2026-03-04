@@ -9,7 +9,7 @@ final class AppCoordinator {
     private let hotkeyListener: GlobalHotkeyListener
     private let widgetStore = WidgetStore()
     private let templateStore = WidgetTemplateStore()
-    private let agentOrchestrator = AgentOrchestrator()
+    private var agentOrchestrator: AgentOrchestrator
 
     private lazy var widgetManager = WidgetManager(store: widgetStore, settingsStore: settingsStore)
     private lazy var commandBarWindow = CommandBarWindow()
@@ -74,6 +74,9 @@ final class AppCoordinator {
         self.settingsStore = settingsStore
         self.hotkeyListener = GlobalHotkeyListener(registration: settingsStore.hotkeyPreset.registration)
         self.aiService = aiService ?? ProviderBackedAIService(settingsStore: settingsStore)
+        self.agentOrchestrator = AppCoordinator.makeAgentOrchestrator(
+            enableWebDiscovery: settingsStore.enableWebDiscovery
+        )
     }
 
     func start() {
@@ -90,7 +93,7 @@ final class AppCoordinator {
 
         if !settingsStore.hasAnyRemoteAPIKey {
             openSettings()
-            showUserMessage("pane requires an OpenAI or Claude API key before creating widgets.", isError: true)
+            showUserMessage("widgie requires an OpenAI or Claude API key before creating widgets.", isError: true)
         }
     }
 
@@ -108,10 +111,13 @@ final class AppCoordinator {
         if commandBarWindow.isVisible, editingWidgetID == nil {
             return
         }
-        guard ensureRemoteAIReady(showUIFeedback: true) else {
-            return
-        }
         showCommandBar(prefill: nil, editingWidgetID: nil)
+        if !settingsStore.hasAnyRemoteAPIKey {
+            commandBarWindow.setStatus(
+                "Add an OpenAI or Claude API key in Settings > AI to generate widgets.",
+                isError: true
+            )
+        }
     }
 
     func openSettings() {
@@ -124,7 +130,7 @@ final class AppCoordinator {
 
     private func wireCallbacks() {
         hotkeyListener.onTrigger = { [weak self] in
-            self?.openCommandBar()
+            self?.toggleCommandBar()
         }
 
         widgetManager.onEditRequested = { [weak self] config in
@@ -156,6 +162,9 @@ final class AppCoordinator {
     private func applyRuntimeSettings() {
         hotkeyListener.updateRegistration(settingsStore.hotkeyPreset.registration)
         LaunchAtLoginController.shared.apply(enabled: settingsStore.launchAtLogin)
+        agentOrchestrator = AppCoordinator.makeAgentOrchestrator(
+            enableWebDiscovery: settingsStore.enableWebDiscovery
+        )
     }
 
     private func showCommandBar(prefill: String?, editingWidgetID: UUID?) {
@@ -174,6 +183,20 @@ final class AppCoordinator {
 
         let remaining = AIRateLimiter.shared.remainingPipelineRunsToday()
         commandBarWindow.setStatus("Daily runs left: \(remaining)")
+    }
+
+    private func toggleCommandBar() {
+        if commandBarWindow.isVisible {
+            dismissCommandBar()
+            return
+        }
+
+        openCommandBar()
+    }
+
+    private func dismissCommandBar() {
+        editingWidgetID = nil
+        commandBarWindow.hide()
     }
 
     private func handlePrompt(_ rawPrompt: String) {
@@ -252,6 +275,7 @@ final class AppCoordinator {
             if case .needsClarification(let plan, let questions) = decision {
                 commandBarWindow.appendAgentTrace("Phase: clarify")
                 commandBarWindow.appendAgentTrace("Questions needed: \(questions.count)")
+                appendSourceAttributionTrace(for: plan)
                 commandBarWindow.setLoading(false, message: nil)
                 commandBarWindow.showClarification(
                     questions: questions,
@@ -265,6 +289,7 @@ final class AppCoordinator {
                     )
                     self.commandBarWindow.clearAgentTrace()
                     self.commandBarWindow.appendAgentTrace("Clarifications applied")
+                    self.appendSourceAttributionTrace(for: updatedPlan)
                     self.proceedWithGeneration(
                         self.agentOrchestrator.executionPrompt(for: updatedPlan),
                         plan: updatedPlan
@@ -278,6 +303,7 @@ final class AppCoordinator {
             if case .ready(let plan) = decision {
                 commandBarWindow.appendAgentTrace("Phase: plan")
                 commandBarWindow.appendAgentTrace("Plan ready for execution")
+                appendSourceAttributionTrace(for: plan)
                 proceedWithGeneration(
                     agentOrchestrator.executionPrompt(for: plan),
                     plan: plan
@@ -314,6 +340,38 @@ final class AppCoordinator {
                             }
                         )
                         commandBarWindow.appendAgentTrace("Completed in \(outcome.iterations) iteration(s)")
+                        let requiredConfidence = 0.82
+                        if outcome.confidence < requiredConfidence {
+                            commandBarWindow.appendAgentTrace("Confidence below threshold \(Int(requiredConfidence * 100))%")
+                            let followups = agentOrchestrator.lowConfidenceFollowupQuestions(
+                                plan: plan,
+                                issues: outcome.issues
+                            )
+                            if !followups.isEmpty {
+                                commandBarWindow.setLoading(false, message: nil)
+                                commandBarWindow.showClarification(
+                                    questions: followups,
+                                    originalPrompt: originalPrompt
+                                ) { [weak self] _, qs, answers in
+                                    guard let self else { return }
+                                    let updatedPlan = self.agentOrchestrator.applyClarifications(
+                                        plan: plan,
+                                        questions: qs,
+                                        answers: answers
+                                    )
+                                    self.commandBarWindow.clearAgentTrace()
+                                    self.commandBarWindow.appendAgentTrace("Low-confidence follow-up answered")
+                                    self.proceedWithGeneration(
+                                        self.agentOrchestrator.executionPrompt(for: updatedPlan),
+                                        plan: updatedPlan
+                                    )
+                                }
+                                return
+                            }
+                            throw AIWidgetServiceError.requestFailed(
+                                "I couldn't reach a reliable confidence score for this request. Please add more details and try again."
+                            )
+                        }
                         config = outcome.config
                     } else {
                         config = try await aiService.generateWidget(prompt: prompt)
@@ -435,7 +493,7 @@ final class AppCoordinator {
         panel.title = "Export Widgets"
         panel.allowedContentTypes = [UTType.json]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = "pane-export-\(exportDateStamp()).json"
+        panel.nameFieldStringValue = "widgie-export-\(exportDateStamp()).json"
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
@@ -485,7 +543,7 @@ final class AppCoordinator {
         }
 
         let alert = NSAlert()
-        alert.messageText = isError ? "pane" : "Success"
+        alert.messageText = isError ? "widgie" : "Success"
         alert.informativeText = message
         alert.alertStyle = isError ? .warning : .informational
         alert.addButton(withTitle: "OK")
@@ -501,6 +559,23 @@ final class AppCoordinator {
         return formatter.string(from: Date())
     }
 
+    private func appendSourceAttributionTrace(for plan: AgentBuildPlan) {
+        let attributions = plan.dataPlan.sourceAttributions
+        guard !attributions.isEmpty else { return }
+
+        for source in attributions.prefix(2) {
+            commandBarWindow.appendAgentTrace("Resolved from: \(source.provider) - \(source.title)")
+            commandBarWindow.appendAgentTrace(source.url)
+        }
+    }
+
+    private static func makeAgentOrchestrator(enableWebDiscovery: Bool) -> AgentOrchestrator {
+        if enableWebDiscovery {
+            return AgentOrchestrator(webSearchConnector: LiveAgentWebSearchConnector())
+        }
+        return AgentOrchestrator(webSearchConnector: NoopAgentWebSearchConnector())
+    }
+
     private func ensureRemoteAIReady(showUIFeedback: Bool) -> Bool {
         if settingsStore.ensureUsableProviderSelection() {
             return true
@@ -511,7 +586,7 @@ final class AppCoordinator {
         }
 
         openSettings()
-        let message = "Add an OpenAI or Claude API key in Settings > AI to use pane."
+        let message = "Add an OpenAI or Claude API key in Settings > AI to use widgie."
         if commandBarWindow.isVisible {
             commandBarWindow.setStatus(message, isError: true)
         } else {
@@ -547,7 +622,7 @@ final class AppCoordinator {
         if let serviceError = error as? AIWidgetServiceError {
             switch serviceError {
             case .missingAPIKey:
-                return "Missing API key. pane requires OpenAI or Claude key in Settings > AI."
+                return "Missing API key. widgie requires OpenAI or Claude key in Settings > AI."
             case .requestFailed(let message):
                 if message.contains("HTTP 400") {
                     return "Provider rejected the request (HTTP 400). Check provider, model, and API key in Settings > AI."
@@ -569,7 +644,7 @@ final class AppCoordinator {
                 }
                 return "Provider request failed. Check AI settings and network, then retry."
             case .schemaValidationFailed:
-                return "AI output was invalid. pane created a recovery widget you can edit."
+                return "AI output was invalid. widgie created a recovery widget you can edit."
             case .providerReturnedNoContent:
                 return "Provider returned no content. Try again with a simpler prompt."
             case .responseParsingFailed:
@@ -621,7 +696,7 @@ final class AppCoordinator {
         )
         let note = ComponentConfig(
             type: .note,
-            content: "pane recovered from an AI schema error and created this editable draft.\n\nPrompt: \(prompt)",
+            content: "widgie recovered from an AI schema error and created this editable draft.\n\nPrompt: \(prompt)",
             font: "sf-pro",
             size: 13,
             color: "primary"

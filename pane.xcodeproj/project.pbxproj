@@ -12,19 +12,19 @@
 			containerPortal = B2ECD0A42F4409720077EB60 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B2ECD0AB2F4409720077EB60;
-			remoteInfo = pane;
+			remoteInfo = widgie;
 		};
 		B2ECD0C52F4409750077EB60 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = B2ECD0A42F4409720077EB60 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = B2ECD0AB2F4409720077EB60;
-			remoteInfo = pane;
+			remoteInfo = widgie;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		B2ECD0AC2F4409720077EB60 /* pane.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pane.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2ECD0AC2F4409720077EB60 /* widgie.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = widgie.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2ECD0BA2F4409750077EB60 /* paneTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = paneTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2ECD0C42F4409750077EB60 /* paneUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = paneUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -85,7 +85,7 @@
 		B2ECD0AD2F4409720077EB60 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				B2ECD0AC2F4409720077EB60 /* pane.app */,
+				B2ECD0AC2F4409720077EB60 /* widgie.app */,
 				B2ECD0BA2F4409750077EB60 /* paneTests.xctest */,
 				B2ECD0C42F4409750077EB60 /* paneUITests.xctest */,
 			);
@@ -110,11 +110,11 @@
 			fileSystemSynchronizedGroups = (
 				B2ECD0AE2F4409720077EB60 /* pane */,
 			);
-			name = pane;
+			name = widgie;
 			packageProductDependencies = (
 			);
-			productName = pane;
-			productReference = B2ECD0AC2F4409720077EB60 /* pane.app */;
+			productName = widgie;
+			productReference = B2ECD0AC2F4409720077EB60 /* widgie.app */;
 			productType = "com.apple.product-type.application";
 		};
 		B2ECD0B92F4409750077EB60 /* paneTests */ = {
@@ -402,13 +402,15 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.pane;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.widgie;
+				PRODUCT_MODULE_NAME = widgie;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -429,13 +431,15 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.pane;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.widgie;
+				PRODUCT_MODULE_NAME = widgie;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -453,11 +457,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.paneTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.widgieTests;
+				PRODUCT_MODULE_NAME = widgieTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pane.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/pane";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/widgie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/widgie";
 			};
 			name = Debug;
 		};
@@ -471,11 +476,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.paneTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.widgieTests;
+				PRODUCT_MODULE_NAME = widgieTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/pane.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/pane";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/widgie.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/widgie";
 			};
 			name = Release;
 		};
@@ -487,11 +493,12 @@
 				DEVELOPMENT_TEAM = 7V5Q2J643P;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.paneUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.widgieUITests;
+				PRODUCT_MODULE_NAME = widgieUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = pane;
+				TEST_TARGET_NAME = widgie;
 			};
 			name = Debug;
 		};
@@ -503,11 +510,12 @@
 				DEVELOPMENT_TEAM = 7V5Q2J643P;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.paneUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.elicep.widgieUITests;
+				PRODUCT_MODULE_NAME = widgieUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = pane;
+				TEST_TARGET_NAME = widgie;
 			};
 			name = Release;
 		};

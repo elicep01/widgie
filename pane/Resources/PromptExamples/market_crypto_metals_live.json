@@ -1,0 +1,113 @@
+{
+  "name": "Markets Grid",
+  "size": {
+    "width": 340,
+    "height": 130
+  },
+  "theme": "obsidian",
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.72
+  },
+  "cornerRadius": 20,
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
+  "refreshInterval": 60,
+  "content": {
+    "type": "vstack",
+    "alignment": "leading",
+    "spacing": 10,
+    "children": [
+      {
+        "type": "hstack",
+        "alignment": "center",
+        "spacing": 12,
+        "children": [
+          {
+            "type": "crypto",
+            "symbol": "BTC",
+            "currency": "USD",
+            "showPrice": true,
+            "showChange": true,
+            "showChart": false,
+            "color": "primary"
+          },
+          {
+            "type": "divider",
+            "color": "muted",
+            "thickness": 0.5,
+            "direction": "vertical"
+          },
+          {
+            "type": "crypto",
+            "symbol": "ETH",
+            "currency": "USD",
+            "showPrice": true,
+            "showChange": true,
+            "showChart": false,
+            "color": "primary"
+          }
+        ]
+      },
+      {
+        "type": "hstack",
+        "alignment": "center",
+        "spacing": 12,
+        "children": [
+          {
+            "type": "stock",
+            "symbol": "GLD",
+            "showPrice": true,
+            "showChange": true,
+            "showChangePercent": true,
+            "showChart": false,
+            "color": "primary",
+            "positiveColor": "positive",
+            "negativeColor": "negative"
+          },
+          {
+            "type": "divider",
+            "color": "muted",
+            "thickness": 0.5,
+            "direction": "vertical"
+          },
+          {
+            "type": "stock",
+            "symbol": "SLV",
+            "showPrice": true,
+            "showChange": true,
+            "showChangePercent": true,
+            "showChart": false,
+            "color": "primary",
+            "positiveColor": "positive",
+            "negativeColor": "negative"
+          }
+        ]
+      }
+    ]
+  },
+  "dataSources": {
+    "stocks": {
+      "provider": "yahoo",
+      "symbols": [
+        "GLD",
+        "SLV"
+      ],
+      "refreshInterval": 60
+    },
+    "crypto": {
+      "provider": "coingecko",
+      "symbols": [
+        "BTC",
+        "ETH"
+      ],
+      "refreshInterval": 60
+    }
+  }
+}

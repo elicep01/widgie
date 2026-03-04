@@ -1,0 +1,140 @@
+{
+  "id": "morning-dashboard",
+  "name": "Morning Dashboard",
+  "description": "Clock, weather, and calendar on the left; checklist on the right.",
+  "category": "dashboard",
+  "config": {
+    "name": "Morning Dashboard",
+    "description": "Clock + weather + calendar + checklist",
+    "size": {
+      "width": 320,
+      "height": 145
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
+    "content": {
+      "type": "hstack",
+      "alignment": "top",
+      "spacing": 10,
+      "children": [
+        {
+          "type": "vstack",
+          "alignment": "leading",
+          "spacing": 4,
+          "children": [
+            {
+              "type": "clock",
+              "style": "digital",
+              "timezone": "local",
+              "format": "h:mm a",
+              "font": "sf-mono",
+              "size": 22,
+              "weight": "light",
+              "color": "primary"
+            },
+            {
+              "type": "date",
+              "format": "EEE, MMM d",
+              "font": "sf-pro",
+              "size": 11,
+              "weight": "regular",
+              "color": "muted"
+            },
+            {
+              "type": "weather",
+              "location": "auto",
+              "style": "compact",
+              "showIcon": true,
+              "showTemperature": true,
+              "showCondition": true,
+              "showHighLow": true,
+              "temperatureUnit": "fahrenheit",
+              "color": "primary"
+            },
+            {
+              "type": "day_progress",
+              "startHour": 7,
+              "endHour": 23,
+              "style": "bar",
+              "showPercentage": true,
+              "showTimeRemaining": false,
+              "color": "accent",
+              "label": "Day"
+            }
+          ]
+        },
+        {
+          "type": "divider",
+          "color": "muted",
+          "thickness": 0.5,
+          "direction": "vertical"
+        },
+        {
+          "type": "vstack",
+          "alignment": "leading",
+          "spacing": 4,
+          "children": [
+            {
+              "type": "calendar_next",
+              "source": "system_calendar",
+              "maxEvents": 2,
+              "showTime": true,
+              "showCalendarColor": true,
+              "timeRange": "today",
+              "emptyText": "No events",
+              "font": "sf-pro",
+              "size": 11,
+              "color": "primary"
+            },
+            {
+              "type": "divider",
+              "color": "muted",
+              "thickness": 0.5,
+              "direction": "horizontal"
+            },
+            {
+              "type": "checklist",
+              "title": "Today",
+              "items": [
+                {
+                  "id": "1",
+                  "text": "Morning workout",
+                  "checked": false
+                },
+                {
+                  "id": "2",
+                  "text": "Review emails",
+                  "checked": false
+                },
+                {
+                  "id": "3",
+                  "text": "Deep work block",
+                  "checked": false
+                }
+              ],
+              "resetsDaily": true,
+              "showProgress": false,
+              "interactive": true,
+              "checkedColor": "positive",
+              "uncheckedColor": "muted",
+              "strikethrough": true,
+              "font": "sf-pro",
+              "size": 11,
+              "color": "primary"
+            }
+          ]
+        }
+      ]
+    },
+    "maxSize": {
+      "width": 400,
+      "height": 190
+    }
+  }
+}

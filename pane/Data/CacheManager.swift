@@ -77,25 +77,32 @@ actor CacheManager {
     private static func resolveRootDirectory(fileManager: FileManager) -> URL {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        let paneRoot = appSupport.appendingPathComponent("pane", isDirectory: true)
-        let legacyRoot = appSupport.appendingPathComponent("WidgetForge", isDirectory: true)
+        let currentRoot = appSupport.appendingPathComponent("widgie", isDirectory: true)
+        let legacyPaneRoot = appSupport.appendingPathComponent("pane", isDirectory: true)
+        let legacyWidgetForgeRoot = appSupport.appendingPathComponent("WidgetForge", isDirectory: true)
 
-        let paneExists = fileManager.fileExists(atPath: paneRoot.path)
-        let legacyExists = fileManager.fileExists(atPath: legacyRoot.path)
-
-        if paneExists {
-            return paneRoot
+        if fileManager.fileExists(atPath: currentRoot.path) {
+            return currentRoot
         }
 
-        if legacyExists {
+        if fileManager.fileExists(atPath: legacyPaneRoot.path) {
             do {
-                try fileManager.moveItem(at: legacyRoot, to: paneRoot)
-                return paneRoot
+                try fileManager.moveItem(at: legacyPaneRoot, to: currentRoot)
+                return currentRoot
             } catch {
-                return legacyRoot
+                return legacyPaneRoot
             }
         }
 
-        return paneRoot
+        if fileManager.fileExists(atPath: legacyWidgetForgeRoot.path) {
+            do {
+                try fileManager.moveItem(at: legacyWidgetForgeRoot, to: currentRoot)
+                return currentRoot
+            } catch {
+                return legacyWidgetForgeRoot
+            }
+        }
+
+        return currentRoot
     }
 }

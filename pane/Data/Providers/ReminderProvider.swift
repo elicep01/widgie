@@ -4,7 +4,13 @@ import Foundation
 @MainActor
 final class ReminderProvider {
     private let store = EKEventStore()
-    private static var hasRequestedAccess = false
+    private enum AccessState {
+        case unknown
+        case granted
+        case denied
+    }
+
+    private static var accessState: AccessState = .unknown
 
     func fetch(maxItems: Int, includeCompleted: Bool = false) async -> [ReminderSnapshot] {
         guard await requestAccessIfNeeded() else {
@@ -33,8 +39,13 @@ final class ReminderProvider {
     }
 
     private func requestAccessIfNeeded() async -> Bool {
-        if Self.hasRequestedAccess {
+        switch Self.accessState {
+        case .granted:
             return true
+        case .denied:
+            return false
+        case .unknown:
+            break
         }
 
         do {
@@ -51,9 +62,12 @@ final class ReminderProvider {
                     }
                 } as Bool
             }
-            Self.hasRequestedAccess = true
+            Self.accessState = .granted
             return true
         } catch {
+            // In sandbox-restricted environments this can fail repeatedly; cache denial
+            // so we avoid retry storms and noisy logs.
+            Self.accessState = .denied
             return false
         }
     }

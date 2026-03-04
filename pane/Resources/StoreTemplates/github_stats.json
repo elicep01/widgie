@@ -1,0 +1,21 @@
+{
+  "id": "github-stats",
+  "name": "GitHub Repo",
+  "description": "Stars, forks, and issues for any GitHub repository.",
+  "category": "system",
+  "config": {
+    "name": "GitHub Repo",
+    "description": "GitHub repository stats",
+    "size": { "width": 210, "height": 80 },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "refreshInterval": 300,
+    "content": {
+      "type": "github_repo_stats",
+      "source": "apple/swift",
+      "showComponents": ["stars", "forks", "issues", "watchers", "description"]
+    },
+    "maxSize": { "width": 270, "height": 110 }
+  }
+}

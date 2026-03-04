@@ -1,0 +1,48 @@
+{
+  "id": "notes-pad",
+  "name": "Quick Notes",
+  "description": "An editable sticky note for jotting down quick thoughts.",
+  "category": "productivity",
+  "config": {
+    "name": "Quick Notes",
+    "description": "Editable sticky note",
+    "size": {
+      "width": 180,
+      "height": 130
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 10,
+      "trailing": 10
+    },
+    "content": {
+      "type": "vstack",
+      "alignment": "leading",
+      "spacing": 4,
+      "children": [
+        {
+          "type": "text",
+          "content": "Notes",
+          "size": 11,
+          "weight": "semibold",
+          "color": "secondary"
+        },
+        {
+          "type": "note",
+          "content": "",
+          "editable": true,
+          "font": "sf-pro",
+          "size": 12,
+          "color": "primary"
+        }
+      ]
+    },
+    "maxSize": {
+      "width": 240,
+      "height": 180
+    }
+  }
+}

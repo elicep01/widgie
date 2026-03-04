@@ -1,22 +1,135 @@
 {
   "name": "Finance Hub",
-  "size": {"width": 440, "height": 320},
+  "size": {
+    "width": 360,
+    "height": 220
+  },
   "theme": "obsidian",
-  "background": {"type": "gradient", "colors": ["#0D1117", "#0D1117"], "direction": "topToBottom"},
+  "background": {
+    "type": "gradient",
+    "colors": [
+      "#0D1117",
+      "#0D1117"
+    ],
+    "direction": "topToBottom"
+  },
   "cornerRadius": 22,
-  "padding": {"top": 20, "bottom": 20, "leading": 22, "trailing": 22},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "vstack",
     "alignment": "leading",
     "spacing": 14,
     "children": [
-      {"type": "text", "content": "Finance", "font": "sf-pro", "size": 16, "weight": "semibold", "color": "primary"},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "hstack", "alignment": "center", "spacing": 16, "children": [{"type": "stock", "symbol": "AAPL", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": true, "chartPeriod": "1d", "color": "primary", "positiveColor": "positive", "negativeColor": "negative"}, {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"}, {"type": "stock", "symbol": "NVDA", "showPrice": true, "showChange": true, "showChangePercent": true, "showChart": true, "chartPeriod": "1d", "color": "primary", "positiveColor": "positive", "negativeColor": "negative"}]},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "hstack", "alignment": "center", "spacing": 16, "children": [{"type": "crypto", "symbol": "BTC", "currency": "USD", "showPrice": true, "showChange": true, "showChart": false, "color": "#F7931A"}, {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "vertical"}, {"type": "crypto", "symbol": "ETH", "currency": "USD", "showPrice": true, "showChange": true, "showChart": false, "color": "#627EEA"}]},
-      {"type": "divider", "color": "muted", "thickness": 0.5, "direction": "horizontal"},
-      {"type": "news_headlines", "source": "rss", "feedUrl": "https://feeds.bbci.co.uk/news/business/rss.xml", "maxItems": 2, "showSource": true, "rotateInterval": 15, "font": "sf-pro", "size": 12, "color": "secondary"}
+      {
+        "type": "text",
+        "content": "Finance",
+        "font": "sf-pro",
+        "size": 16,
+        "weight": "semibold",
+        "color": "primary"
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "hstack",
+        "alignment": "center",
+        "spacing": 16,
+        "children": [
+          {
+            "type": "stock",
+            "symbol": "AAPL",
+            "showPrice": true,
+            "showChange": true,
+            "showChangePercent": true,
+            "showChart": true,
+            "chartPeriod": "1d",
+            "color": "primary",
+            "positiveColor": "positive",
+            "negativeColor": "negative"
+          },
+          {
+            "type": "divider",
+            "color": "muted",
+            "thickness": 0.5,
+            "direction": "vertical"
+          },
+          {
+            "type": "stock",
+            "symbol": "NVDA",
+            "showPrice": true,
+            "showChange": true,
+            "showChangePercent": true,
+            "showChart": true,
+            "chartPeriod": "1d",
+            "color": "primary",
+            "positiveColor": "positive",
+            "negativeColor": "negative"
+          }
+        ]
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "hstack",
+        "alignment": "center",
+        "spacing": 16,
+        "children": [
+          {
+            "type": "crypto",
+            "symbol": "BTC",
+            "currency": "USD",
+            "showPrice": true,
+            "showChange": true,
+            "showChart": false,
+            "color": "#F7931A"
+          },
+          {
+            "type": "divider",
+            "color": "muted",
+            "thickness": 0.5,
+            "direction": "vertical"
+          },
+          {
+            "type": "crypto",
+            "symbol": "ETH",
+            "currency": "USD",
+            "showPrice": true,
+            "showChange": true,
+            "showChart": false,
+            "color": "#627EEA"
+          }
+        ]
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "horizontal"
+      },
+      {
+        "type": "news_headlines",
+        "source": "rss",
+        "feedUrl": "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "maxItems": 2,
+        "showSource": true,
+        "rotateInterval": 15,
+        "font": "sf-pro",
+        "size": 12,
+        "color": "secondary"
+      }
     ]
   },
   "refreshInterval": 60

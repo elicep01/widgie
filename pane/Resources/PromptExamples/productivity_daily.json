@@ -1,0 +1,106 @@
+{
+  "name": "Daily Focus",
+  "size": {
+    "width": 290,
+    "height": 120
+  },
+  "theme": "obsidian",
+  "cornerRadius": 16,
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
+  "content": {
+    "type": "hstack",
+    "alignment": "top",
+    "spacing": 12,
+    "children": [
+      {
+        "type": "vstack",
+        "alignment": "leading",
+        "spacing": 5,
+        "children": [
+          {
+            "type": "text",
+            "content": "Today",
+            "size": 13,
+            "weight": "semibold",
+            "color": "primary"
+          },
+          {
+            "type": "day_progress",
+            "startHour": 7,
+            "endHour": 23,
+            "style": "bar",
+            "showPercentage": true,
+            "showTimeRemaining": true,
+            "color": "accent"
+          },
+          {
+            "type": "quote",
+            "source": "curated",
+            "category": "motivation",
+            "refreshInterval": "daily",
+            "font": "new-york",
+            "size": 11,
+            "weight": "regular",
+            "color": "muted",
+            "authorColor": "muted",
+            "showQuotationMarks": true
+          }
+        ]
+      },
+      {
+        "type": "divider",
+        "color": "muted",
+        "thickness": 0.5,
+        "direction": "vertical"
+      },
+      {
+        "type": "vstack",
+        "alignment": "leading",
+        "spacing": 4,
+        "children": [
+          {
+            "type": "text",
+            "content": "Goals",
+            "size": 11,
+            "weight": "semibold",
+            "color": "secondary"
+          },
+          {
+            "type": "checklist",
+            "items": [
+              {
+                "id": "1",
+                "text": "Deep work block",
+                "checked": false
+              },
+              {
+                "id": "2",
+                "text": "Inbox zero",
+                "checked": false
+              },
+              {
+                "id": "3",
+                "text": "Workout",
+                "checked": false
+              }
+            ],
+            "resetsDaily": true,
+            "showProgress": true,
+            "interactive": true,
+            "checkedColor": "positive",
+            "uncheckedColor": "muted",
+            "strikethrough": true,
+            "font": "sf-pro",
+            "size": 12,
+            "color": "primary"
+          }
+        ]
+      }
+    ]
+  }
+}

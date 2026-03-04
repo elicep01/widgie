@@ -1,16 +1,38 @@
 {
   "name": "World Clocks",
-  "size": {"width": 380, "height": 88},
+  "size": {
+    "width": 260,
+    "height": 65
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 16,
-  "padding": {"top": 14, "bottom": 14, "leading": 20, "trailing": 20},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "world_clocks",
     "clocks": [
-      {"timezone": "America/New_York", "label": "New York"},
-      {"timezone": "Europe/London", "label": "London"},
-      {"timezone": "Asia/Tokyo", "label": "Tokyo"}
+      {
+        "timezone": "America/New_York",
+        "label": "New York"
+      },
+      {
+        "timezone": "Europe/London",
+        "label": "London"
+      },
+      {
+        "timezone": "Asia/Tokyo",
+        "label": "Tokyo"
+      }
     ],
     "style": "compact",
     "font": "sf-mono",

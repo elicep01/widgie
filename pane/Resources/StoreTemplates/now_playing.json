@@ -1,0 +1,37 @@
+{
+  "id": "now-playing",
+  "name": "Now Playing",
+  "description": "Album art, track info, and playback controls for Spotify or Apple Music.",
+  "category": "media",
+  "config": {
+    "name": "Now Playing",
+    "description": "Music now playing widget",
+    "size": {
+      "width": 240,
+      "height": 85
+    },
+    "theme": "obsidian",
+    "cornerRadius": 14,
+    "padding": {
+      "top": 8,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
+    "refreshInterval": 5,
+    "content": {
+      "type": "music_now_playing",
+      "showAlbumArt": true,
+      "showTitle": true,
+      "showArtist": true,
+      "showControls": true,
+      "showProgress": true,
+      "size": 12,
+      "color": "primary"
+    },
+    "maxSize": {
+      "width": 300,
+      "height": 115
+    }
+  }
+}

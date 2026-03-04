@@ -1,10 +1,23 @@
 {
   "name": "Seattle Weather",
-  "size": {"width": 180, "height": 110},
+  "size": {
+    "width": 175,
+    "height": 80
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 18,
-  "padding": {"top": 14, "bottom": 14, "leading": 16, "trailing": 16},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "weather",
     "location": "Seattle, WA, USA",
@@ -18,5 +31,11 @@
     "style": "compact",
     "color": "primary"
   },
-  "dataSources": {"weather": {"provider": "openweather", "location": "Seattle, WA, USA", "refreshInterval": 1800}}
+  "dataSources": {
+    "weather": {
+      "provider": "openweather",
+      "location": "Seattle, WA, USA",
+      "refreshInterval": 1800
+    }
+  }
 }

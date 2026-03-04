@@ -24,7 +24,7 @@ final class LaunchAtLoginController {
             }
         } catch {
             // Keep app runtime resilient. Settings still persist; registration can be retried.
-            NSLog("pane launch-at-login update failed: %@", error.localizedDescription)
+            NSLog("widgie launch-at-login update failed: %@", error.localizedDescription)
         }
     }
 }

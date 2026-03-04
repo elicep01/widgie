@@ -106,7 +106,7 @@ struct PromptClarifier {
         let schemaList = componentTypes.joined(separator: ", ")
 
         return """
-        You are the clarification layer for "pane", a macOS desktop widget app.
+        You are the clarification layer for "widgie", a macOS desktop widget app.
 
         Your job: when a user's widget prompt is incomplete, ask ALL the questions needed to fully specify it in ONE round. After this, no more questions will be asked. Think like a careful product designer + engineer: ask only high-value questions that affect behavior.
 
@@ -147,8 +147,8 @@ struct PromptClarifier {
         - If prompt asks for very specific dimensions, ask them to choose the nearest wallpaper size class.
         - Size options should be from: Small Square, Medium, Wide, Large, Dashboard.
 
-        External APIs pane CANNOT fetch (polymarket, Twitter, Reddit, Notion, etc.):
-        - pane has NO generic HTTP fetch. The best widget is a link_bookmarks with the profile/page URL.
+        External APIs widgie CANNOT fetch (polymarket, Twitter, Reddit, Notion, etc.):
+        - widgie has NO generic HTTP fetch. The best widget is a link_bookmarks with the profile/page URL.
         - If the user asks for live data from an unsupported service, ask: "Can you share the profile URL?" so a bookmark widget can be created.
         - Do NOT ask about data that can't be displayed.
 

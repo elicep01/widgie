@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import pane
+@testable import widgie
 
 private struct E2EHarness {
     let pipeline: GenerationPipeline
@@ -18,7 +18,7 @@ private struct E2EScenarioResult {
 }
 
 struct PipelineE2ETests {
-    @Test("pane real-AI E2E pipeline suite")
+    @Test("widgie real-AI E2E pipeline suite")
     func runRealAIE2ESuite() async throws {
         guard let harness = Self.makeHarnessIfEnabled() else {
             print("Skipping real-AI E2E suite. Set PANE_RUN_E2E_AI_TESTS=1 and provider API key env vars.")
@@ -47,6 +47,37 @@ struct PipelineE2ETests {
                 $0.type == .stock && ["btc", "bitcoin", "eth", "ethereum"].contains(($0.symbol ?? "").lowercased())
             }
             Self.require(!badStock, "BTC/ETH should not be represented as stock components.", failures: &failures)
+        })
+
+        results.append(await Self.runScenario(
+            name: "Test 1b: Crypto + metals mixed market",
+            prompt: "bitcoin ethereum gold silver live prices in a grid",
+            harness: harness
+        ) { config, components, failures in
+            let rootType = config.content.type
+            let rootIsLayout = rootType == .vstack || rootType == .hstack || rootType == .container
+            Self.require(rootIsLayout, "Root component should be a layout (vstack/hstack/container), not \(rootType).", failures: &failures)
+
+            let crypto = components.filter { $0.type == .crypto }
+            let stocks = components.filter { $0.type == .stock }
+
+            let cryptoSymbols = Set(crypto.compactMap { $0.symbol?.uppercased() })
+            let stockSymbols = Set(stocks.compactMap { $0.symbol?.uppercased() })
+
+            Self.require(cryptoSymbols.contains("BTC"), "Should include BTC as crypto.", failures: &failures)
+            Self.require(cryptoSymbols.contains("ETH"), "Should include ETH as crypto.", failures: &failures)
+
+            let hasGold = stockSymbols.contains("GLD")
+                || stockSymbols.contains("GC=F")
+                || stockSymbols.contains("XAUUSD=X")
+            let hasSilver = stockSymbols.contains("SLV")
+                || stockSymbols.contains("SI=F")
+                || stockSymbols.contains("XAGUSD=X")
+            Self.require(hasGold, "Should include a gold market symbol (GLD/GC=F/XAUUSD=X).", failures: &failures)
+            Self.require(hasSilver, "Should include a silver market symbol (SLV/SI=F/XAGUSD=X).", failures: &failures)
+
+            Self.require(config.refreshInterval <= 120, "Live updates should set refreshInterval <= 120.", failures: &failures)
+            Self.require(config.size.width > config.size.height, "Mixed market widget should be wide enough (width > height).", failures: &failures)
         })
 
         results.append(await Self.runScenario(
@@ -315,7 +346,7 @@ struct PipelineE2ETests {
 
     private static func printReport(_ results: [E2EScenarioResult]) {
         print("\n═══════════════════════════════════════════")
-        print("  pane E2E Test Results")
+        print("  widgie E2E Test Results")
         print("═══════════════════════════════════════════\n")
 
         for result in results {

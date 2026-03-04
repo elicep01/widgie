@@ -6,7 +6,7 @@ enum WidgetStoreError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidImportFormat:
-            return "Import file is not a valid pane export."
+            return "Import file is not a valid widgie export."
         }
     }
 }
@@ -72,16 +72,29 @@ final class WidgetStore {
             return []
         }
 
-        return files
+        let entries: [(url: URL, envelope: WidgetFileEnvelope)] = files
             .filter { $0.pathExtension.lowercased() == "json" }
-            .compactMap { loadEnvelope(at: $0) ?? loadConfig(at: $0).map(makeEnvelopeFromLegacyConfig) }
-            .map { envelope in
-                var resolved = envelope
-                if resolved.config.position == nil, let persisted = resolved.metadata.position {
-                    resolved.config.position = persisted
+            .compactMap { fileURL in
+                if let envelope = loadEnvelope(at: fileURL) {
+                    return (fileURL, envelope)
                 }
-                return resolved
+                if let config = loadConfig(at: fileURL) {
+                    return (fileURL, makeEnvelopeFromLegacyConfig(config))
+                }
+                return nil
             }
+
+        return entries.map { entry in
+            var resolved = entry.envelope
+            let repaired = repairLegacyLayoutWrappers(&resolved.config)
+            if resolved.config.position == nil, let persisted = resolved.metadata.position {
+                resolved.config.position = persisted
+            }
+            if repaired {
+                writeEnvelope(resolved, to: entry.url)
+            }
+            return resolved
+        }
     }
 
     func exportAll(to url: URL) throws {
@@ -196,6 +209,41 @@ final class WidgetStore {
         try? fileManager.createDirectory(at: widgetsDirectoryURL, withIntermediateDirectories: true)
     }
 
+    @discardableResult
+    private func repairLegacyLayoutWrappers(_ config: inout WidgetConfig) -> Bool {
+        repairLegacyLayoutWrappers(component: config.content)
+    }
+
+    @discardableResult
+    private func repairLegacyLayoutWrappers(component: ComponentConfig) -> Bool {
+        var changed = false
+
+        if component.type == .icon,
+           let children = component.children,
+           !children.isEmpty {
+            component.type = .hstack
+            if component.alignment == nil {
+                component.alignment = "center"
+            }
+            if component.spacing == nil {
+                component.spacing = 12
+            }
+            changed = true
+        }
+
+        if let child = component.child {
+            changed = repairLegacyLayoutWrappers(component: child) || changed
+        }
+
+        if let children = component.children {
+            for child in children {
+                changed = repairLegacyLayoutWrappers(component: child) || changed
+            }
+        }
+
+        return changed
+    }
+
     private func decodeImportPayload(data: Data, decoder: JSONDecoder) throws -> [WidgetFileEnvelope] {
         if let envelopes = try? decoder.decode([WidgetFileEnvelope].self, from: data) {
             return envelopes
@@ -219,25 +267,32 @@ final class WidgetStore {
     private static func resolveRootDirectory(fileManager: FileManager) -> URL {
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
-        let paneRoot = appSupport.appendingPathComponent("pane", isDirectory: true)
-        let legacyRoot = appSupport.appendingPathComponent("WidgetForge", isDirectory: true)
+        let currentRoot = appSupport.appendingPathComponent("widgie", isDirectory: true)
+        let legacyPaneRoot = appSupport.appendingPathComponent("pane", isDirectory: true)
+        let legacyWidgetForgeRoot = appSupport.appendingPathComponent("WidgetForge", isDirectory: true)
 
-        let paneExists = fileManager.fileExists(atPath: paneRoot.path)
-        let legacyExists = fileManager.fileExists(atPath: legacyRoot.path)
-
-        if paneExists {
-            return paneRoot
+        if fileManager.fileExists(atPath: currentRoot.path) {
+            return currentRoot
         }
 
-        if legacyExists {
+        if fileManager.fileExists(atPath: legacyPaneRoot.path) {
             do {
-                try fileManager.moveItem(at: legacyRoot, to: paneRoot)
-                return paneRoot
+                try fileManager.moveItem(at: legacyPaneRoot, to: currentRoot)
+                return currentRoot
             } catch {
-                return legacyRoot
+                return legacyPaneRoot
             }
         }
 
-        return paneRoot
+        if fileManager.fileExists(atPath: legacyWidgetForgeRoot.path) {
+            do {
+                try fileManager.moveItem(at: legacyWidgetForgeRoot, to: currentRoot)
+                return currentRoot
+            } catch {
+                return legacyWidgetForgeRoot
+            }
+        }
+
+        return currentRoot
     }
 }

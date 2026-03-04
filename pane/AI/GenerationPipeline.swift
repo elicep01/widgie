@@ -30,9 +30,23 @@ struct GenerationPipeline {
         defaultTheme: WidgetTheme,
         context: PromptContext,
         generationClient: AIProviderClient,
-        verificationClient: AIProviderClient? = nil
+        verificationClient: AIProviderClient? = nil,
+        extraExamples: [PromptExample] = [],
+        userStyleProfile: String? = nil
     ) async throws -> WidgetConfig {
-        let systemPrompt = promptBuilder.generationSystemPrompt(defaultTheme: defaultTheme, context: context, prompt: prompt)
+        // Fast path: GitHub repo URLs bypass the AI entirely so the AI can't invent
+        // placeholder syntax like {{dynamic.github.stars}}.
+        let lowerPrompt = prompt.lowercased()
+        if lowerPrompt.contains("github.com"),
+           let earlyHeuristic = heuristicWidget(for: prompt, theme: defaultTheme, context: context) {
+            var widget = earlyHeuristic
+            if widget.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                widget.description = prompt
+            }
+            return widget
+        }
+
+        let systemPrompt = promptBuilder.generationSystemPrompt(defaultTheme: defaultTheme, context: context, prompt: prompt, extraExamples: extraExamples, userStyleProfile: userStyleProfile)
         let userPrompt = promptBuilder.generationUserPrompt(prompt)
 
         var config = try await runPipeline(
@@ -59,9 +73,11 @@ struct GenerationPipeline {
         defaultTheme: WidgetTheme,
         context: PromptContext,
         generationClient: AIProviderClient,
-        verificationClient: AIProviderClient? = nil
+        verificationClient: AIProviderClient? = nil,
+        extraExamples: [PromptExample] = [],
+        userStyleProfile: String? = nil
     ) async throws -> WidgetConfig {
-        let systemPrompt = promptBuilder.generationSystemPrompt(defaultTheme: defaultTheme, context: context, prompt: editPrompt)
+        let systemPrompt = promptBuilder.generationSystemPrompt(defaultTheme: defaultTheme, context: context, prompt: editPrompt, extraExamples: extraExamples, userStyleProfile: userStyleProfile)
         let userPrompt = promptBuilder.editUserPrompt(existingConfig: existingConfig, editPrompt: editPrompt)
 
         var config = try await runPipeline(
@@ -382,6 +398,14 @@ struct GenerationPipeline {
             return true
         }
 
+        // Reject any config that contains template/dynamic placeholder syntax
+        // (e.g. "{{dynamic.github.stars}}" or "{{value}}") — the AI invented these; they don't render.
+        let hasPlaceholders = nonLayout.contains { component in
+            let text = component.content ?? component.title ?? component.label ?? ""
+            return text.contains("{{") && text.contains("}}")
+        }
+        if hasPlaceholders { return true }
+
         let genericWords = Set(["widget", "widgets", "fallback widget", "placeholder"])
         let genericTextCount = nonLayout.filter { component in
             guard component.type == .text || component.type == .note else { return false }
@@ -612,6 +636,54 @@ struct GenerationPipeline {
             return stock
         }
 
+        // General clock request (digital or analog) — catches cases where AI failed
+        // due to pattern library confusion (e.g., generating Text+dataSource instead of clock component)
+        if lower.contains("clock") {
+            let isAnalog = lower.contains("analog") || lower.contains("analogue") || lower.contains("anolog")
+            if isAnalog {
+                let clock = ComponentConfig(type: .analogClock)
+                clock.timezone = "local"
+                clock.showSecondHand = lower.contains("second")
+                return WidgetConfig(
+                    name: "Clock",
+                    description: prompt,
+                    size: WidgetSize(width: 200, height: 200),
+                    minSize: nil,
+                    maxSize: nil,
+                    theme: theme,
+                    background: BackgroundConfig.default(for: theme),
+                    cornerRadius: 20,
+                    padding: EdgeInsetsConfig(top: 16, bottom: 16, leading: 16, trailing: 16),
+                    refreshInterval: 60,
+                    content: clock
+                )
+            } else {
+                let wantsSeconds = lower.contains("second")
+                let wants12h = lower.contains("12") || lower.contains(" am") || lower.contains(" pm")
+                let clock = ComponentConfig(type: .clock)
+                clock.timezone = "local"
+                clock.format = wants12h ? "h:mm a" : "HH:mm"
+                clock.showSeconds = wantsSeconds
+                clock.font = "sf-mono"
+                clock.size = wantsSeconds ? 34 : 48
+                clock.weight = .light
+                clock.color = "primary"
+                return WidgetConfig(
+                    name: "Clock",
+                    description: prompt,
+                    size: WidgetSize(width: wantsSeconds ? 240 : 210, height: 100),
+                    minSize: nil,
+                    maxSize: nil,
+                    theme: theme,
+                    background: BackgroundConfig.default(for: theme),
+                    cornerRadius: 20,
+                    padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 20, trailing: 20),
+                    refreshInterval: 60,
+                    content: clock
+                )
+            }
+        }
+
         if (lower.contains("just show me the time") || lower.contains("nothing else"))
             && (lower.contains("tiny") || lower.contains("minimal")) {
             let clock = ComponentConfig(type: .clock)
@@ -637,9 +709,88 @@ struct GenerationPipeline {
             )
         }
 
+        // GitHub repo → github_repo_stats widget; other URLs → link_bookmarks
+        let isGitHubCom = lower.contains("github.com")
+        let isGitHub = lower.contains("github") || lower.contains("gitlab") || lower.contains("bitbucket")
+        let hasURL = lower.contains("https://") || lower.contains("http://")
+        if isGitHub || hasURL {
+            let words = prompt.components(separatedBy: .whitespaces)
+            // Strip trailing sentence punctuation that may have been appended to the URL
+            // e.g. "https://github.com/owner/repo. Which stats..." → URL word includes the period.
+            let trailingPunct = CharacterSet(charactersIn: ".,;:!?)\"'")
+            let urlStr = (words.first { $0.hasPrefix("https://") || $0.hasPrefix("http://") } ?? "")
+                .trimmingCharacters(in: trailingPunct)
+
+            // Extract "owner/repo" from a GitHub URL
+            var repoPath: String?
+            if !urlStr.isEmpty, let parsed = URL(string: urlStr) {
+                let parts = parsed.pathComponents.filter { $0 != "/" }
+                if parts.count >= 2 {
+                    let owner = parts[0].trimmingCharacters(in: trailingPunct)
+                    let repo  = parts[1].trimmingCharacters(in: trailingPunct)
+                    if !owner.isEmpty && !repo.isEmpty {
+                        repoPath = "\(owner)/\(repo)"
+                    }
+                }
+            }
+
+            if isGitHubCom, let repoPath {
+                // Native github_repo_stats component with live data.
+                // Parse which stats the user selected from synthesized prompt tokens.
+                let stats = ComponentConfig(type: .githubRepoStats)
+                stats.source = repoPath
+                let statTokens = ["stars", "forks", "issues", "watchers", "language", "description"]
+                let selectedStats = statTokens.filter { lower.contains($0) }
+                if !selectedStats.isEmpty {
+                    stats.showComponents = selectedStats
+                }
+                return WidgetConfig(
+                    name: repoPath.components(separatedBy: "/").last ?? "GitHub",
+                    description: prompt,
+                    size: .medium,
+                    minSize: nil,
+                    maxSize: nil,
+                    theme: theme,
+                    background: BackgroundConfig.default(for: theme),
+                    cornerRadius: 20,
+                    padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 16, trailing: 16),
+                    refreshInterval: 1800,
+                    content: stats
+                )
+            } else {
+                // Non-GitHub URL → bookmark link
+                let repoName = repoPath ?? (isGitHub ? "Repository" : urlStr)
+                let link = ComponentConfig(type: .linkBookmarks)
+                link.style = "list"
+                link.links = [LinkBookmarkConfig(
+                    name: repoName,
+                    url: urlStr.isEmpty ? "https://github.com" : urlStr,
+                    icon: "chevron.left.forwardslash.chevron.right"
+                )]
+                return WidgetConfig(
+                    name: isGitHub ? "GitHub" : "Bookmark",
+                    description: prompt,
+                    size: WidgetSize(width: 280, height: 80),
+                    minSize: nil,
+                    maxSize: nil,
+                    theme: theme,
+                    background: BackgroundConfig.default(for: theme),
+                    cornerRadius: 20,
+                    padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 16, trailing: 16),
+                    refreshInterval: 3600,
+                    content: link
+                )
+            }
+        }
+
         // Mood / wellness / habit tracker
         let isMood = lower.contains("mood") || lower.contains("feeling") || lower.contains("emotion") || lower.contains("wellness")
-        let isHabit = lower.contains("habit") || lower.contains("routine") || lower.contains("daily") || lower.contains("tracker")
+        // "tracker" alone is too broad — exclude contexts like "stat tracker", "repo tracker", "bug tracker"
+        let trackerIsHabit = lower.contains("tracker")
+            && !lower.contains("stat") && !lower.contains("repo") && !lower.contains("git")
+            && !lower.contains("bug") && !lower.contains("issue") && !lower.contains("project")
+            && !lower.contains("http") && !lower.contains("progress")
+        let isHabit = lower.contains("habit") || lower.contains("routine") || lower.contains("daily") || trackerIsHabit
         if isMood || isHabit {
             let moods: [(id: String, name: String, icon: String)] = isMood
                 ? [("mood1", "Happy", "face.smiling"), ("mood2", "Calm", "leaf"), ("mood3", "Anxious", "bolt.heart"), ("mood4", "Sad", "cloud.rain"), ("mood5", "Focused", "scope")]
@@ -662,9 +813,33 @@ struct GenerationPipeline {
             )
         }
 
-        // Checklist / todo
+        // Freeform writing: "jot down", "scratch pad", "brain dump", "on my mind" → editable note
+        let isFreeformWrite = lower.contains("jot") || lower.contains("scratch") || lower.contains("brain dump")
+            || lower.contains("on my mind") || lower.contains("dump") || lower.contains("thoughts")
+            || lower.contains("ideas") || lower.contains("quick note") || lower.contains("blank note")
+        if isFreeformWrite || lower.contains("journal") || lower.contains("diary") || lower.contains("memo") {
+            let note = ComponentConfig(type: .note)
+            note.content = ""
+            note.editable = true
+            return WidgetConfig(
+                name: isFreeformWrite ? "Quick Notes" : "Journal",
+                description: prompt,
+                size: WidgetSize(width: 300, height: 200),
+                minSize: nil,
+                maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: note
+            )
+        }
+
+        // Checklist / todo (structured task list, not freeform)
         if lower.contains("checklist") || lower.contains("todo") || lower.contains("to-do") || lower.contains("task list") {
             let checklist = ComponentConfig(type: .checklist)
+            checklist.interactive = true
             checklist.items = [
                 ChecklistItemConfig(id: "t1", text: "Task 1", checked: false),
                 ChecklistItemConfig(id: "t2", text: "Task 2", checked: false),
@@ -685,10 +860,10 @@ struct GenerationPipeline {
             )
         }
 
-        // Journal / note / diary
-        if lower.contains("journal") || lower.contains("diary") || lower.contains("note") || lower.contains("memo") {
+        // Note / sticky note
+        if lower.contains("note") {
             let note = ComponentConfig(type: .note)
-            note.content = prompt
+            note.content = ""
             note.editable = true
             return WidgetConfig(
                 name: "Note",

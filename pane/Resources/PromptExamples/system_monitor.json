@@ -1,13 +1,30 @@
 {
   "name": "System Monitor",
-  "size": {"width": 260, "height": 110},
+  "size": {
+    "width": 200,
+    "height": 90
+  },
   "theme": "obsidian",
-  "background": {"type": "blur", "material": "hudWindow", "tintColor": "#0D1117", "tintOpacity": 0.7},
+  "background": {
+    "type": "blur",
+    "material": "hudWindow",
+    "tintColor": "#0D1117",
+    "tintOpacity": 0.7
+  },
   "cornerRadius": 16,
-  "padding": {"top": 14, "bottom": 14, "leading": 16, "trailing": 16},
+  "padding": {
+    "top": 10,
+    "bottom": 10,
+    "leading": 10,
+    "trailing": 10
+  },
   "content": {
     "type": "system_stats",
-    "show": ["cpu", "memory", "storage"],
+    "show": [
+      "cpu",
+      "memory",
+      "storage"
+    ],
     "style": "bars",
     "color": "accent"
   }
