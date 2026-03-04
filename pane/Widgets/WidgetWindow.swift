@@ -22,6 +22,8 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     private let shouldAutoSizeOnInitialRender: Bool
     private var hostingView: NSHostingView<WidgetPanelContentView>?
     private var isApplyingAutoSize = false
+    private var autoFitRevision = 0
+    private var suppressAutoFitUntil: Date = .distantPast
 
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
@@ -382,16 +384,20 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     }
 
     private func scheduleInitialAutoSizePasses() {
+        autoFitRevision += 1
+        let revision = autoFitRevision
         // Multiple passes absorb async data arriving right after first paint.
         let delays: [TimeInterval] = [0.04, 0.18, 0.42]
         for delay in delays {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.applyContentFitIfNeeded()
+                guard let self, self.autoFitRevision == revision else { return }
+                self.applyContentFitIfNeeded()
             }
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.46) { [weak self] in
-            self?.onAutoSizeCompleted?()
+            guard let self, self.autoFitRevision == revision else { return }
+            self.onAutoSizeCompleted?()
         }
     }
 
@@ -619,6 +625,10 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         let currentPoint = NSEvent.mouseLocation
         if resizeSession == nil || resizeSession?.handle != handle {
+            // User is explicitly taking control of size; cancel pending auto-fit passes
+            // and temporarily suppress auto-fit so manual resize does not jump/reset.
+            autoFitRevision += 1
+            suppressAutoFitUntil = Date().addingTimeInterval(1.2)
             resizeSession = ResizeSession(
                 handle: handle,
                 initialMouseLocation: currentPoint,
@@ -657,11 +667,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         if !isPointerInside && !isActive {
             setPassiveMode(enabled: true)
-        }
-
-        // Keep freeform drag behavior, but trim obvious dead space after release.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.applyContentFitIfNeeded()
         }
     }
 
@@ -1044,6 +1049,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
     private func applyContentFitIfNeeded() {
         guard !isDragging, !isResizing, !isApplyingAutoSize else {
+            return
+        }
+        guard Date() >= suppressAutoFitUntil else {
             return
         }
 
