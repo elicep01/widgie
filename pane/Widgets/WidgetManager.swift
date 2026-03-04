@@ -24,6 +24,7 @@ final class WidgetManager {
     private let positionManager = WidgetPositionManager()
     private let alignmentGuideOverlay = AlignmentGuideOverlayWindow()
     private let ownProcessID = Int32(ProcessInfo.processInfo.processIdentifier)
+    private var desktopIconObstacleCache: (capturedAt: Date, frame: CGRect, rects: [CGRect])?
     private var windows: [UUID: WidgetWindow] = [:]
 
     init(store: WidgetStore, settingsStore: SettingsStore) {
@@ -31,11 +32,14 @@ final class WidgetManager {
         self.settingsStore = settingsStore
     }
 
-    func createOrUpdateWidget(_ config: WidgetConfig, isLocked: Bool? = nil) {
+    func createOrUpdateWidget(_ config: WidgetConfig, isLocked: Bool? = nil, forceAutoFit: Bool = false) {
         let normalized = normalizedForWallpaper(config)
 
         if let window = windows[normalized.id] {
             window.update(config: normalized)
+            if forceAutoFit {
+                window.forceAutoSizeToContent()
+            }
             resolveOverlapIfNeeded(for: window)
             if let isLocked {
                 window.setLocked(isLocked)
@@ -49,7 +53,7 @@ final class WidgetManager {
         let window = WidgetWindow(
             config: normalized,
             settingsStore: settingsStore,
-            shouldAutoSizeOnInitialRender: shouldAutoArrange
+            shouldAutoSizeOnInitialRender: shouldAutoArrange || forceAutoFit
         )
         if let isLocked {
             window.setLocked(isLocked)
@@ -329,9 +333,7 @@ final class WidgetManager {
     }
 
     private func normalizedForWallpaper(_ config: WidgetConfig) -> WidgetConfig {
-        var normalized = config
-        normalized.size = config.size.snappedToAppleWallpaperPreset()
-        return normalized
+        config
     }
 
     private func resolveOverlapIfNeeded(for window: WidgetWindow) {
@@ -550,22 +552,47 @@ final class WidgetManager {
     }
 
     private func desktopIconReservedFrames(in screenFrame: CGRect) -> [CGRect] {
+        if let cached = desktopIconObstacleCache,
+           Date().timeIntervalSince(cached.capturedAt) < 2.0,
+           abs(cached.frame.minX - screenFrame.minX) < 1,
+           abs(cached.frame.minY - screenFrame.minY) < 1,
+           abs(cached.frame.width - screenFrame.width) < 1,
+           abs(cached.frame.height - screenFrame.height) < 1 {
+            return cached.rects
+        }
+
+        if let preciseRects = desktopIconFramesFromFinder(in: screenFrame), !preciseRects.isEmpty {
+            let expanded = preciseRects.map { $0.insetBy(dx: -10, dy: -10) }
+            desktopIconObstacleCache = (capturedAt: Date(), frame: screenFrame, rects: expanded)
+            return expanded
+        }
+
         let itemCount = desktopVisibleItemCount()
         guard itemCount > 0 else {
+            desktopIconObstacleCache = (capturedAt: Date(), frame: screenFrame, rects: [])
             return []
         }
 
-        // Reserve a wider lane so widgets never cover desktop files/folders.
-        // Base 160pt + 5pt per icon (up to 30), capped at 320pt.
+        // Fallback heuristic when Finder icon positions are unavailable.
+        // Reserve right lane (macOS desktop defaults) plus a narrow left lane.
         let laneWidth = min(320, max(160, 140 + (CGFloat(min(itemCount, 30)) * 5)))
-        return [
+        let leftLaneWidth = min(180, max(96, laneWidth * 0.45))
+        let fallbackRects = [
             CGRect(
                 x: screenFrame.minX + 4,
+                y: screenFrame.minY + 4,
+                width: leftLaneWidth,
+                height: max(0, screenFrame.height - 8)
+            ),
+            CGRect(
+                x: screenFrame.maxX - laneWidth - 4,
                 y: screenFrame.minY + 4,
                 width: laneWidth,
                 height: max(0, screenFrame.height - 8)
             )
         ]
+        desktopIconObstacleCache = (capturedAt: Date(), frame: screenFrame, rects: fallbackRects)
+        return fallbackRects
     }
 
     private func desktopVisibleItemCount() -> Int {
@@ -582,6 +609,68 @@ final class WidgetManager {
         }
 
         return items.count
+    }
+
+    private func desktopIconFramesFromFinder(in screenFrame: CGRect) -> [CGRect]? {
+        // Finder automation can be denied by system privacy settings.
+        // This method fails soft and the caller applies fallback lanes.
+        let script = """
+        tell application "Finder"
+            if not (exists desktop) then return ""
+            set outputLines to {}
+            set desktopItems to every item of desktop
+            repeat with desktopItem in desktopItems
+                try
+                    set p to desktop position of desktopItem
+                    set end of outputLines to ((item 1 of p as integer) as string) & "," & ((item 2 of p as integer) as string)
+                end try
+            end repeat
+            return outputLines as string
+        end tell
+        """
+
+        var scriptError: NSDictionary?
+        guard let appleScript = NSAppleScript(source: script),
+              let raw = appleScript.executeAndReturnError(&scriptError).stringValue,
+              scriptError == nil else {
+            return nil
+        }
+
+        if raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return []
+        }
+
+        // Finder desktop positions are top-left-origin on the desktop plane.
+        // Convert to AppKit screen coords (bottom-left origin), approximating icon bounds.
+        let primaryFrame = NSScreen.main?.frame ?? screenFrame
+        let iconWidth: CGFloat = 92
+        let iconHeight: CGFloat = 96
+
+        let points = raw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var result: [CGRect] = []
+        var index = 0
+        while index + 1 < points.count {
+            let xText = points[index]
+            let yText = points[index + 1]
+            index += 2
+
+            guard let xValue = Double(xText), let yValue = Double(yText) else {
+                continue
+            }
+
+            let screenX = primaryFrame.minX + CGFloat(xValue) - (iconWidth * 0.5)
+            let screenY = primaryFrame.maxY - CGFloat(yValue) - iconHeight
+            let rect = CGRect(x: screenX, y: screenY, width: iconWidth, height: iconHeight)
+
+            if rect.intersects(screenFrame) {
+                result.append(rect)
+            }
+        }
+
+        return result
     }
 }
 

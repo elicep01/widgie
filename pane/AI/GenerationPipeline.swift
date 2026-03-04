@@ -64,6 +64,8 @@ struct GenerationPipeline {
             config.description = prompt
         }
 
+        applyPromptPreferences(to: &config, prompt: prompt)
+
         return config
     }
 
@@ -101,6 +103,8 @@ struct GenerationPipeline {
         if config.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             config.description = existingConfig.description
         }
+
+        applyPromptPreferences(to: &config, prompt: editPrompt)
 
         return config
     }
@@ -419,6 +423,25 @@ struct GenerationPipeline {
             return true
         }
 
+        let genericName = config.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if genericName == "custom widget" || genericName == "widget" {
+            // Reject bland "Custom Widget" outputs unless there is clearly rich, non-generic content.
+            let richContentCount = nonLayout.filter { component in
+                switch component.type {
+                case .clock, .analogClock, .weather, .worldClocks, .stock, .crypto, .calendarNext, .reminders, .checklist:
+                    return true
+                case .text, .note:
+                    let text = (component.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    return text.count >= 16 && !text.lowercased().hasPrefix("widget")
+                default:
+                    return false
+                }
+            }.count
+            if richContentCount < 2 {
+                return true
+            }
+        }
+
         let hasCrypto = nonLayout.contains { $0.type == .crypto }
         let hasStock = nonLayout.contains { $0.type == .stock }
         let hasWeather = nonLayout.contains { $0.type == .weather }
@@ -473,7 +496,7 @@ struct GenerationPipeline {
             return true
         }
 
-        if promptToken.contains("weather"), !hasWeather {
+        if (promptToken.contains("weather") || promptToken.contains("temperature") || promptToken.contains("temp")), !hasWeather {
             return true
         }
 
@@ -548,6 +571,8 @@ struct GenerationPipeline {
     private func detectTimeWeatherCities(in normalizedPrompt: String) -> [CityTimeWeatherSpec] {
         let candidates: [(tokens: [String], label: String, timezone: String, weatherLocation: String, defaultTemperatureUnit: String)] = [
             (["pune"], "Pune", "Asia/Kolkata", "Pune, Maharashtra, India", "celsius"),
+            (["nagpur"], "Nagpur", "Asia/Kolkata", "Nagpur, Maharashtra, India", "celsius"),
+            (["bangalore", "banglore", "bengaluru", "bengalooru"], "Bangalore", "Asia/Kolkata", "Bangalore, Karnataka, India", "celsius"),
             (["tempe"], "Tempe", "America/Phoenix", "Tempe, AZ, USA", "fahrenheit"),
             (["seattle"], "Seattle", "America/Los_Angeles", "Seattle, WA, USA", "fahrenheit"),
             (["tokyo"], "Tokyo", "Asia/Tokyo", "Tokyo, Japan", "celsius"),
@@ -610,6 +635,26 @@ struct GenerationPipeline {
             }
         }
         return items
+    }
+
+    private func applyPromptPreferences(to config: inout WidgetConfig, prompt: String) {
+        let normalized = prompt.lowercased()
+        guard let explicitUnit = explicitTemperatureUnit(in: normalized) else { return }
+        applyTemperatureUnit(explicitUnit, to: config.content)
+    }
+
+    private func applyTemperatureUnit(_ unit: String, to component: ComponentConfig) {
+        if component.type == .weather {
+            component.temperatureUnit = unit
+        }
+        if let child = component.child {
+            applyTemperatureUnit(unit, to: child)
+        }
+        if let children = component.children {
+            for nested in children {
+                applyTemperatureUnit(unit, to: nested)
+            }
+        }
     }
 
     private func heuristicWidget(
@@ -915,7 +960,10 @@ struct GenerationPipeline {
         context: PromptContext
     ) -> WidgetConfig? {
         let asksTime = normalizedPrompt.contains("time") || normalizedPrompt.contains("clock")
-        let asksWeather = normalizedPrompt.contains("weather") || normalizedPrompt.contains("wether")
+        let asksWeather = normalizedPrompt.contains("weather")
+            || normalizedPrompt.contains("wether")
+            || normalizedPrompt.contains("temperature")
+            || normalizedPrompt.contains("temp")
         guard asksTime && asksWeather else {
             return nil
         }

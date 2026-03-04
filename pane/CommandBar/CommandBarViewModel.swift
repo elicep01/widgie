@@ -15,6 +15,12 @@ enum CommandBarMode: Equatable {
     }
 }
 
+struct BuildChecklistItem: Identifiable, Equatable {
+    let id: String
+    let text: String
+    var isDone: Bool
+}
+
 @MainActor
 final class CommandBarViewModel: ObservableObject {
     @Published var prompt: String = "" {
@@ -36,6 +42,7 @@ final class CommandBarViewModel: ObservableObject {
     @Published var mode: CommandBarMode = .input
     @Published var clarificationAnswers: [String: [String]] = [:]
     @Published var agentTraceLines: [String] = []
+    @Published var buildChecklist: [BuildChecklistItem] = []
 
     var onSubmit: ((String) -> Void)?
     var onCancel: (() -> Void)?
@@ -59,6 +66,7 @@ final class CommandBarViewModel: ObservableObject {
         mode = .input
         clarificationAnswers = [:]
         agentTraceLines = []
+        buildChecklist = []
     }
 
     func submit() {
@@ -118,6 +126,7 @@ final class CommandBarViewModel: ObservableObject {
         statusMessage = nil
         isError = false
         agentTraceLines = []
+        buildChecklist = []
     }
 
     func showFeedback(widgetID: UUID, originalPrompt: String) {
@@ -174,6 +183,19 @@ final class CommandBarViewModel: ObservableObject {
         if agentTraceLines.count > 16 {
             agentTraceLines.removeFirst(agentTraceLines.count - 16)
         }
+    }
+
+    func setBuildChecklist(_ items: [BuildChecklistItem]) {
+        buildChecklist = items
+    }
+
+    func completeChecklistItem(id: String) {
+        guard let index = buildChecklist.firstIndex(where: { $0.id == id }) else { return }
+        buildChecklist[index].isDone = true
+    }
+
+    func clearBuildChecklist() {
+        buildChecklist = []
     }
 
     func cancel() {

@@ -78,6 +78,9 @@ struct PromptBuilder {
         - Use correct IANA timezone strings for place-based time requests.
         - If user names city/country/timezone, do not use "local" unless explicitly requested.
         - Resolve locations as full unambiguous strings when possible.
+        - Normalize city labels consistently across all rows/cards in one widget:
+          use "City, ST, USA" for US cities and "City, State/Region, Country" for non-US cities when known.
+          Example: "Tempe, AZ, USA", "Madison, WI, USA", "Bangalore, Karnataka, India", "Nagpur, Maharashtra, India".
         - Resolve relative dates from current date context.
 
         3. Duration and unit accuracy.

@@ -189,6 +189,7 @@ private struct WidgetGalleryRootView: View {
                     TextField("Search...", text: $viewModel.searchText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12))
+                        .withoutWritingTools()
                     if !viewModel.searchText.isEmpty {
                         Button { viewModel.searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")

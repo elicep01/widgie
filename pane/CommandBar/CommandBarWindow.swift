@@ -103,6 +103,18 @@ final class CommandBarWindow {
         viewModel.appendAgentTrace(line)
     }
 
+    func setBuildChecklist(_ items: [BuildChecklistItem]) {
+        viewModel.setBuildChecklist(items)
+    }
+
+    func completeChecklistItem(id: String) {
+        viewModel.completeChecklistItem(id: id)
+    }
+
+    func clearBuildChecklist() {
+        viewModel.clearBuildChecklist()
+    }
+
     private func positionPanel(expanded: Bool) {
         guard let screenFrame = NSScreen.main?.visibleFrame else { return }
 

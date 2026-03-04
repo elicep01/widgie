@@ -20,11 +20,12 @@ struct WidgetRenderer: View {
     let config: WidgetConfig
     private var surfaceStyle: ThemeSurfaceStyle { ThemeResolver.surface(for: config.theme) }
 
-    /// Scale factor driven by widget width so content adapts when resizing presets are applied.
-    /// Reference width = 320pt (medium preset) → scale 1.0.
-    /// Small (170pt) → ~0.72, Wide/Dashboard (480pt) → ~1.1.
+    /// Responsive scale driven by both width and height so content remains readable
+    /// during freeform resize drags.
     private var scaleFactor: Double {
-        max(0.68, min(1.12, config.size.width / 320.0))
+        let widthScale = config.size.width / 320.0
+        let heightScale = config.size.height / 180.0
+        return max(0.34, min(1.16, min(widthScale, heightScale)))
     }
 
     private var scaledPadding: EdgeInsets {
@@ -73,6 +74,8 @@ struct WidgetRenderer: View {
                     .foregroundStyle(ThemeResolver.color(for: component.color, theme: config.theme))
                     .multilineTextAlignment(textAlignment(for: component.alignment))
                     .lineLimit(component.maxLines)
+                    .minimumScaleFactor(0.2)
+                    .allowsTightening(true)
                     .opacity(component.opacity ?? 1)
                     .frame(maxWidth: .infinity, alignment: frameAlignment(for: component.alignment))
             )
@@ -222,8 +225,25 @@ struct WidgetRenderer: View {
 
         case .hstack:
             let children = component.children ?? []
+            let spacing = ((component.spacing ?? 8) * scaleFactor).cgFloat
+            let meaningfulChildren = children.filter { $0.type != .divider && $0.type != .spacer }
+            if shouldReflowHStack(children: children) {
+                let minColumnWidth = max(160.cgFloat, (178 * scaleFactor).cgFloat)
+                let displayChildren = meaningfulChildren.isEmpty ? children : meaningfulChildren
+                return AnyView(
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: minColumnWidth), spacing: spacing)],
+                        alignment: horizontalAlignment(for: component.alignment),
+                        spacing: spacing
+                    ) {
+                        ForEach(displayChildren.indices, id: \.self) { index in
+                            renderComponent(displayChildren[index])
+                        }
+                    }
+                )
+            }
             return AnyView(
-                HStack(alignment: verticalAlignment(for: component.alignment), spacing: ((component.spacing ?? 8) * scaleFactor).cgFloat) {
+                HStack(alignment: verticalAlignment(for: component.alignment), spacing: spacing) {
                     ForEach(children.indices, id: \.self) { index in
                         renderComponent(children[index])
                     }
@@ -417,6 +437,14 @@ struct WidgetRenderer: View {
             return .center
         }
     }
+
+    private func shouldReflowHStack(children: [ComponentConfig]) -> Bool {
+        let meaningfulCount = children.filter { $0.type != .divider && $0.type != .spacer }.count
+        guard meaningfulCount >= 2 else { return false }
+        let usableWidth = max(1.0, config.size.width - 24)
+        let widthPerChild = usableWidth / Double(meaningfulCount)
+        return widthPerChild < 200 || scaleFactor <= 0.85
+    }
 }
 
 private struct ClockComponentView: View {
@@ -429,8 +457,11 @@ private struct ClockComponentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
             Text(clockFormatter.string(from: time.now))
-                .font(.system(size: ((component.size ?? 42) * scale).cgFloat, weight: .light, design: .monospaced))
+                .font(.system(size: ((component.size ?? 24) * scale).cgFloat, weight: .regular, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color, theme: theme))
+                .lineLimit(1)
+                .minimumScaleFactor(0.2)
+                .allowsTightening(true)
 
             if let label = component.label, !label.isEmpty {
                 Text(label)
@@ -886,10 +917,14 @@ private struct WorldClocksComponentView: View {
                     Text(entry.label ?? shortTimezoneName(entry.timezone))
                         .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.25)
                     Spacer(minLength: 4)
                     Text(timeString(for: entry.timezone))
                         .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.25)
                 }
             }
         }
@@ -1447,8 +1482,10 @@ private struct WeatherComponentView: View {
 
                     if component.showTemperature ?? true {
                         Text(snapshot.temperature.map { "\($0.roundedInt)\(snapshot.unitSymbol)" } ?? "--")
-                            .font(.system(size: ((component.size ?? 28) * scale).cgFloat, weight: .semibold, design: .monospaced))
+                            .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .semibold, design: .monospaced))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.25)
                     }
 
                     Spacer(minLength: 0)
@@ -1458,12 +1495,16 @@ private struct WeatherComponentView: View {
                     Text(snapshot.condition)
                         .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.25)
                 }
 
                 if component.showHighLow ?? true {
                     Text("H \(snapshot.high?.roundedInt ?? 0) • L \(snapshot.low?.roundedInt ?? 0)")
                         .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.25)
                 }
 
                 if component.showHumidity == true, let humidity = snapshot.humidity {
@@ -2404,6 +2445,7 @@ private struct NoteComponentView: View {
                 TextEditor(text: $text)
                     .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
                     .foregroundColor(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                    .withoutWritingTools()
                     .scrollContentBackground(.hidden)
                     .frame(minHeight: (60 * scale).cgFloat)
                     .onChange(of: text) { _, newValue in

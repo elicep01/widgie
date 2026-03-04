@@ -95,9 +95,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		B2ECD0AB2F4409720077EB60 /* pane */ = {
+		B2ECD0AB2F4409720077EB60 /* widgie */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = B2ECD0CE2F4409750077EB60 /* Build configuration list for PBXNativeTarget "pane" */;
+			buildConfigurationList = B2ECD0CE2F4409750077EB60 /* Build configuration list for PBXNativeTarget "widgie" */;
 			buildPhases = (
 				B2ECD0A82F4409720077EB60 /* Sources */,
 				B2ECD0A92F4409720077EB60 /* Frameworks */,
@@ -200,7 +200,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				B2ECD0AB2F4409720077EB60 /* pane */,
+				B2ECD0AB2F4409720077EB60 /* widgie */,
 				B2ECD0B92F4409750077EB60 /* paneTests */,
 				B2ECD0C32F4409750077EB60 /* paneUITests */,
 			);
@@ -258,12 +258,12 @@
 /* Begin PBXTargetDependency section */
 		B2ECD0BC2F4409750077EB60 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = B2ECD0AB2F4409720077EB60 /* pane */;
+			target = B2ECD0AB2F4409720077EB60 /* widgie */;
 			targetProxy = B2ECD0BB2F4409750077EB60 /* PBXContainerItemProxy */;
 		};
 		B2ECD0C62F4409750077EB60 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = B2ECD0AB2F4409720077EB60 /* pane */;
+			target = B2ECD0AB2F4409720077EB60 /* widgie */;
 			targetProxy = B2ECD0C52F4409750077EB60 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -531,7 +531,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		B2ECD0CE2F4409750077EB60 /* Build configuration list for PBXNativeTarget "pane" */ = {
+		B2ECD0CE2F4409750077EB60 /* Build configuration list for PBXNativeTarget "widgie" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B2ECD0CF2F4409750077EB60 /* Debug */,

@@ -25,6 +25,7 @@ struct CommandBarView: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 18, weight: .regular))
                         .lineLimit(1)
+                        .withoutWritingTools()
                         .disabled(viewModel.isLoading)
                         .focused($isInputFocused)
                         .onSubmit {
@@ -66,6 +67,12 @@ struct CommandBarView: View {
                     onAccept: { viewModel.acceptFeedback() },
                     onTweak: { viewModel.tweakFeedback() }
                 )
+            }
+
+            if case .feedback = viewModel.mode {
+                EmptyView()
+            } else if !viewModel.buildChecklist.isEmpty {
+                BuildChecklistView(items: viewModel.buildChecklist)
             }
         }
         .padding(.vertical, 16)
@@ -229,6 +236,48 @@ struct CommandBarView: View {
         if value >= 0.85 { return .green }
         if value >= 0.65 { return .yellow }
         return .orange
+    }
+}
+
+private struct BuildChecklistView: View {
+    let items: [BuildChecklistItem]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Build Checklist")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(items) { item in
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(item.isDone ? Color.green : Color.secondary.opacity(0.8))
+                                .padding(.top, 1)
+                            Text(item.text)
+                                .font(.system(size: 11, weight: .regular))
+                                .strikethrough(item.isDone, color: .green)
+                                .foregroundStyle(item.isDone ? Color.secondary : Color.primary.opacity(0.9))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+            }
+            .frame(minHeight: 64, maxHeight: 170)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.black.opacity(0.12))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            )
+        }
     }
 }
 

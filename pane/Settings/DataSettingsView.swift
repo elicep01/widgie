@@ -7,6 +7,7 @@ struct DataSettingsView: View {
         Form {
             TextField("Default Location", text: $settingsStore.defaultLocation)
                 .textFieldStyle(.roundedBorder)
+                .withoutWritingTools()
 
             HStack {
                 Text("Temperature Unit")

@@ -392,6 +392,8 @@ final class AgentOrchestrator {
     private func inferDataPlan(from lowerPrompt: String) -> AgentDataPlan {
         let sourceTokens: [(String, Bool)] = [
             ("weather", true),
+            ("temperature", true),
+            ("temp", true),
             ("stock", true),
             ("crypto", true),
             ("calendar", true),
@@ -423,8 +425,15 @@ final class AgentOrchestrator {
             }
         }
 
-        if supported.contains("weather"), !containsLikelyLocation(lowerPrompt) {
+        let requestsWeatherLike = supported.contains("weather")
+            || supported.contains("temperature")
+            || supported.contains("temp")
+
+        if requestsWeatherLike, !containsLikelyLocation(lowerPrompt) {
             missingRequirements.append("weather_location")
+        }
+        if requestsWeatherLike, !containsExplicitTemperatureUnit(lowerPrompt) {
+            missingRequirements.append("weather_temperature_unit")
         }
         if supported.contains("stock"), !containsTickerSymbols(lowerPrompt) {
             missingRequirements.append("stock_symbols")
@@ -486,6 +495,17 @@ final class AgentOrchestrator {
                     id: "weather-location",
                     question: "Which city should weather use?",
                     options: ["Current city", "New York", "San Francisco", "London"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if dataPlan.missingRequirements.contains("weather_temperature_unit") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "weather-unit",
+                    question: "Which temperature unit?",
+                    options: ["Celsius", "Fahrenheit"],
                     allowsMultiple: false
                 )
             )
@@ -602,7 +622,11 @@ final class AgentOrchestrator {
     }
 
     private func containsLikelyLocation(_ lowerPrompt: String) -> Bool {
-        let markers = [",", " in ", " at ", "city", "usa", "india", "uk", "london", "tokyo", "new york", "san francisco"]
+        let markers = [
+            ",", " in ", " at ", "for ", "city", "usa", "india", "uk",
+            "london", "tokyo", "new york", "san francisco", "madison",
+            "tempe", "pune", "nagpur", "bangalore", "banglore", "bengaluru"
+        ]
         return markers.contains(where: { lowerPrompt.contains($0) })
     }
 
@@ -611,6 +635,14 @@ final class AgentOrchestrator {
         let nsText = lowerPrompt.uppercased() as NSString
         let matches = regex?.matches(in: lowerPrompt.uppercased(), range: NSRange(location: 0, length: nsText.length)) ?? []
         return !matches.isEmpty
+    }
+
+    private func containsExplicitTemperatureUnit(_ lowerPrompt: String) -> Bool {
+        let unitMarkers = [
+            "celsius", "celcius", "centigrade", "°c",
+            "fahrenheit", "fahreneit", "°f"
+        ]
+        return unitMarkers.contains(where: { lowerPrompt.contains($0) })
     }
 
     private func containsAppNames(_ lowerPrompt: String) -> Bool {

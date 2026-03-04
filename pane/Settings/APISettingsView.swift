@@ -25,6 +25,7 @@ struct APISettingsView: View {
             Section("OpenAI") {
                 SecureField("API Key", text: $settingsStore.openAIAPIKey)
                     .textFieldStyle(.roundedBorder)
+                    .withoutWritingTools()
 
                 if settingsStore.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Text("Enter an OpenAI API key to load available models.")
@@ -73,6 +74,7 @@ struct APISettingsView: View {
             Section("Claude") {
                 SecureField("API Key", text: $settingsStore.claudeAPIKey)
                     .textFieldStyle(.roundedBorder)
+                    .withoutWritingTools()
 
                 Picker("Model", selection: $settingsStore.claudeModel) {
                     ForEach(claudeModels, id: \.id) { entry in

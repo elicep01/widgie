@@ -36,6 +36,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     }
 
     private var resizeSession: ResizeSession?
+    private var moveSession: MoveSession?
     private var isResizing = false {
         didSet { refreshContent() }
     }
@@ -65,7 +66,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
     private var hoverActivationWorkItem: DispatchWorkItem?
     private var passivationWorkItem: DispatchWorkItem?
-    private let resizeStepThreshold: CGFloat = 60
 
     init(
         config: WidgetConfig,
@@ -305,6 +305,10 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         config.position = position
     }
 
+    func forceAutoSizeToContent() {
+        scheduleInitialAutoSizePasses()
+    }
+
     func setLocked(_ locked: Bool) {
         isLocked = locked
     }
@@ -353,6 +357,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             },
             onResizeEnd: { [weak self] in
                 self?.endResizeDrag()
+            },
+            onMoveDrag: { [weak self] in
+                self?.handleMoveDrag()
+            },
+            onMoveEnd: { [weak self] in
+                self?.endMoveDrag()
             }
         )
 
@@ -367,11 +377,21 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         if allowAutoSize {
-            // Keep initial size class stable (Apple-like behavior): do not auto-fit
-            // to arbitrary content bounds on first render.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-                self?.onAutoSizeCompleted?()
+            scheduleInitialAutoSizePasses()
+        }
+    }
+
+    private func scheduleInitialAutoSizePasses() {
+        // Multiple passes absorb async data arriving right after first paint.
+        let delays: [TimeInterval] = [0.04, 0.18, 0.42]
+        for delay in delays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.applyContentFitIfNeeded()
             }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.46) { [weak self] in
+            self?.onAutoSizeCompleted?()
         }
     }
 
@@ -599,13 +619,10 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         let currentPoint = NSEvent.mouseLocation
         if resizeSession == nil || resizeSession?.handle != handle {
-            let currentPreset = WidgetSizePreset.nearest(to: config.size)
             resizeSession = ResizeSession(
                 handle: handle,
                 initialMouseLocation: currentPoint,
-                initialFrame: frame,
-                initialPreset: currentPreset,
-                aspectRatio: max(frame.width / max(frame.height, 1), 0.1)
+                initialFrame: frame
             )
             isResizing = true
         }
@@ -614,22 +631,16 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        // Native-style behavior: dragging the resize handle switches between
-        // predefined size classes instead of freeform dimensions.
-        let dx = currentPoint.x - resizeSession.initialMouseLocation.x
-        let dy = currentPoint.y - resizeSession.initialMouseLocation.y
-        let signedMagnitude = (dx + dy) / 2
-        let stepDelta = Int((signedMagnitude / resizeStepThreshold).rounded(.towardZero))
+        let targetFrame = frameForResize(session: resizeSession, currentPoint: currentPoint)
 
-        let targetPreset = WidgetSizePreset.stepped(from: resizeSession.initialPreset, deltaSteps: stepDelta)
-        let targetSize = targetPreset.size
-
-        if abs(frame.width - targetSize.width.cgFloat) < 0.5,
-           abs(frame.height - targetSize.height.cgFloat) < 0.5 {
+        if abs(frame.width - targetFrame.width) < 0.5,
+           abs(frame.height - targetFrame.height) < 0.5,
+           abs(frame.origin.x - targetFrame.origin.x) < 0.5,
+           abs(frame.origin.y - targetFrame.origin.y) < 0.5 {
             return
         }
 
-        applyPresetResize(size: targetSize, anchoredTop: resizeSession.initialFrame.maxY, anchoredLeft: resizeSession.initialFrame.minX)
+        applyResizeFrame(targetFrame)
     }
 
     private func endResizeDrag() {
@@ -647,55 +658,73 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         if !isPointerInside && !isActive {
             setPassiveMode(enabled: true)
         }
+
+        // Keep freeform drag behavior, but trim obvious dead space after release.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+            self?.applyContentFitIfNeeded()
+        }
     }
 
-    private func applyPresetResize(size: WidgetSize, anchoredTop: CGFloat, anchoredLeft: CGFloat) {
-        let targetFrame = NSRect(
-            x: anchoredLeft,
-            y: anchoredTop - size.height.cgFloat,
-            width: size.width.cgFloat,
-            height: size.height.cgFloat
-        )
-        setFrame(targetFrame, display: true)
-        config.size = size
-        config.position = WidgetPosition(x: targetFrame.origin.x.double, y: targetFrame.origin.y.double)
-        installContent(allowAutoSize: false)
-    }
+    private func handleMoveDrag() {
+        guard !isLocked else { return }
 
-    private func applyResizeFrame(_ resizedFrame: NSRect) {
-        setFrame(resizedFrame, display: true)
-        config.size = WidgetSize(width: resizedFrame.width.double, height: resizedFrame.height.double)
-        config.position = WidgetPosition(x: resizedFrame.origin.x.double, y: resizedFrame.origin.y.double)
-        // Refresh content so WidgetRenderer's scaleFactor adapts during drag.
-        installContent(allowAutoSize: false)
-    }
+        cancelPassivation()
+        if isPassive {
+            setPassiveMode(enabled: false)
+        }
+        isActive = true
+        isHoverEngaged = true
 
-    private func applyWallpaperSizeSnap() {
-        let snappedSize = config.size.snappedToAppleWallpaperPreset()
-        let targetWidth = snappedSize.width.cgFloat
-        let targetHeight = snappedSize.height.cgFloat
-
-        if abs(frame.width - targetWidth) < 0.5, abs(frame.height - targetHeight) < 0.5 {
-            return
+        let current = NSEvent.mouseLocation
+        if moveSession == nil {
+            moveSession = MoveSession(initialMouseLocation: current, initialFrame: frame)
+            isDragging = true
+            NSCursor.closedHand.set()
+            WidgetAnimator.animateDragStart(of: self)
         }
 
-        let anchoredTop = frame.maxY
-        let snappedFrame = NSRect(
-            x: frame.origin.x,
-            y: anchoredTop - targetHeight,
-            width: targetWidth,
-            height: targetHeight
+        guard let moveSession else { return }
+        let dx = current.x - moveSession.initialMouseLocation.x
+        let dy = current.y - moveSession.initialMouseLocation.y
+        let proposedOrigin = NSPoint(
+            x: moveSession.initialFrame.origin.x + dx,
+            y: moveSession.initialFrame.origin.y + dy
         )
-        setFrame(snappedFrame, display: true)
-        config.size = snappedSize
-        config.position = WidgetPosition(x: snappedFrame.origin.x.double, y: snappedFrame.origin.y.double)
+        var targetOrigin = proposedOrigin
+
+        if let feedback = onDragFeedbackRequested?(CGRect(origin: proposedOrigin, size: frame.size)) {
+            targetOrigin = feedback.origin
+        }
+
+        setFrameOrigin(targetOrigin)
     }
 
-    private func frameForResize(
-        session: ResizeSession,
-        currentPoint: NSPoint,
-        keepAspectRatio: Bool
-    ) -> NSRect {
+    private func endMoveDrag() {
+        guard moveSession != nil else { return }
+        moveSession = nil
+
+        let targetOrigin = snappedOriginIfNeeded(frame.origin)
+        WidgetAnimator.animateDragEnd(of: self, to: targetOrigin)
+        setFrameOrigin(targetOrigin)
+
+        isDragging = false
+        if isPointerInside {
+            NSCursor.openHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
+
+        let position = WidgetPosition(x: targetOrigin.x.double, y: targetOrigin.y.double)
+        config.position = position
+        onPositionChanged?(position)
+        onDragEnded?()
+
+        if !isPointerInside && !isActive {
+            setPassiveMode(enabled: true)
+        }
+    }
+
+    private func frameForResize(session: ResizeSession, currentPoint: NSPoint) -> NSRect {
         let initialFrame = session.initialFrame
         let dx = currentPoint.x - session.initialMouseLocation.x
         let dy = currentPoint.y - session.initialMouseLocation.y
@@ -705,53 +734,17 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         var rawMinY = initialFrame.minY
         var rawMaxY = initialFrame.maxY
 
-        if session.handle.affectsLeft {
-            rawMinX += dx
-        }
-
-        if session.handle.affectsRight {
-            rawMaxX += dx
-        }
-
-        if session.handle.affectsBottom {
-            rawMinY += dy
-        }
-
-        if session.handle.affectsTop {
-            rawMaxY += dy
-        }
+        if session.handle.affectsLeft { rawMinX += dx }
+        if session.handle.affectsRight { rawMaxX += dx }
+        if session.handle.affectsBottom { rawMinY += dy }
+        if session.handle.affectsTop { rawMaxY += dy }
 
         var width = max(1, rawMaxX - rawMinX)
         var height = max(1, rawMaxY - rawMinY)
         let minSize = minimumSize
         let maxSize = maximumSize
-
         width = width.clamped(minSize.width, maxSize.width)
         height = height.clamped(minSize.height, maxSize.height)
-
-        if keepAspectRatio {
-            let widthDelta = abs(width - initialFrame.width)
-            let heightDelta = abs(height - initialFrame.height)
-            let shouldDriveByWidth: Bool
-
-            if session.handle.affectsLeft || session.handle.affectsRight {
-                if session.handle.affectsTop || session.handle.affectsBottom {
-                    shouldDriveByWidth = widthDelta >= heightDelta
-                } else {
-                    shouldDriveByWidth = true
-                }
-            } else {
-                shouldDriveByWidth = false
-            }
-
-            if shouldDriveByWidth {
-                height = (width / session.aspectRatio).clamped(minSize.height, maxSize.height)
-                width = (height * session.aspectRatio).clamped(minSize.width, maxSize.width)
-            } else {
-                width = (height * session.aspectRatio).clamped(minSize.width, maxSize.width)
-                height = (width / session.aspectRatio).clamped(minSize.height, maxSize.height)
-            }
-        }
 
         let horizontal = horizontalEdges(
             for: session.handle,
@@ -787,12 +780,10 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             let anchoredMaxX = rawMaxX
             return (anchoredMaxX - width, anchoredMaxX)
         }
-
         if handle.affectsRight && !handle.affectsLeft {
             let anchoredMinX = rawMinX
             return (anchoredMinX, anchoredMinX + width)
         }
-
         let centerX = initialFrame.midX
         return (centerX - (width / 2), centerX + (width / 2))
     }
@@ -808,14 +799,57 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             let anchoredMaxY = rawMaxY
             return (anchoredMaxY - height, anchoredMaxY)
         }
-
         if handle.affectsTop && !handle.affectsBottom {
             let anchoredMinY = rawMinY
             return (anchoredMinY, anchoredMinY + height)
         }
-
         let centerY = initialFrame.midY
         return (centerY - (height / 2), centerY + (height / 2))
+    }
+
+    private func applyPresetResize(size: WidgetSize, anchoredTop: CGFloat, anchoredLeft: CGFloat) {
+        let proposedFrame = NSRect(
+            x: anchoredLeft,
+            y: anchoredTop - size.height.cgFloat,
+            width: size.width.cgFloat,
+            height: size.height.cgFloat
+        )
+        let targetFrame = frameClampedToVisibleDesktop(proposedFrame)
+        setFrame(targetFrame, display: true)
+        config.size = size
+        config.position = WidgetPosition(x: targetFrame.origin.x.double, y: targetFrame.origin.y.double)
+        installContent(allowAutoSize: false)
+    }
+
+    private func applyResizeFrame(_ resizedFrame: NSRect) {
+        let clampedFrame = frameClampedToVisibleDesktop(resizedFrame)
+        setFrame(clampedFrame, display: true)
+        config.size = WidgetSize(width: clampedFrame.width.double, height: clampedFrame.height.double)
+        config.position = WidgetPosition(x: clampedFrame.origin.x.double, y: clampedFrame.origin.y.double)
+        // Refresh content so WidgetRenderer's scaleFactor adapts during drag.
+        installContent(allowAutoSize: false)
+    }
+
+    private func applyWallpaperSizeSnap() {
+        let snappedSize = config.size.snappedToAppleWallpaperPreset()
+        let targetWidth = snappedSize.width.cgFloat
+        let targetHeight = snappedSize.height.cgFloat
+
+        if abs(frame.width - targetWidth) < 0.5, abs(frame.height - targetHeight) < 0.5 {
+            return
+        }
+
+        let anchoredTop = frame.maxY
+        let snappedFrame = NSRect(
+            x: frame.origin.x,
+            y: anchoredTop - targetHeight,
+            width: targetWidth,
+            height: targetHeight
+        )
+        let clampedFrame = frameClampedToVisibleDesktop(snappedFrame)
+        setFrame(clampedFrame, display: true)
+        config.size = snappedSize
+        config.position = WidgetPosition(x: clampedFrame.origin.x.double, y: clampedFrame.origin.y.double)
     }
 
     private var minimumSize: CGSize {
@@ -835,57 +869,138 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     }
 
     private func inferredMinimumSize() -> CGSize {
-        let flattened = flattenedComponents(from: config.content)
-        let visible = flattened.filter { component in
-            !component.type.isLayoutType && component.type != .divider && component.type != .spacer
-        }
-
-        guard let primary = visible.first else {
-            return CGSize(width: 80, height: 50)
-        }
-
-        if visible.count == 1 {
-            return inferredMinimumSizeForSingleComponent(primary)
-        }
-
-        if visible.count <= 3 {
-            if config.content.type == .hstack {
-                return CGSize(width: 140, height: 60)
-            }
-            return CGSize(width: 100, height: 80)
-        }
-
-        if visible.count <= 6 {
-            return CGSize(width: 120, height: 90)
-        }
-
-        return CGSize(width: 140, height: 110)
+        let preferred = inferredPreferredContentSize(for: config.content)
+        return CGSize(
+            width: max(140, floor(preferred.width * 0.34)),
+            height: max(96, floor(preferred.height * 0.34))
+        )
     }
 
-    private func inferredMinimumSizeForSingleComponent(_ component: ComponentConfig) -> CGSize {
+    private func inferredPreferredContentSize(for component: ComponentConfig) -> CGSize {
+        if component.type == .spacer {
+            return CGSize(width: 0, height: 0)
+        }
+
+        if component.type == .divider {
+            if (component.direction ?? "horizontal").lowercased() == "vertical" {
+                return CGSize(width: max(1, CGFloat(component.thickness ?? 1)), height: 1)
+            }
+            return CGSize(width: 1, height: max(1, CGFloat(component.thickness ?? 1)))
+        }
+
+        if component.type == .vstack {
+            let children = (component.children ?? (component.child.map { [$0] } ?? []))
+                .filter { $0.type != .spacer }
+            guard !children.isEmpty else { return CGSize(width: 0, height: 0) }
+            let spacing = CGFloat(component.spacing ?? 6)
+            let childSizes = children.map(inferredPreferredContentSize(for:))
+            let width = childSizes.map(\.width).max() ?? 260
+            let height = childSizes.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, childSizes.count - 1))
+            return CGSize(width: width + 8, height: height + 8)
+        }
+
+        if component.type == .hstack {
+            let children = component.children ?? (component.child.map { [$0] } ?? [])
+            let meaningful = children.filter { $0.type != .divider && $0.type != .spacer }
+            guard !meaningful.isEmpty else { return CGSize(width: 260, height: 120) }
+            let spacing = CGFloat(component.spacing ?? 8)
+            let childSizes = meaningful.map(inferredPreferredContentSize(for:))
+            let maxColumns = min(meaningful.count, 4)
+            var best: CGSize?
+            var bestArea = CGFloat.greatestFiniteMagnitude
+            let screenWidth = NSScreen.main?.visibleFrame.width ?? 1440
+            let hardWidthCap = max(CGFloat(420), screenWidth * 0.55)
+
+            for columns in 1...maxColumns {
+                var rowWidths: [CGFloat] = []
+                var rowHeights: [CGFloat] = []
+
+                var index = 0
+                while index < childSizes.count {
+                    let end = min(index + columns, childSizes.count)
+                    let row = childSizes[index..<end]
+                    let rowWidth = row.map(\.width).reduce(0, +) + spacing * CGFloat(max(0, row.count - 1))
+                    let rowHeight = row.map(\.height).max() ?? 0
+                    rowWidths.append(rowWidth)
+                    rowHeights.append(rowHeight)
+                    index = end
+                }
+
+                var width = (rowWidths.max() ?? 0) + 12
+                let height = rowHeights.reduce(0, +) + spacing * CGFloat(max(0, rowHeights.count - 1)) + 12
+
+                // Penalize overly wide layouts so compactness wins in practice.
+                if width > hardWidthCap {
+                    width += (width - hardWidthCap) * 2
+                }
+
+                let area = width * height
+                if area < bestArea {
+                    bestArea = area
+                    best = CGSize(width: width, height: height)
+                }
+            }
+
+            if let best {
+                return best
+            }
+            return CGSize(width: 260, height: 120)
+        }
+
+        if component.type == .container {
+            let child = component.child ?? component.children?.first
+            let childSize = child.map(inferredPreferredContentSize(for:)) ?? CGSize(width: 220, height: 120)
+            let edgeInsets = component.padding ?? .medium
+            return CGSize(
+                width: childSize.width + edgeInsets.leading + edgeInsets.trailing,
+                height: childSize.height + edgeInsets.top + edgeInsets.bottom
+            )
+        }
+
+        return inferredPreferredSizeForLeaf(component)
+    }
+
+    private func inferredPreferredSizeForLeaf(_ component: ComponentConfig) -> CGSize {
         switch component.type {
         case .analogClock:
-            return CGSize(width: 80, height: 80)
+            return CGSize(width: 140, height: 140)
         case .timer:
             if component.style?.lowercased() == "ring" {
-                return CGSize(width: 90, height: 90)
+                return CGSize(width: 150, height: 150)
             }
-            return CGSize(width: 100, height: 50)
+            return CGSize(width: 210, height: 86)
         case .progressRing, .pomodoro:
-            return CGSize(width: 80, height: 80)
+            return CGSize(width: 150, height: 150)
         case .battery:
             if component.style?.lowercased() == "ring" {
-                return CGSize(width: 80, height: 80)
+                return CGSize(width: 140, height: 140)
             }
-            return CGSize(width: 80, height: 50)
+            return CGSize(width: 180, height: 80)
         case .weather:
-            return CGSize(width: 100, height: 70)
+            if component.style?.lowercased() == "compact" {
+                return CGSize(width: 170, height: 70)
+            }
+            return CGSize(width: 190, height: 100)
+        case .clock:
+            return CGSize(width: 165, height: 62)
+        case .worldClocks:
+            let count = max(1, component.clocks?.count ?? 1)
+            return CGSize(width: 240, height: CGFloat(42 + (count * 26)))
+        case .text:
+            let text = component.content ?? ""
+            let count = text.count
+            let width = min(320, max(110, 64 + (count * 4)))
+            let lineCount = max(1, min(4, Int(ceil(Double(max(1, count)) / 28.0))))
+            let fontSize = CGFloat(component.size ?? 13)
+            let lineHeight = max(12, fontSize * 1.22)
+            let height = (CGFloat(lineCount) * lineHeight) + 8
+            return CGSize(width: CGFloat(width), height: height)
         case .checklist, .calendarNext, .reminders, .newsHeadlines, .habitTracker:
-            return CGSize(width: 120, height: 100)
-        case .clock, .countdown, .date, .text, .stock, .crypto, .worldClocks, .dayProgress, .yearProgress, .systemStats:
-            return CGSize(width: 80, height: 50)
+            return CGSize(width: 270, height: 170)
+        case .countdown, .date, .stock, .crypto, .dayProgress, .yearProgress, .systemStats:
+            return CGSize(width: 185, height: 82)
         default:
-            return CGSize(width: 80, height: 60)
+            return CGSize(width: 160, height: 92)
         }
     }
 
@@ -942,16 +1057,32 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        var targetWidth = ceil(fit.width)
-        var targetHeight = ceil(fit.height)
         let minSize = minimumSize
         let maxSize = maximumSize
+        let preferred = inferredPreferredContentSize(for: config.content)
 
-        // The config's own dimensions are the ceiling for auto-sizing.
-        // Content may shrink the widget to a tighter fit, but must never
-        // cause it to grow beyond the explicitly specified size.
-        targetWidth = min(targetWidth, config.size.width.cgFloat)
-        targetHeight = min(targetHeight, config.size.height.cgFloat)
+        // The hosting view can report inflated fittingSize because the root renderer uses
+        // maxWidth/maxHeight frames. Detect and correct those cases with content heuristics
+        // so widgets don't keep large empty tails.
+        let preferredWidth = preferred.width.isFinite ? preferred.width : fit.width
+        let preferredHeight = preferred.height.isFinite ? preferred.height : fit.height
+
+        let widthLooksInflated = fit.width > preferredWidth * 1.25
+        let heightLooksInflated = fit.height > preferredHeight * 1.25
+
+        var targetWidth: CGFloat
+        if widthLooksInflated {
+            targetWidth = ceil(preferredWidth)
+        } else {
+            targetWidth = ceil(max(fit.width, preferredWidth * 0.90))
+        }
+
+        var targetHeight: CGFloat
+        if heightLooksInflated {
+            targetHeight = ceil(preferredHeight)
+        } else {
+            targetHeight = ceil(max(fit.height, preferredHeight * 0.90))
+        }
 
         targetWidth = targetWidth.clamped(minSize.width, maxSize.width)
         targetHeight = targetHeight.clamped(minSize.height, maxSize.height)
@@ -962,12 +1093,13 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         let anchoredTop = current.maxY
-        let targetFrame = NSRect(
+        let proposedFrame = NSRect(
             x: current.origin.x,
             y: anchoredTop - targetHeight,
             width: targetWidth,
             height: targetHeight
         )
+        let targetFrame = frameClampedToVisibleDesktop(proposedFrame)
 
         // Use immediate (non-animated) resize so windowDidMove doesn't fire
         // with stale isApplyingAutoSize=false during an async animation.
@@ -976,20 +1108,27 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         isApplyingAutoSize = false
 
         config.size = WidgetSize(width: targetFrame.width.double, height: targetFrame.height.double)
-            .snappedToAppleWallpaperPreset()
-        let snappedTargetFrame = NSRect(
-            x: targetFrame.origin.x,
-            y: current.maxY - config.size.height.cgFloat,
-            width: config.size.width.cgFloat,
-            height: config.size.height.cgFloat
-        )
-        isApplyingAutoSize = true
-        setFrame(snappedTargetFrame, display: true)
-        isApplyingAutoSize = false
-        let position = WidgetPosition(x: snappedTargetFrame.origin.x.double, y: snappedTargetFrame.origin.y.double)
+        let position = WidgetPosition(x: targetFrame.origin.x.double, y: targetFrame.origin.y.double)
         config.position = position
         onSizeChanged?(config.size)
         onPositionChanged?(position)
+    }
+
+    private func frameClampedToVisibleDesktop(_ input: NSRect) -> NSRect {
+        guard let screenFrame = NSScreen.main?.visibleFrame else {
+            return input
+        }
+
+        let width = min(input.width, screenFrame.width)
+        let height = min(input.height, screenFrame.height)
+        let minX = screenFrame.minX
+        let maxX = screenFrame.maxX - width
+        let minY = screenFrame.minY
+        let maxY = screenFrame.maxY - height
+
+        let x = input.origin.x.clamped(minX, maxX)
+        let y = input.origin.y.clamped(minY, maxY)
+        return NSRect(x: x, y: y, width: width, height: height)
     }
 }
 
@@ -1009,6 +1148,8 @@ private struct WidgetPanelContentView: View {
     let onToggleLock: () -> Void
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
+    let onMoveDrag: () -> Void
+    let onMoveEnd: () -> Void
 
     var body: some View {
         WidgetRenderer(config: config)
@@ -1039,7 +1180,9 @@ private struct WidgetPanelContentView: View {
                 if showsResizeHandles {
                     ResizeHandlesOverlay(
                         onResizeDrag: onResizeDrag,
-                        onResizeEnd: onResizeEnd
+                        onResizeEnd: onResizeEnd,
+                        onMoveDrag: onMoveDrag,
+                        onMoveEnd: onMoveEnd
                     )
                 }
             }
@@ -1101,10 +1244,35 @@ private extension ComponentType {
 private struct ResizeHandlesOverlay: View {
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
+    let onMoveDrag: () -> Void
+    let onMoveEnd: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(0.92))
+                    .frame(width: 44, height: 5)
+                    .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
+                    .position(x: geometry.size.width / 2, y: 10)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        if inside {
+                            NSCursor.openHand.set()
+                        } else {
+                            NSCursor.arrow.set()
+                        }
+                    }
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in
+                                onMoveDrag()
+                            }
+                            .onEnded { _ in
+                                onMoveEnd()
+                            }
+                    )
+
                 ForEach(ResizeHandle.visibleHandles) { handle in
                     ZStack {
                         Circle()
@@ -1150,7 +1318,9 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static var visibleHandles: [ResizeHandle] { [.bottomRight] }
+    static var visibleHandles: [ResizeHandle] {
+        [.topLeft, .topRight, .right, .bottomRight, .bottom, .bottomLeft, .left]
+    }
 
     var affectsLeft: Bool {
         self == .topLeft || self == .left || self == .bottomLeft
@@ -1208,8 +1378,11 @@ private struct ResizeSession {
     let handle: ResizeHandle
     let initialMouseLocation: NSPoint
     let initialFrame: NSRect
-    let initialPreset: WidgetSizePreset
-    let aspectRatio: CGFloat
+}
+
+private struct MoveSession {
+    let initialMouseLocation: NSPoint
+    let initialFrame: NSRect
 }
 
 private extension Double {

@@ -254,23 +254,54 @@ final class AppCoordinator {
             return
         }
 
+        commandBarWindow.clearBuildChecklist()
+        commandBarWindow.setBuildChecklist(buildChecklist(for: prompt))
+
         // Skip clarification when editing an existing widget — the user knows what they want.
         guard editingWidgetID == nil else {
+            commandBarWindow.completeChecklistItem(id: "understand")
+            commandBarWindow.completeChecklistItem(id: "data")
             proceedWithGeneration(prompt, plan: nil)
             return
         }
 
         commandBarWindow.setLoading(true, message: "Thinking...")
         commandBarWindow.clearAgentTrace()
+        appendDetailedPlanningTrace(for: prompt)
 
         Task {
             // Phase 1: agent planning + clarification.
             let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
+            let preflightQuestions = ambiguityClarificationQuestions(for: prompt)
+            if !preflightQuestions.isEmpty {
+                commandBarWindow.appendAgentTrace("Phase: clarify")
+                commandBarWindow.appendAgentTrace("Detected ambiguity. Asking \(preflightQuestions.count) focused question(s).")
+                commandBarWindow.setLoading(false, message: nil)
+                commandBarWindow.showClarification(
+                    questions: preflightQuestions,
+                    originalPrompt: prompt
+                ) { [weak self] original, qs, answers in
+                    guard let self else { return }
+                    let enriched = PromptClarifier().synthesizePrompt(
+                        original: original,
+                        questions: qs,
+                        answers: answers
+                    )
+                    self.commandBarWindow.completeChecklistItem(id: "understand")
+                    self.commandBarWindow.completeChecklistItem(id: "data")
+                    self.commandBarWindow.clearAgentTrace()
+                    self.appendDetailedPlanningTrace(for: enriched)
+                    self.commandBarWindow.appendAgentTrace("Clarifications applied")
+                    self.proceedWithGeneration(enriched, plan: nil)
+                }
+                return
+            }
             commandBarWindow.appendAgentTrace("Phase: understand")
             let decision = await agentOrchestrator.plan(
                 prompt: prompt,
                 clarificationClient: clarificationClient
             )
+            commandBarWindow.completeChecklistItem(id: "understand")
 
             if case .needsClarification(let plan, let questions) = decision {
                 commandBarWindow.appendAgentTrace("Phase: clarify")
@@ -287,6 +318,7 @@ final class AppCoordinator {
                         questions: qs,
                         answers: answers
                     )
+                    self.commandBarWindow.completeChecklistItem(id: "data")
                     self.commandBarWindow.clearAgentTrace()
                     self.commandBarWindow.appendAgentTrace("Clarifications applied")
                     self.appendSourceAttributionTrace(for: updatedPlan)
@@ -303,6 +335,7 @@ final class AppCoordinator {
             if case .ready(let plan) = decision {
                 commandBarWindow.appendAgentTrace("Phase: plan")
                 commandBarWindow.appendAgentTrace("Plan ready for execution")
+                commandBarWindow.completeChecklistItem(id: "data")
                 appendSourceAttributionTrace(for: plan)
                 proceedWithGeneration(
                     agentOrchestrator.executionPrompt(for: plan),
@@ -316,6 +349,8 @@ final class AppCoordinator {
 
     private func proceedWithGeneration(_ prompt: String, plan: AgentBuildPlan?) {
         let isEditing = editingWidgetID != nil
+        commandBarWindow.completeChecklistItem(id: "style")
+        commandBarWindow.completeChecklistItem(id: "layout")
         commandBarWindow.setLoading(true, message: isEditing ? "Updating widget..." : "Creating your widget...")
         let originalPrompt = plan?.originalPrompt ?? prompt
 
@@ -325,14 +360,16 @@ final class AppCoordinator {
                 if let editingWidgetID,
                    let existing = widgetManager.widgetConfig(for: editingWidgetID) {
                     config = try await aiService.editWidget(existingConfig: existing, editPrompt: prompt)
+                    commandBarWindow.completeChecklistItem(id: "build")
+                    commandBarWindow.completeChecklistItem(id: "verify")
                 } else {
                     if let plan {
                         commandBarWindow.setLoading(true, message: "Deliberating and refining...")
                         let outcome = try await agentOrchestrator.executeCritiqueRepair(
                             plan: plan,
                             service: aiService,
-                            maxIterations: 3,
-                            targetConfidence: 0.82,
+                            maxIterations: 6,
+                            targetConfidence: 0.95,
                             onTrace: { [weak self] line in
                                 Task { @MainActor in
                                     self?.commandBarWindow.appendAgentTrace(line)
@@ -340,7 +377,7 @@ final class AppCoordinator {
                             }
                         )
                         commandBarWindow.appendAgentTrace("Completed in \(outcome.iterations) iteration(s)")
-                        let requiredConfidence = 0.82
+                        let requiredConfidence = 0.95
                         if outcome.confidence < requiredConfidence {
                             commandBarWindow.appendAgentTrace("Confidence below threshold \(Int(requiredConfidence * 100))%")
                             let followups = agentOrchestrator.lowConfidenceFollowupQuestions(
@@ -373,8 +410,12 @@ final class AppCoordinator {
                             )
                         }
                         config = outcome.config
+                        commandBarWindow.completeChecklistItem(id: "build")
+                        commandBarWindow.completeChecklistItem(id: "verify")
                     } else {
                         config = try await aiService.generateWidget(prompt: prompt)
+                        commandBarWindow.completeChecklistItem(id: "build")
+                        commandBarWindow.completeChecklistItem(id: "verify")
                     }
                     // Always stamp the user's chosen default theme onto new widgets so they
                     // match the global theme setting regardless of what the AI generated.
@@ -383,7 +424,9 @@ final class AppCoordinator {
                     config.background = BackgroundConfig.default(for: theme)
                 }
 
-                widgetManager.createOrUpdateWidget(config)
+                widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
+                completeDynamicChecklistItems(for: originalPrompt)
+                commandBarWindow.completeChecklistItem(id: "save")
                 refreshMenuState()
                 commandBarWindow.setLoading(false, message: nil)
 
@@ -414,13 +457,14 @@ final class AppCoordinator {
                 }
             } catch {
                 commandBarWindow.setLoading(false, message: nil)
+                if !isEditing, offerStuckClarificationsIfHelpful(prompt: originalPrompt, error: error) {
+                    return
+                }
                 if isTimeoutError(error) {
                     commandBarWindow.setStatus(
                         refinementQuestionsAfterTimeout(for: originalPrompt),
                         isError: true
                     )
-                } else if recoverFromSchemaFailure(prompt: originalPrompt, error: error) {
-                    // Recovery path handled UI state and widget creation.
                 } else {
                     commandBarWindow.setStatus(userFacingErrorMessage(for: error), isError: true)
                 }
@@ -569,6 +613,307 @@ final class AppCoordinator {
         }
     }
 
+    private func buildChecklist(for prompt: String) -> [BuildChecklistItem] {
+        let details = checklistDetails(from: prompt)
+        let cities = extractCityLabels(from: prompt)
+        var items: [BuildChecklistItem] = [
+            BuildChecklistItem(
+                id: "understand",
+                text: "Understand request and split into features: \(details.featureSummary).",
+                isDone: false
+            ),
+            BuildChecklistItem(
+                id: "data",
+                text: "Resolve data details: units \(details.units), locations \(details.locations), sources \(details.sources), refresh \(details.refresh).",
+                isDone: false
+            ),
+            BuildChecklistItem(
+                id: "style",
+                text: "Apply look & feel: \(details.lookAndFeel).",
+                isDone: false
+            ),
+            BuildChecklistItem(
+                id: "layout",
+                text: "Plan compact layout and spacing: \(details.layoutAndSpacing).",
+                isDone: false
+            ),
+            BuildChecklistItem(
+                id: "build",
+                text: "Generate widget components and bind data fields feature-by-feature.",
+                isDone: false
+            ),
+            BuildChecklistItem(
+                id: "verify",
+                text: "Critique and repair output so all requested features are present and readable.",
+                isDone: false
+            ),
+            BuildChecklistItem(
+                id: "save",
+                text: "Render, save widget, and present final result.",
+                isDone: false
+            )
+        ]
+
+        let lower = prompt.lowercased()
+        if lower.contains("clock") || lower.contains("time") {
+            items.insert(
+                BuildChecklistItem(
+                    id: "feature-time",
+                    text: "Add clock layer with requested format (\(lower.contains("12") ? "12-hour" : "default format")) and timezone mapping.",
+                    isDone: false
+                ),
+                at: 4
+            )
+        }
+        if lower.contains("date") {
+            items.insert(
+                BuildChecklistItem(
+                    id: "feature-date",
+                    text: "Add date line under each clock using localized date formatting.",
+                    isDone: false
+                ),
+                at: 5
+            )
+        }
+        if lower.contains("weather") || lower.contains("temperature") || lower.contains("temp") {
+            items.insert(
+                BuildChecklistItem(
+                    id: "feature-weather",
+                    text: "Bind weather data with explicit unit \(details.units) and map condition/icon/high-low fields.",
+                    isDone: false
+                ),
+                at: 6
+            )
+        }
+
+        if !cities.isEmpty {
+            var cityTasks: [BuildChecklistItem] = []
+            for city in cities {
+                let id = city.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+                cityTasks.append(
+                    BuildChecklistItem(
+                        id: "city-\(id)",
+                        text: "Add row for \(city): clock + date + temperature data binding.",
+                        isDone: false
+                    )
+                )
+            }
+            items.insert(contentsOf: cityTasks, at: min(7, items.count))
+        }
+
+        return items
+    }
+
+    private func appendDetailedPlanningTrace(for prompt: String) {
+        let details = checklistDetails(from: prompt)
+        let cities = extractCityLabels(from: prompt)
+        let timeFormat = prompt.lowercased().contains("12") ? "12-hour" : "24-hour or default"
+        let includesDate = prompt.lowercased().contains("date")
+
+        commandBarWindow.appendAgentTrace("Build breakdown:")
+        commandBarWindow.appendAgentTrace("  - Feature group: \(details.featureSummary)")
+        commandBarWindow.appendAgentTrace("  - Time format: \(timeFormat)")
+        commandBarWindow.appendAgentTrace("  - Include date: \(includesDate ? "yes" : "not specified")")
+        commandBarWindow.appendAgentTrace("  - Temperature unit: \(details.units)")
+        commandBarWindow.appendAgentTrace("  - Data sources: \(details.sources)")
+        commandBarWindow.appendAgentTrace("  - Layout + spacing: \(details.layoutAndSpacing)")
+        commandBarWindow.appendAgentTrace("  - Visual style: \(details.lookAndFeel)")
+        if cities.isEmpty {
+            commandBarWindow.appendAgentTrace("  - Locations: not explicitly detected")
+        } else {
+            commandBarWindow.appendAgentTrace("  - Locations (\(cities.count)):")
+            for city in cities {
+                commandBarWindow.appendAgentTrace("    · \(city)")
+            }
+            commandBarWindow.appendAgentTrace("  - Per-city implementation tasks:")
+            for city in cities {
+                commandBarWindow.appendAgentTrace("    · Build \(city): timezone mapping, date format, weather location bind, unit enforcement")
+            }
+        }
+    }
+
+    private func completeDynamicChecklistItems(for prompt: String) {
+        let lower = prompt.lowercased()
+        if lower.contains("clock") || lower.contains("time") {
+            commandBarWindow.completeChecklistItem(id: "feature-time")
+        }
+        if lower.contains("date") {
+            commandBarWindow.completeChecklistItem(id: "feature-date")
+        }
+        if lower.contains("weather") || lower.contains("temperature") || lower.contains("temp") {
+            commandBarWindow.completeChecklistItem(id: "feature-weather")
+        }
+
+        for city in extractCityLabels(from: prompt) {
+            let id = city.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
+            commandBarWindow.completeChecklistItem(id: "city-\(id)")
+        }
+    }
+
+    private func ambiguityClarificationQuestions(for prompt: String) -> [ClarificationQuestion] {
+        let lower = prompt.lowercased()
+        var questions: [ClarificationQuestion] = []
+        let cities = extractCityLabels(from: prompt)
+        let asksTime = lower.contains("clock") || lower.contains("time")
+        let asksTemp = lower.contains("weather") || lower.contains("temperature") || lower.contains("temp")
+
+        if asksTime && lower.contains("hour"), !lower.contains("12"), !lower.contains("24") {
+            questions.append(
+                ClarificationQuestion(
+                    id: "time-format-ambiguous",
+                    question: "Which time format should I use?",
+                    options: ["12-hour", "24-hour"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if asksTemp,
+           !(lower.contains("celsius") || lower.contains("celcius") || lower.contains("°c") || lower.contains("fahrenheit") || lower.contains("°f")) {
+            questions.append(
+                ClarificationQuestion(
+                    id: "temp-unit-missing",
+                    question: "Temperature unit for all cities?",
+                    options: ["Celsius", "Fahrenheit"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        if asksTemp && cities.isEmpty {
+            questions.append(
+                ClarificationQuestion(
+                    id: "cities-missing",
+                    question: "I couldn't confidently detect city names. Should I use your current city only?",
+                    options: ["Yes, current city", "No, I will specify city names"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        return Array(questions.prefix(3))
+    }
+
+    private struct ChecklistDetails {
+        let featureSummary: String
+        let units: String
+        let locations: String
+        let sources: String
+        let refresh: String
+        let lookAndFeel: String
+        let layoutAndSpacing: String
+    }
+
+    private func extractCityLabels(from prompt: String) -> [String] {
+        let lower = prompt.lowercased()
+        let candidates: [(tokens: [String], label: String)] = [
+            (["bangalore", "banglore", "bengaluru"], "Bangalore, Karnataka, India"),
+            (["nagpur"], "Nagpur, Maharashtra, India"),
+            (["tempe"], "Tempe, AZ, USA"),
+            (["madison"], "Madison, WI, USA"),
+            (["pune"], "Pune, Maharashtra, India"),
+            (["seattle"], "Seattle, WA, USA"),
+            (["london"], "London, UK"),
+            (["tokyo"], "Tokyo, Japan"),
+            (["new york", "nyc"], "New York, NY, USA"),
+            (["san francisco", "sf"], "San Francisco, CA, USA")
+        ]
+
+        var matches: [(String, Int)] = []
+        for candidate in candidates {
+            var first: Int?
+            for token in candidate.tokens {
+                guard let range = lower.range(of: token) else { continue }
+                let index = lower.distance(from: lower.startIndex, to: range.lowerBound)
+                if first == nil || index < first! {
+                    first = index
+                }
+            }
+            if let first {
+                matches.append((candidate.label, first))
+            }
+        }
+
+        return matches
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+    }
+
+    private func checklistDetails(from prompt: String) -> ChecklistDetails {
+        let lower = prompt.lowercased()
+        let units: String
+        if lower.contains("celsius") || lower.contains("celcius") || lower.contains("°c") {
+            units = "celsius"
+        } else if lower.contains("fahrenheit") || lower.contains("fahreneit") || lower.contains("°f") {
+            units = "fahrenheit"
+        } else {
+            units = "not specified"
+        }
+
+        let resolvedCities = extractCityLabels(from: prompt)
+        let locations = resolvedCities.isEmpty ? "not specified" : resolvedCities.joined(separator: ", ")
+
+        var sources: [String] = []
+        if lower.contains("weather") || lower.contains("temperature") || lower.contains("temp") { sources.append("weather") }
+        if lower.contains("stock") || lower.contains("ticker") { sources.append("stocks") }
+        if lower.contains("crypto") || lower.contains("bitcoin") || lower.contains("ethereum") { sources.append("crypto") }
+        if lower.contains("calendar") { sources.append("calendar") }
+        if lower.contains("reminder") { sources.append("reminders") }
+        if lower.contains("github") { sources.append("github") }
+        if lower.contains("news") || lower.contains("rss") { sources.append("news") }
+        let sourceText = sources.isEmpty ? "local/system time" : sources.joined(separator: ", ")
+
+        let refresh: String
+        if lower.contains("real-time") || lower.contains("live") {
+            refresh = "high frequency"
+        } else if lower.contains("daily") {
+            refresh = "daily"
+        } else {
+            refresh = "default"
+        }
+
+        let lookAndFeel: String
+        if lower.contains("minimal") || lower.contains("clean") {
+            lookAndFeel = "clean, minimal visual style"
+        } else if lower.contains("glass") || lower.contains("blur") {
+            lookAndFeel = "glass/blur desktop card style"
+        } else if lower.contains("vivid") || lower.contains("colorful") {
+            lookAndFeel = "high-contrast colorful style"
+        } else {
+            lookAndFeel = "desktop-native card style with clear hierarchy"
+        }
+
+        let layoutAndSpacing: String
+        if lower.contains("compact") {
+            layoutAndSpacing = "compact packing with tight but readable spacing"
+        } else if lower.contains("spacious") {
+            layoutAndSpacing = "spacious layout with relaxed spacing"
+        } else {
+            layoutAndSpacing = "balanced spacing with auto-compaction"
+        }
+
+        let featureSummary: String
+        if lower.contains("clock") || lower.contains("time") {
+            if lower.contains("weather") || lower.contains("temperature") || lower.contains("temp") {
+                featureSummary = "time + weather"
+            } else {
+                featureSummary = "time display"
+            }
+        } else {
+            featureSummary = "requested widget components"
+        }
+
+        return ChecklistDetails(
+            featureSummary: featureSummary,
+            units: units,
+            locations: locations,
+            sources: sourceText,
+            refresh: refresh,
+            lookAndFeel: lookAndFeel,
+            layoutAndSpacing: layoutAndSpacing
+        )
+    }
+
     private static func makeAgentOrchestrator(enableWebDiscovery: Bool) -> AgentOrchestrator {
         if enableWebDiscovery {
             return AgentOrchestrator(webSearchConnector: LiveAgentWebSearchConnector())
@@ -644,7 +989,7 @@ final class AppCoordinator {
                 }
                 return "Provider request failed. Check AI settings and network, then retry."
             case .schemaValidationFailed:
-                return "AI output was invalid. widgie created a recovery widget you can edit."
+                return "AI output was invalid. Please answer the follow-up clarifications so widgie can retry accurately."
             case .providerReturnedNoContent:
                 return "Provider returned no content. Try again with a simpler prompt."
             case .responseParsingFailed:
@@ -656,20 +1001,88 @@ final class AppCoordinator {
         return error.localizedDescription
     }
 
-    private func recoverFromSchemaFailure(prompt: String, error: Error) -> Bool {
-        guard let serviceError = error as? AIWidgetServiceError else {
-            return false
+    private func offerStuckClarificationsIfHelpful(prompt: String, error: Error) -> Bool {
+        let questions = stuckFollowupQuestions(for: prompt)
+        guard !questions.isEmpty else { return false }
+
+        commandBarWindow.appendAgentTrace("Generation stalled: \(error.localizedDescription)")
+        commandBarWindow.appendAgentTrace("Asking focused follow-up questions to continue.")
+        commandBarWindow.showClarification(
+            questions: questions,
+            originalPrompt: prompt
+        ) { [weak self] original, qs, answers in
+            guard let self else { return }
+            let enriched = PromptClarifier().synthesizePrompt(
+                original: original,
+                questions: qs,
+                answers: answers
+            )
+            self.commandBarWindow.clearAgentTrace()
+            self.commandBarWindow.appendAgentTrace("Follow-up clarifications applied")
+            self.proceedWithGeneration(enriched, plan: nil)
         }
-        guard case .schemaValidationFailed(let details) = serviceError else {
-            return false
+        return true
+    }
+
+    private func stuckFollowupQuestions(for prompt: String) -> [ClarificationQuestion] {
+        let lower = prompt.lowercased()
+        var questions: [ClarificationQuestion] = []
+        let asksTime = lower.contains("clock") || lower.contains("time")
+        let asksTemp = lower.contains("weather") || lower.contains("temperature") || lower.contains("temp")
+        let has12Or24 = lower.contains("12") || lower.contains("24")
+        let hasUnit = lower.contains("celsius")
+            || lower.contains("celcius")
+            || lower.contains("°c")
+            || lower.contains("fahrenheit")
+            || lower.contains("°f")
+
+        if asksTime && !has12Or24 {
+            questions.append(
+                ClarificationQuestion(
+                    id: "time-format-confirm",
+                    question: "Use 12-hour or 24-hour format?",
+                    options: ["12-hour", "24-hour"],
+                    allowsMultiple: false
+                )
+            )
         }
 
-        let config = emergencyRecoveryWidget(for: prompt, details: details)
-        widgetManager.createOrUpdateWidget(config)
-        refreshMenuState()
-        commandBarWindow.hide()
-        editingWidgetID = nil
-        return true
+        if asksTemp && !hasUnit {
+            questions.append(
+                ClarificationQuestion(
+                    id: "unit-global-confirm",
+                    question: "Use Celsius or Fahrenheit for all cities?",
+                    options: ["Celsius", "Fahrenheit"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        let cities = extractCityLabels(from: prompt)
+        if cities.count >= 2 {
+            questions.append(
+                ClarificationQuestion(
+                    id: "city-label-style",
+                    question: "Show full standardized city labels (City, State/Country) for every row?",
+                    options: ["Yes, full labels", "No, short city labels"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        let asksWeather = asksTemp
+        if asksWeather {
+            questions.append(
+                ClarificationQuestion(
+                    id: "weather-density",
+                    question: "Weather detail level?",
+                    options: ["Compact (temp only)", "Detailed (temp + hi/low + condition)"],
+                    allowsMultiple: false
+                )
+            )
+        }
+
+        return Array(questions.prefix(3))
     }
 
     private struct RecoveryCitySpec {
@@ -734,17 +1147,25 @@ final class AppCoordinator {
 
     private func emergencyTimeWeatherWidget(for prompt: String, normalizedPrompt: String) -> WidgetConfig? {
         let asksTime = normalizedPrompt.contains("time") || normalizedPrompt.contains("clock")
-        let asksWeather = normalizedPrompt.contains("weather") || normalizedPrompt.contains("wether")
+        let asksWeather = normalizedPrompt.contains("weather")
+            || normalizedPrompt.contains("wether")
+            || normalizedPrompt.contains("temperature")
+            || normalizedPrompt.contains("temp")
         guard asksTime && asksWeather else {
             return nil
         }
 
         let knownCities: [RecoveryCitySpec] = [
-            .init(token: "pune", label: "Pune", timezone: "Asia/Kolkata", weatherLocation: "Pune, Maharashtra, India", unit: "celsius"),
-            .init(token: "tempe", label: "Tempe", timezone: "America/Phoenix", weatherLocation: "Tempe, AZ, USA", unit: "fahrenheit"),
-            .init(token: "seattle", label: "Seattle", timezone: "America/Los_Angeles", weatherLocation: "Seattle, WA, USA", unit: "fahrenheit"),
-            .init(token: "tokyo", label: "Tokyo", timezone: "Asia/Tokyo", weatherLocation: "Tokyo, Japan", unit: "celsius"),
-            .init(token: "london", label: "London", timezone: "Europe/London", weatherLocation: "London, UK", unit: "celsius")
+            .init(token: "pune", label: "Pune, Maharashtra, India", timezone: "Asia/Kolkata", weatherLocation: "Pune, Maharashtra, India", unit: "celsius"),
+            .init(token: "bangalore", label: "Bangalore, Karnataka, India", timezone: "Asia/Kolkata", weatherLocation: "Bangalore, Karnataka, India", unit: "celsius"),
+            .init(token: "banglore", label: "Bangalore, Karnataka, India", timezone: "Asia/Kolkata", weatherLocation: "Bangalore, Karnataka, India", unit: "celsius"),
+            .init(token: "bengaluru", label: "Bangalore, Karnataka, India", timezone: "Asia/Kolkata", weatherLocation: "Bangalore, Karnataka, India", unit: "celsius"),
+            .init(token: "nagpur", label: "Nagpur, Maharashtra, India", timezone: "Asia/Kolkata", weatherLocation: "Nagpur, Maharashtra, India", unit: "celsius"),
+            .init(token: "tempe", label: "Tempe, AZ, USA", timezone: "America/Phoenix", weatherLocation: "Tempe, AZ, USA", unit: "fahrenheit"),
+            .init(token: "madison", label: "Madison, WI, USA", timezone: "America/Chicago", weatherLocation: "Madison, WI, USA", unit: "fahrenheit"),
+            .init(token: "seattle", label: "Seattle, WA, USA", timezone: "America/Los_Angeles", weatherLocation: "Seattle, WA, USA", unit: "fahrenheit"),
+            .init(token: "tokyo", label: "Tokyo, Japan", timezone: "Asia/Tokyo", weatherLocation: "Tokyo, Japan", unit: "celsius"),
+            .init(token: "london", label: "London, UK", timezone: "Europe/London", weatherLocation: "London, UK", unit: "celsius")
         ]
 
         let cities = knownCities
