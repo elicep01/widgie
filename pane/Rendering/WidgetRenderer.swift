@@ -25,7 +25,7 @@ struct WidgetRenderer: View {
     private var scaleFactor: Double {
         let widthScale = config.size.width / 320.0
         let heightScale = config.size.height / 180.0
-        return max(0.72, min(1.16, min(widthScale, heightScale)))
+        return max(0.90, min(1.16, min(widthScale, heightScale)))
     }
 
     private var scaledPadding: EdgeInsets {

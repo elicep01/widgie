@@ -192,6 +192,9 @@ final class WidgetTemplateStore {
 
     private func applyTemplateSpecificPolish(templateID: String, component: ComponentConfig) {
         switch component.type {
+        case .text:
+            component.size = (component.size ?? 13).cgFloat.clamped(12, 20).double
+            component.maxLines = min(component.maxLines ?? 4, 4)
         case .clock:
             if component.format?.isEmpty != false {
                 component.format = "h:mm a"
@@ -205,6 +208,7 @@ final class WidgetTemplateStore {
         case .analogClock:
             component.showSecondHand = false
             component.lineWidth = (component.lineWidth ?? 2.2).cgFloat.clamped(1.6, 2.8).double
+            component.alignment = component.alignment ?? "center"
         case .weather:
             component.style = "compact"
             component.showHumidity = false
@@ -219,31 +223,43 @@ final class WidgetTemplateStore {
             component.chartType = component.chartType ?? "line"
             component.chartPeriod = component.chartPeriod ?? "1d"
             component.showChangePercent = true
+            component.size = (component.size ?? 13.5).cgFloat.clamped(12.5, 18).double
         case .calendarNext:
             component.maxEvents = min(component.maxEvents ?? 4, 4)
             component.showTime = true
             component.showCalendarColor = true
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .reminders:
             component.maxItems = min(component.maxItems ?? 5, 5)
             component.showCheckbox = true
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .newsHeadlines:
             component.maxItems = min(component.maxItems ?? 4, 4)
             component.showSource = true
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .screenTime:
             component.maxApps = min(component.maxApps ?? 4, 4)
             component.timeRange = component.timeRange ?? "today"
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .checklist:
             component.maxItems = min(component.maxItems ?? 5, 5)
             component.showCheckbox = true
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .habitTracker:
             component.maxItems = min(component.maxItems ?? 5, 5)
             component.showStreak = component.showStreak ?? true
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .note:
             component.maxLines = min(component.maxLines ?? 6, 6)
             component.editable = true
+            component.size = (component.size ?? 13).cgFloat.clamped(12, 18).double
         case .quote:
             component.showQuotationMarks = true
             component.maxLines = min(component.maxLines ?? 4, 4)
+            component.size = (component.size ?? 13).cgFloat.clamped(12.5, 18).double
+        case .githubRepoStats:
+            component.showMetrics = component.showMetrics ?? ["stars", "forks", "issues", "watchers"]
+            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
         case .shortcutLauncher:
             if let shortcuts = component.shortcuts, shortcuts.count > 6 {
                 component.shortcuts = Array(shortcuts.prefix(6))
@@ -281,36 +297,36 @@ final class WidgetTemplateStore {
     private func perTemplateTargetSize(id: String, category: String?, fallback: WidgetSize) -> WidgetSize {
         switch id {
         case "clock-minimal": return WidgetSize(width: 168, height: 108)
-        case "analog-clock": return WidgetSize(width: 178, height: 178)
-        case "world-clocks": return WidgetSize(width: 268, height: 146)
-        case "stopwatch": return WidgetSize(width: 222, height: 122)
-        case "countdown-newyear": return WidgetSize(width: 234, height: 126)
-        case "day-progress": return WidgetSize(width: 218, height: 112)
-        case "year-progress": return WidgetSize(width: 218, height: 112)
-        case "weather-compact": return WidgetSize(width: 206, height: 122)
-        case "weather-forecast": return WidgetSize(width: 266, height: 150)
-        case "stock-ticker": return WidgetSize(width: 256, height: 126)
-        case "crypto-tracker": return WidgetSize(width: 264, height: 134)
-        case "calendar-agenda": return WidgetSize(width: 284, height: 162)
-        case "reminders-today": return WidgetSize(width: 274, height: 154)
-        case "daily-checklist": return WidgetSize(width: 266, height: 152)
-        case "habit-tracker": return WidgetSize(width: 268, height: 154)
-        case "notes-pad": return WidgetSize(width: 252, height: 154)
-        case "quote-of-the-day": return WidgetSize(width: 244, height: 136)
-        case "now-playing": return WidgetSize(width: 254, height: 138)
-        case "pomodoro-timer": return WidgetSize(width: 246, height: 150)
-        case "screen-time": return WidgetSize(width: 258, height: 146)
-        case "github-stats": return WidgetSize(width: 260, height: 144)
-        case "battery-ring": return WidgetSize(width: 176, height: 176)
-        case "system-monitor": return WidgetSize(width: 262, height: 138)
-        case "bookmarks-social": return WidgetSize(width: 256, height: 128)
-        case "quick-launch": return WidgetSize(width: 248, height: 122)
-        case "morning-dashboard": return WidgetSize(width: 320, height: 188)
-        case "productivity-daily": return WidgetSize(width: 312, height: 182)
-        case "news-headlines": return WidgetSize(width: 286, height: 164)
+        case "analog-clock": return WidgetSize(width: 172, height: 172)
+        case "world-clocks": return WidgetSize(width: 250, height: 134)
+        case "stopwatch": return WidgetSize(width: 204, height: 114)
+        case "countdown-newyear": return WidgetSize(width: 212, height: 116)
+        case "day-progress": return WidgetSize(width: 196, height: 104)
+        case "year-progress": return WidgetSize(width: 196, height: 104)
+        case "weather-compact": return WidgetSize(width: 194, height: 112)
+        case "weather-forecast": return WidgetSize(width: 246, height: 138)
+        case "stock-ticker": return WidgetSize(width: 236, height: 114)
+        case "crypto-tracker": return WidgetSize(width: 238, height: 118)
+        case "calendar-agenda": return WidgetSize(width: 262, height: 150)
+        case "reminders-today": return WidgetSize(width: 250, height: 144)
+        case "daily-checklist": return WidgetSize(width: 244, height: 142)
+        case "habit-tracker": return WidgetSize(width: 246, height: 144)
+        case "notes-pad": return WidgetSize(width: 228, height: 132)
+        case "quote-of-the-day": return WidgetSize(width: 206, height: 112)
+        case "now-playing": return WidgetSize(width: 236, height: 128)
+        case "pomodoro-timer": return WidgetSize(width: 228, height: 140)
+        case "screen-time": return WidgetSize(width: 236, height: 132)
+        case "github-stats": return WidgetSize(width: 238, height: 118)
+        case "battery-ring": return WidgetSize(width: 156, height: 156)
+        case "system-monitor": return WidgetSize(width: 238, height: 126)
+        case "bookmarks-social": return WidgetSize(width: 228, height: 116)
+        case "quick-launch": return WidgetSize(width: 224, height: 108)
+        case "morning-dashboard": return WidgetSize(width: 296, height: 174)
+        case "productivity-daily": return WidgetSize(width: 286, height: 170)
+        case "news-headlines": return WidgetSize(width: 258, height: 148)
         default:
             if category == "dashboard" {
-                return WidgetSize(width: 304, height: 184)
+                return WidgetSize(width: 286, height: 172)
             }
             return fallback
         }
