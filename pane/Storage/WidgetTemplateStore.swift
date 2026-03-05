@@ -39,7 +39,7 @@ final class WidgetTemplateStore {
                 name: $0.name,
                 description: $0.description,
                 category: $0.category ?? "other",
-                config: compactElegantTemplateConfig($0.config)
+                config: compactElegantTemplateConfig($0.config, templateID: $0.id, category: $0.category)
             )
         }
     }
@@ -92,7 +92,11 @@ final class WidgetTemplateStore {
     // MARK: - Private
 
     private func instantiate(definition: WidgetTemplateDefinition) -> WidgetConfig {
-        var config = compactElegantTemplateConfig(definition.config)
+        var config = compactElegantTemplateConfig(
+            definition.config,
+            templateID: definition.id,
+            category: definition.category
+        )
         config.id = UUID()
         config.name = definition.name
         config.description = definition.description
@@ -100,15 +104,12 @@ final class WidgetTemplateStore {
         return config
     }
 
-    private func compactElegantTemplateConfig(_ input: WidgetConfig) -> WidgetConfig {
+    private func compactElegantTemplateConfig(
+        _ input: WidgetConfig,
+        templateID: String,
+        category: String?
+    ) -> WidgetConfig {
         var config = input
-
-        // Keep templates compact by default without collapsing tiny cards.
-        let compactWidth = (config.size.width.cgFloat * 0.90).clamped(170, 460)
-        let compactHeight = (config.size.height.cgFloat * 0.86).clamped(120, 320)
-        config.size = WidgetSize(width: compactWidth.double, height: compactHeight.double)
-        config.minSize = nil
-        config.maxSize = nil
 
         // Slightly tighter card chrome for cleaner composition.
         config.cornerRadius = max(14, min(22, config.cornerRadius.cgFloat * 0.92)).double
@@ -119,12 +120,39 @@ final class WidgetTemplateStore {
         p.trailing = max(8, min(20, p.trailing.cgFloat * 0.90)).double
         config.padding = p
 
-        config.content = compactComponent(config.content)
+        config.content = compactComponent(config.content, templateID: templateID)
+
+        // Compute an explicit compact size per template based on content complexity
+        // so gallery snippets don't carry large empty tails.
+        let preferredContent = inferredPreferredContentSize(for: config.content)
+        let horizontalChrome = p.leading.cgFloat + p.trailing.cgFloat + 10
+        let verticalChrome = p.top.cgFloat + p.bottom.cgFloat + 10
+
+        let targetWidth = (preferredContent.width + horizontalChrome).clamped(160, 430)
+        var targetHeight = (preferredContent.height + verticalChrome).clamped(92, 260)
+
+        // Prevent overly tall cards; favor compact area while keeping readability.
+        let softMaxHeight = max(110, (targetWidth * 1.08).rounded(.up))
+        targetHeight = min(targetHeight, softMaxHeight.clamped(110, 260))
+
+        // For list-like widgets keep enough vertical room for multiple rows.
+        if isListHeavy(config.content) {
+            targetHeight = max(targetHeight, 150)
+        }
+
+        config.size = perTemplateTargetSize(
+            id: templateID,
+            category: category,
+            fallback: WidgetSize(width: targetWidth.double, height: targetHeight.double)
+        )
+        config.minSize = nil
+        config.maxSize = nil
+        config.refreshInterval = perTemplateRefreshInterval(id: templateID, fallback: config.refreshInterval)
         return config
     }
 
-    private func compactComponent(_ component: ComponentConfig) -> ComponentConfig {
-        var c = component
+    private func compactComponent(_ component: ComponentConfig, templateID: String) -> ComponentConfig {
+        let c = component
 
         if let size = c.size {
             // Cap oversized template typography and tighten defaults.
@@ -150,14 +178,255 @@ final class WidgetTemplateStore {
             c.style = "compact"
         }
 
+        applyTemplateSpecificPolish(templateID: templateID, component: c)
+
         if let child = c.child {
-            c.child = compactComponent(child)
+            c.child = compactComponent(child, templateID: templateID)
         }
         if let children = c.children {
-            c.children = children.map(compactComponent)
+            c.children = children.map { compactComponent($0, templateID: templateID) }
         }
 
         return c
+    }
+
+    private func applyTemplateSpecificPolish(templateID: String, component: ComponentConfig) {
+        switch component.type {
+        case .clock:
+            if component.format?.isEmpty != false {
+                component.format = "h:mm a"
+            }
+            component.showSeconds = false
+            if templateID == "clock-minimal" || templateID == "world-clocks" {
+                component.size = (component.size ?? 26).cgFloat.clamped(16, 26).double
+            } else {
+                component.size = (component.size ?? 22).cgFloat.clamped(14, 24).double
+            }
+        case .analogClock:
+            component.showSecondHand = false
+            component.lineWidth = (component.lineWidth ?? 2.2).cgFloat.clamped(1.6, 2.8).double
+        case .weather:
+            component.style = "compact"
+            component.showHumidity = false
+            component.showWind = false
+            component.showFeelsLike = false
+            component.showCondition = true
+            component.showTemperature = true
+            component.showHighLow = true
+            component.forecastDays = min(component.forecastDays ?? 3, 3)
+        case .stock, .crypto:
+            component.showChart = component.showChart ?? true
+            component.chartType = component.chartType ?? "line"
+            component.chartPeriod = component.chartPeriod ?? "1d"
+            component.showChangePercent = true
+        case .calendarNext:
+            component.maxEvents = min(component.maxEvents ?? 4, 4)
+            component.showTime = true
+            component.showCalendarColor = true
+        case .reminders:
+            component.maxItems = min(component.maxItems ?? 5, 5)
+            component.showCheckbox = true
+        case .newsHeadlines:
+            component.maxItems = min(component.maxItems ?? 4, 4)
+            component.showSource = true
+        case .screenTime:
+            component.maxApps = min(component.maxApps ?? 4, 4)
+            component.timeRange = component.timeRange ?? "today"
+        case .checklist:
+            component.maxItems = min(component.maxItems ?? 5, 5)
+            component.showCheckbox = true
+        case .habitTracker:
+            component.maxItems = min(component.maxItems ?? 5, 5)
+            component.showStreak = component.showStreak ?? true
+        case .note:
+            component.maxLines = min(component.maxLines ?? 6, 6)
+            component.editable = true
+        case .quote:
+            component.showQuotationMarks = true
+            component.maxLines = min(component.maxLines ?? 4, 4)
+        case .shortcutLauncher:
+            if let shortcuts = component.shortcuts, shortcuts.count > 6 {
+                component.shortcuts = Array(shortcuts.prefix(6))
+            }
+            component.style = "compact"
+            component.iconSize = (component.iconSize ?? 15).cgFloat.clamped(12, 18).double
+        case .linkBookmarks:
+            if let links = component.links, links.count > 6 {
+                component.links = Array(links.prefix(6))
+            }
+            component.showFavicon = true
+            component.style = "compact"
+        default:
+            break
+        }
+    }
+
+    private func perTemplateRefreshInterval(id: String, fallback: Int) -> Int {
+        switch id {
+        case "clock-minimal", "world-clocks", "stopwatch", "analog-clock", "countdown-newyear", "day-progress", "year-progress":
+            return 1
+        case "weather-compact", "weather-forecast":
+            return 900
+        case "stock-ticker", "crypto-tracker":
+            return 120
+        case "now-playing":
+            return 10
+        case "system-monitor", "battery-ring", "screen-time":
+            return 30
+        default:
+            return fallback
+        }
+    }
+
+    private func perTemplateTargetSize(id: String, category: String?, fallback: WidgetSize) -> WidgetSize {
+        switch id {
+        case "clock-minimal": return WidgetSize(width: 168, height: 108)
+        case "analog-clock": return WidgetSize(width: 178, height: 178)
+        case "world-clocks": return WidgetSize(width: 268, height: 146)
+        case "stopwatch": return WidgetSize(width: 222, height: 122)
+        case "countdown-newyear": return WidgetSize(width: 234, height: 126)
+        case "day-progress": return WidgetSize(width: 218, height: 112)
+        case "year-progress": return WidgetSize(width: 218, height: 112)
+        case "weather-compact": return WidgetSize(width: 206, height: 122)
+        case "weather-forecast": return WidgetSize(width: 266, height: 150)
+        case "stock-ticker": return WidgetSize(width: 256, height: 126)
+        case "crypto-tracker": return WidgetSize(width: 264, height: 134)
+        case "calendar-agenda": return WidgetSize(width: 284, height: 162)
+        case "reminders-today": return WidgetSize(width: 274, height: 154)
+        case "daily-checklist": return WidgetSize(width: 266, height: 152)
+        case "habit-tracker": return WidgetSize(width: 268, height: 154)
+        case "notes-pad": return WidgetSize(width: 252, height: 154)
+        case "quote-of-the-day": return WidgetSize(width: 244, height: 136)
+        case "now-playing": return WidgetSize(width: 254, height: 138)
+        case "pomodoro-timer": return WidgetSize(width: 246, height: 150)
+        case "screen-time": return WidgetSize(width: 258, height: 146)
+        case "github-stats": return WidgetSize(width: 260, height: 144)
+        case "battery-ring": return WidgetSize(width: 176, height: 176)
+        case "system-monitor": return WidgetSize(width: 262, height: 138)
+        case "bookmarks-social": return WidgetSize(width: 256, height: 128)
+        case "quick-launch": return WidgetSize(width: 248, height: 122)
+        case "morning-dashboard": return WidgetSize(width: 320, height: 188)
+        case "productivity-daily": return WidgetSize(width: 312, height: 182)
+        case "news-headlines": return WidgetSize(width: 286, height: 164)
+        default:
+            if category == "dashboard" {
+                return WidgetSize(width: 304, height: 184)
+            }
+            return fallback
+        }
+    }
+
+    private func inferredPreferredContentSize(for component: ComponentConfig) -> CGSize {
+        if component.type == .spacer {
+            return .zero
+        }
+
+        if component.type == .divider {
+            if (component.direction ?? "horizontal").lowercased() == "vertical" {
+                return CGSize(width: max(1, CGFloat(component.thickness ?? 1)), height: 1)
+            }
+            return CGSize(width: 1, height: max(1, CGFloat(component.thickness ?? 1)))
+        }
+
+        if component.type == .vstack {
+            let children = (component.children ?? (component.child.map { [$0] } ?? []))
+                .filter { $0.type != .spacer }
+            guard !children.isEmpty else { return CGSize(width: 120, height: 74) }
+            let spacing = CGFloat(component.spacing ?? 6)
+            let sizes = children.map(inferredPreferredContentSize(for:))
+            let width = (sizes.map(\.width).max() ?? 120) + 6
+            let height = sizes.map(\.height).reduce(0, +) + spacing * CGFloat(max(0, sizes.count - 1)) + 6
+            return CGSize(width: width, height: height)
+        }
+
+        if component.type == .hstack {
+            let children = (component.children ?? (component.child.map { [$0] } ?? []))
+                .filter { $0.type != .spacer && $0.type != .divider }
+            guard !children.isEmpty else { return CGSize(width: 160, height: 88) }
+
+            let spacing = CGFloat(component.spacing ?? 8)
+            let childSizes = children.map(inferredPreferredContentSize(for:))
+            let columns = min(max(1, children.count), 4)
+
+            var rowWidths: [CGFloat] = []
+            var rowHeights: [CGFloat] = []
+            var idx = 0
+            while idx < childSizes.count {
+                let end = min(idx + columns, childSizes.count)
+                let row = childSizes[idx..<end]
+                rowWidths.append(row.map(\.width).reduce(0, +) + spacing * CGFloat(max(0, row.count - 1)))
+                rowHeights.append(row.map(\.height).max() ?? 0)
+                idx = end
+            }
+
+            let width = (rowWidths.max() ?? 120) + 8
+            let height = rowHeights.reduce(0, +) + spacing * CGFloat(max(0, rowHeights.count - 1)) + 8
+            return CGSize(width: width, height: height)
+        }
+
+        if component.type == .container {
+            let child = component.child ?? component.children?.first
+            let childSize = child.map(inferredPreferredContentSize(for:)) ?? CGSize(width: 140, height: 78)
+            let insets = component.padding ?? .medium
+            return CGSize(
+                width: childSize.width + insets.leading.cgFloat + insets.trailing.cgFloat,
+                height: childSize.height + insets.top.cgFloat + insets.bottom.cgFloat
+            )
+        }
+
+        return inferredPreferredSizeForLeaf(component)
+    }
+
+    private func inferredPreferredSizeForLeaf(_ component: ComponentConfig) -> CGSize {
+        switch component.type {
+        case .analogClock:
+            return CGSize(width: 116, height: 116)
+        case .timer:
+            return component.style?.lowercased() == "ring" ? CGSize(width: 124, height: 124) : CGSize(width: 162, height: 70)
+        case .progressRing, .pomodoro:
+            return CGSize(width: 120, height: 120)
+        case .battery:
+            return component.style?.lowercased() == "ring" ? CGSize(width: 116, height: 116) : CGSize(width: 150, height: 62)
+        case .weather:
+            return component.style?.lowercased() == "compact" ? CGSize(width: 152, height: 58) : CGSize(width: 172, height: 82)
+        case .clock:
+            return CGSize(width: 148, height: 52)
+        case .worldClocks:
+            let count = max(1, component.clocks?.count ?? 1)
+            return CGSize(width: 216, height: CGFloat(36 + (count * 22)))
+        case .checklist, .calendarNext, .reminders, .newsHeadlines, .habitTracker:
+            return CGSize(width: 220, height: 132)
+        case .countdown, .date, .stock, .crypto, .dayProgress, .yearProgress, .systemStats:
+            return CGSize(width: 162, height: 68)
+        case .text:
+            let text = component.content ?? ""
+            let chars = max(1, text.count)
+            let width = min(280, max(90, 56 + (chars * 3)))
+            let lines = max(1, min(4, Int(ceil(Double(chars) / 26.0))))
+            let fontSize = CGFloat(component.size ?? 13)
+            let lineHeight = max(11, fontSize * 1.2)
+            let height = (CGFloat(lines) * lineHeight) + 6
+            return CGSize(width: CGFloat(width), height: height)
+        default:
+            return CGSize(width: 138, height: 72)
+        }
+    }
+
+    private func isListHeavy(_ component: ComponentConfig) -> Bool {
+        if component.type == .checklist
+            || component.type == .calendarNext
+            || component.type == .reminders
+            || component.type == .newsHeadlines
+            || component.type == .habitTracker {
+            return true
+        }
+        if let child = component.child, isListHeavy(child) {
+            return true
+        }
+        if let children = component.children, children.contains(where: { isListHeavy($0) }) {
+            return true
+        }
+        return false
     }
 
     private func loadDefinitions() -> [WidgetTemplateDefinition] {

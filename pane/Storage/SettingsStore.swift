@@ -137,6 +137,13 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var didCompleteOnboarding: Bool {
+        didSet {
+            defaults.set(didCompleteOnboarding, forKey: Keys.didCompleteOnboarding)
+            notifyChange()
+        }
+    }
+
     private let defaults: UserDefaults
     private let keychainStore: KeychainStore
 
@@ -157,6 +164,7 @@ final class SettingsStore: ObservableObject {
         snapToGrid = defaults.object(forKey: Keys.snapToGrid) as? Bool ?? true
         gridSize = defaults.object(forKey: Keys.gridSize) as? Double ?? 20
         enableWebDiscovery = defaults.object(forKey: Keys.enableWebDiscovery) as? Bool ?? true
+        didCompleteOnboarding = defaults.object(forKey: Keys.didCompleteOnboarding) as? Bool ?? false
 
         _ = ensureUsableProviderSelection()
     }
@@ -197,6 +205,10 @@ final class SettingsStore: ObservableObject {
 
         return false
     }
+
+    var shouldShowOnboarding: Bool {
+        !didCompleteOnboarding
+    }
 }
 
 private enum Keys {
@@ -213,4 +225,5 @@ private enum Keys {
     static let snapToGrid = "settings.widgets.snapToGrid"
     static let gridSize = "settings.widgets.gridSize"
     static let enableWebDiscovery = "settings.ai.enableWebDiscovery"
+    static let didCompleteOnboarding = "settings.general.didCompleteOnboarding"
 }

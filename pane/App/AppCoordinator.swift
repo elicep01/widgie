@@ -47,6 +47,23 @@ final class AppCoordinator {
             self?.applyTheme(theme)
         }
     )
+    private lazy var onboardingWindow = OnboardingWindow(
+        settingsStore: settingsStore,
+        onOpenAISettings: { [weak self] in self?.openSettings() },
+        onOpenGallery: { [weak self] in self?.openWidgetGallery() },
+        onStartBuilding: { [weak self] in self?.openCommandBar() },
+        onDismiss: { [weak self] in
+            guard let self else { return }
+            self.settingsStore.didCompleteOnboarding = true
+            if !self.settingsStore.hasAnyRemoteAPIKey {
+                self.openSettings()
+                self.showUserMessage(
+                    "Add an OpenAI or Claude API key in Settings > AI to generate widgets.",
+                    isError: true
+                )
+            }
+        }
+    )
     private lazy var menuBarController = MenuBarController(
         onNewWidget: { [weak self] in self?.openCommandBar() },
         onCreateTemplate: { [weak self] id in self?.createWidgetFromTemplate(id: id) },
@@ -88,8 +105,14 @@ final class AppCoordinator {
         menuBarController.start()
 
         widgetManager.restoreWidgets()
+        rerenderExistingStoreWidgetsIfNeeded()
         refreshTemplateState()
         refreshMenuState()
+
+        if settingsStore.shouldShowOnboarding {
+            onboardingWindow.show()
+            return
+        }
 
         if !settingsStore.hasAnyRemoteAPIKey {
             openSettings()
@@ -494,7 +517,7 @@ final class AppCoordinator {
         guard let config = templateStore.instantiateTemplate(id: id, theme: theme) else {
             return false
         }
-        widgetManager.createOrUpdateWidget(config)
+        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
         refreshMenuState()
         return true
     }
@@ -517,7 +540,7 @@ final class AppCoordinator {
         guard let config = templateStore.instantiateTemplate(id: id) else {
             return false
         }
-        widgetManager.createOrUpdateWidget(config)
+        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
         refreshMenuState()
         return true
     }
@@ -527,9 +550,46 @@ final class AppCoordinator {
         guard let config = templateStore.instantiateTemplate(matching: query) else {
             return false
         }
-        widgetManager.createOrUpdateWidget(config)
+        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
         refreshMenuState()
         return true
+    }
+
+    private func rerenderExistingStoreWidgetsIfNeeded() {
+        let storeItems = templateStore.storeItems()
+        guard !storeItems.isEmpty else { return }
+
+        let byName = Dictionary(
+            grouping: storeItems,
+            by: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        )
+
+        for summary in widgetManager.widgetSummaries() {
+            guard let existing = widgetManager.widgetConfig(for: summary.id) else { continue }
+            let nameKey = existing.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard let candidates = byName[nameKey], !candidates.isEmpty else { continue }
+
+            let existingDesc = existing.description.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let matched = candidates.first(where: {
+                $0.description.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == existingDesc
+            }) ?? candidates.first
+
+            guard let matched else { continue }
+
+            var rerendered = matched.config
+            rerendered.id = existing.id
+            rerendered.name = existing.name
+            rerendered.description = existing.description
+            rerendered.theme = existing.theme
+            rerendered.background = existing.background
+            rerendered.position = existing.position
+
+            widgetManager.createOrUpdateWidget(
+                rerendered,
+                isLocked: summary.isLocked,
+                forceAutoFit: true
+            )
+        }
     }
 
     private func exportWidgets() {

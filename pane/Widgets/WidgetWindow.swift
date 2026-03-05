@@ -38,7 +38,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     }
 
     private var resizeSession: ResizeSession?
-    private var moveSession: MoveSession?
     private var isResizing = false {
         didSet { refreshContent() }
     }
@@ -171,24 +170,31 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
     }
 
-    // Returns true when a left-mouse-down event lands in the resize handle corner.
+    // Returns true when a left-mouse-down event lands on any resize edge/corner zone.
     private func isClickOnResizeHandle(_ event: NSEvent) -> Bool {
+        resizeHandle(atWindowPoint: event.locationInWindow) != nil
+    }
+
+    private func resizeHandle(atWindowPoint point: NSPoint) -> ResizeHandle? {
         guard !isLocked, !isPassive, (isActive || isResizing) else {
-            return false
+            return nil
         }
 
-        // `event.locationInWindow` uses bottom-left origin.
-        // ResizeHandle positions are defined in SwiftUI space (top-left origin),
-        // so convert the handle center before distance checking.
-        let loc = event.locationInWindow
-        let size = CGSize(width: frame.width, height: frame.height)
-        let handlePosition = ResizeHandle.bottomRight.position(in: size)
-        let handleCenter = CGPoint(x: handlePosition.x, y: size.height - handlePosition.y)
+        let edgeHit: CGFloat = 9
+        let nearLeft = point.x <= edgeHit
+        let nearRight = point.x >= frame.width - edgeHit
+        let nearBottom = point.y <= edgeHit
+        let nearTop = point.y >= frame.height - edgeHit
 
-        // Keep this tighter than the visual control to avoid accidental resize
-        // when users try to drag the widget body.
-        let radius: CGFloat = 11
-        return hypot(loc.x - handleCenter.x, loc.y - handleCenter.y) <= radius
+        if nearTop && nearLeft { return .topLeft }
+        if nearTop && nearRight { return .topRight }
+        if nearBottom && nearLeft { return .bottomLeft }
+        if nearBottom && nearRight { return .bottomRight }
+        if nearTop { return .top }
+        if nearBottom { return .bottom }
+        if nearLeft { return .left }
+        if nearRight { return .right }
+        return nil
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -205,10 +211,8 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        // For locked widgets or widgets with interactive content (buttons,
-        // checklists, launchers), forward clicks to SwiftUI immediately so
-        // the buttons fire on press rather than being deferred to mouseUp.
-        guard !isLocked, !config.hasInteractiveContent else {
+        // Locked widgets don't move.
+        guard !isLocked else {
             super.mouseDown(with: event)
             return
         }
@@ -359,12 +363,6 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             },
             onResizeEnd: { [weak self] in
                 self?.endResizeDrag()
-            },
-            onMoveDrag: { [weak self] in
-                self?.handleMoveDrag()
-            },
-            onMoveEnd: { [weak self] in
-                self?.endMoveDrag()
             }
         )
 
@@ -481,12 +479,8 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         setFrameOrigin(targetOrigin)
 
         isDragging = false
-        // Restore cursor — open hand if still hovering, arrow otherwise.
-        if isPointerInside {
-            NSCursor.openHand.set()
-        } else {
-            NSCursor.arrow.set()
-        }
+        // Restore cursor to contextual move/resize cursor if still hovering.
+        updateCursor(forScreenPoint: NSEvent.mouseLocation)
         let position = WidgetPosition(x: targetOrigin.x.double, y: targetOrigin.y.double)
         config.position = position
         onPositionChanged?(position)
@@ -531,6 +525,33 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
                 schedulePassivation()
             }
         }
+
+        updateCursor(forScreenPoint: point)
+    }
+
+    private func updateCursor(forScreenPoint point: NSPoint) {
+        guard !isDragging else {
+            NSCursor.closedHand.set()
+            return
+        }
+
+        guard isPointerInside else {
+            NSCursor.arrow.set()
+            return
+        }
+
+        guard !isLocked else {
+            NSCursor.arrow.set()
+            return
+        }
+
+        let localPoint = convertPoint(fromScreen: point)
+        if let handle = resizeHandle(atWindowPoint: localPoint) {
+            handle.cursor.set()
+            return
+        }
+
+        NSCursor.openHand.set()
     }
 
     private func scheduleHoverActivation() {
@@ -611,6 +632,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             isActive = false
             isHoverEngaged = false
         }
+        updateCursor(forScreenPoint: NSEvent.mouseLocation)
     }
 
     private func handleResizeDrag(_ handle: ResizeHandle) {
@@ -664,65 +686,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         onPositionChanged?(config.position ?? WidgetPosition(x: frame.origin.x.double, y: frame.origin.y.double))
         onSizeChanged?(config.size)
         WidgetAnimator.animateResizeRelease(of: self)
-
-        if !isPointerInside && !isActive {
-            setPassiveMode(enabled: true)
-        }
-    }
-
-    private func handleMoveDrag() {
-        guard !isLocked else { return }
-
-        cancelPassivation()
-        if isPassive {
-            setPassiveMode(enabled: false)
-        }
-        isActive = true
-        isHoverEngaged = true
-
-        let current = NSEvent.mouseLocation
-        if moveSession == nil {
-            moveSession = MoveSession(initialMouseLocation: current, initialFrame: frame)
-            isDragging = true
-            NSCursor.closedHand.set()
-            WidgetAnimator.animateDragStart(of: self)
-        }
-
-        guard let moveSession else { return }
-        let dx = current.x - moveSession.initialMouseLocation.x
-        let dy = current.y - moveSession.initialMouseLocation.y
-        let proposedOrigin = NSPoint(
-            x: moveSession.initialFrame.origin.x + dx,
-            y: moveSession.initialFrame.origin.y + dy
-        )
-        var targetOrigin = proposedOrigin
-
-        if let feedback = onDragFeedbackRequested?(CGRect(origin: proposedOrigin, size: frame.size)) {
-            targetOrigin = feedback.origin
-        }
-
-        setFrameOrigin(targetOrigin)
-    }
-
-    private func endMoveDrag() {
-        guard moveSession != nil else { return }
-        moveSession = nil
-
-        let targetOrigin = snappedOriginIfNeeded(frame.origin)
-        WidgetAnimator.animateDragEnd(of: self, to: targetOrigin)
-        setFrameOrigin(targetOrigin)
-
-        isDragging = false
-        if isPointerInside {
-            NSCursor.openHand.set()
-        } else {
-            NSCursor.arrow.set()
-        }
-
-        let position = WidgetPosition(x: targetOrigin.x.double, y: targetOrigin.y.double)
-        config.position = position
-        onPositionChanged?(position)
-        onDragEnded?()
+        updateCursor(forScreenPoint: NSEvent.mouseLocation)
 
         if !isPointerInside && !isActive {
             setPassiveMode(enabled: true)
@@ -876,8 +840,8 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     private func inferredMinimumSize() -> CGSize {
         let preferred = inferredPreferredContentSize(for: config.content)
         return CGSize(
-            width: max(140, floor(preferred.width * 0.34)),
-            height: max(96, floor(preferred.height * 0.34))
+            width: max(180, floor(preferred.width * 0.56)),
+            height: max(124, floor(preferred.height * 0.56))
         )
     }
 
@@ -1156,8 +1120,6 @@ private struct WidgetPanelContentView: View {
     let onToggleLock: () -> Void
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
-    let onMoveDrag: () -> Void
-    let onMoveEnd: () -> Void
 
     var body: some View {
         WidgetRenderer(config: config)
@@ -1168,14 +1130,7 @@ private struct WidgetPanelContentView: View {
                 RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous)
                     .stroke(Color.accentColor.opacity(isActive ? 0.32 : 0), lineWidth: isActive ? 1 : 0)
             )
-            .onHover { inside in
-                guard isHoverEngaged, !isLocked, !isDragging else { return }
-                if inside {
-                    NSCursor.openHand.set()
-                } else {
-                    NSCursor.arrow.set()
-                }
-            }
+            .onHover { _ in }
             .overlay(alignment: .topTrailing) {
                 if isLocked {
                     Image(systemName: "lock.fill")
@@ -1188,9 +1143,7 @@ private struct WidgetPanelContentView: View {
                 if showsResizeHandles {
                     ResizeHandlesOverlay(
                         onResizeDrag: onResizeDrag,
-                        onResizeEnd: onResizeEnd,
-                        onMoveDrag: onMoveDrag,
-                        onMoveEnd: onMoveEnd
+                        onResizeEnd: onResizeEnd
                     )
                 }
             }
@@ -1252,35 +1205,10 @@ private extension ComponentType {
 private struct ResizeHandlesOverlay: View {
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
-    let onMoveDrag: () -> Void
-    let onMoveEnd: () -> Void
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.92))
-                    .frame(width: 44, height: 5)
-                    .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
-                    .position(x: geometry.size.width / 2, y: 10)
-                    .contentShape(Rectangle())
-                    .onHover { inside in
-                        if inside {
-                            NSCursor.openHand.set()
-                        } else {
-                            NSCursor.arrow.set()
-                        }
-                    }
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in
-                                onMoveDrag()
-                            }
-                            .onEnded { _ in
-                                onMoveEnd()
-                            }
-                    )
-
                 ForEach(ResizeHandle.visibleHandles) { handle in
                     ZStack {
                         Circle()
@@ -1292,13 +1220,6 @@ private struct ResizeHandlesOverlay: View {
                     .background(Color.clear)
                     .contentShape(Rectangle())
                     .position(handle.position(in: geometry.size))
-                    .onHover { inside in
-                        if inside {
-                            handle.cursor.set()
-                        } else {
-                            NSCursor.arrow.set()
-                        }
-                    }
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { _ in
@@ -1327,7 +1248,7 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static var visibleHandles: [ResizeHandle] {
-        [.topLeft, .topRight, .right, .bottomRight, .bottom, .bottomLeft, .left]
+        [.topLeft, .top, .topRight, .right, .bottomRight, .bottom, .bottomLeft, .left]
     }
 
     var affectsLeft: Bool {
@@ -1384,11 +1305,6 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
 
 private struct ResizeSession {
     let handle: ResizeHandle
-    let initialMouseLocation: NSPoint
-    let initialFrame: NSRect
-}
-
-private struct MoveSession {
     let initialMouseLocation: NSPoint
     let initialFrame: NSRect
 }

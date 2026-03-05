@@ -25,17 +25,17 @@ struct WidgetRenderer: View {
     private var scaleFactor: Double {
         let widthScale = config.size.width / 320.0
         let heightScale = config.size.height / 180.0
-        return max(0.34, min(1.16, min(widthScale, heightScale)))
+        return max(0.72, min(1.16, min(widthScale, heightScale)))
     }
 
     private var scaledPadding: EdgeInsets {
         let s = scaleFactor
         let p = config.padding
         return EdgeInsets(
-            top: (p.top * s).cgFloat,
-            leading: (p.leading * s).cgFloat,
-            bottom: (p.bottom * s).cgFloat,
-            trailing: (p.trailing * s).cgFloat
+            top: ((p.top * s).cgFloat).clamped(7, 28),
+            leading: ((p.leading * s).cgFloat).clamped(7, 30),
+            bottom: ((p.bottom * s).cgFloat).clamped(7, 28),
+            trailing: ((p.trailing * s).cgFloat).clamped(7, 30)
         )
     }
 
@@ -74,7 +74,7 @@ struct WidgetRenderer: View {
                     .foregroundStyle(ThemeResolver.color(for: component.color, theme: config.theme))
                     .multilineTextAlignment(textAlignment(for: component.alignment))
                     .lineLimit(component.maxLines)
-                    .minimumScaleFactor(0.2)
+                    .minimumScaleFactor(0.82)
                     .allowsTightening(true)
                     .opacity(component.opacity ?? 1)
                     .frame(maxWidth: .infinity, alignment: frameAlignment(for: component.alignment))
@@ -216,7 +216,10 @@ struct WidgetRenderer: View {
         case .vstack:
             let children = component.children ?? []
             return AnyView(
-                VStack(alignment: horizontalAlignment(for: component.alignment), spacing: ((component.spacing ?? 6) * scaleFactor).cgFloat) {
+                VStack(
+                    alignment: horizontalAlignment(for: component.alignment),
+                    spacing: scaledSpacing(component.spacing ?? 6, min: 3, max: 14)
+                ) {
                     ForEach(children.indices, id: \.self) { index in
                         renderComponent(children[index])
                     }
@@ -225,10 +228,10 @@ struct WidgetRenderer: View {
 
         case .hstack:
             let children = component.children ?? []
-            let spacing = ((component.spacing ?? 8) * scaleFactor).cgFloat
+            let spacing = scaledSpacing(component.spacing ?? 7, min: 3, max: 14)
             let meaningfulChildren = children.filter { $0.type != .divider && $0.type != .spacer }
             if shouldReflowHStack(children: children) {
-                let minColumnWidth = max(160.cgFloat, (178 * scaleFactor).cgFloat)
+                let minColumnWidth = max(124.cgFloat, (148 * scaleFactor).cgFloat)
                 let displayChildren = meaningfulChildren.isEmpty ? children : meaningfulChildren
                 return AnyView(
                     LazyVGrid(
@@ -357,7 +360,7 @@ struct WidgetRenderer: View {
 
     private func font(for component: ComponentConfig) -> Font {
         let weight = fontWeight(for: component.weight)
-        let size = ((component.size ?? 14) * scaleFactor).cgFloat
+        let size = readableFontSize(base: component.size ?? 14)
 
         switch (component.font ?? "sf-pro").lowercased() {
         case "sf-mono":
@@ -443,7 +446,15 @@ struct WidgetRenderer: View {
         guard meaningfulCount >= 2 else { return false }
         let usableWidth = max(1.0, config.size.width - 24)
         let widthPerChild = usableWidth / Double(meaningfulCount)
-        return widthPerChild < 200 || scaleFactor <= 0.85
+        return widthPerChild < 176 || scaleFactor <= 0.86
+    }
+
+    private func readableFontSize(base: Double, min: CGFloat = 11.5, max: CGFloat = 72) -> CGFloat {
+        ((base * scaleFactor).cgFloat).clamped(min, max)
+    }
+
+    private func scaledSpacing(_ base: Double, min: CGFloat = 3, max: CGFloat = 16) -> CGFloat {
+        ((base * scaleFactor).cgFloat).clamped(min, max)
     }
 }
 
@@ -460,7 +471,7 @@ private struct ClockComponentView: View {
                 .font(.system(size: ((component.size ?? 24) * scale).cgFloat, weight: .regular, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color, theme: theme))
                 .lineLimit(1)
-                .minimumScaleFactor(0.2)
+                .minimumScaleFactor(0.82)
                 .allowsTightening(true)
 
             if let label = component.label, !label.isEmpty {
@@ -499,7 +510,6 @@ private struct AnalogClockComponentView: View {
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        let size = ((component.size ?? 120) * scale).cgFloat
         let current = time.now
         var calendar = Calendar.current
         calendar.timeZone = resolvedTimezone(component.timezone)
@@ -508,34 +518,43 @@ private struct AnalogClockComponentView: View {
         let second = calendar.component(.second, from: current)
 
         return VStack(spacing: (8 * scale).cgFloat) {
-            ZStack {
-                Circle()
-                    .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6), lineWidth: 1.2)
+            GeometryReader { proxy in
+                let fill = min(proxy.size.width, proxy.size.height)
+                let base = ((component.size ?? 120) * scale).cgFloat
+                let size = min(fill * 0.9, base).clamped(84, 220)
+                ZStack {
+                    Circle()
+                        .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6), lineWidth: max(1, size * 0.011))
 
-                ForEach(0..<60, id: \.self) { index in
-                    Capsule()
-                        .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(index.isMultiple(of: 5) ? 0.75 : 0.35))
-                        .frame(width: index.isMultiple(of: 5) ? 1.8 : 1, height: index.isMultiple(of: 5) ? 8 : 4)
-                        .offset(y: -size * 0.46)
-                        .rotationEffect(.degrees(Double(index) * 6))
+                    ForEach(0..<60, id: \.self) { index in
+                        Capsule()
+                            .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(index.isMultiple(of: 5) ? 0.75 : 0.35))
+                            .frame(
+                                width: index.isMultiple(of: 5) ? max(1.4, size * 0.015) : max(0.9, size * 0.008),
+                                height: index.isMultiple(of: 5) ? max(6, size * 0.065) : max(3, size * 0.032)
+                            )
+                            .offset(y: -size * 0.46)
+                            .rotationEffect(.degrees(Double(index) * 6))
+                    }
+
+                    hand(length: size * 0.23, width: max(2.2, size * 0.022), color: ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        .rotationEffect(.degrees((Double(hour % 12) + (Double(minute) / 60)) * 30))
+
+                    hand(length: size * 0.34, width: max(1.8, size * 0.017), color: ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        .rotationEffect(.degrees((Double(minute) + (Double(second) / 60)) * 6))
+
+                    if component.showSecondHand ?? true {
+                        hand(length: size * 0.38, width: max(1.0, size * 0.010), color: ThemeResolver.color(for: "accent", theme: theme))
+                            .rotationEffect(.degrees(Double(second) * 6))
+                    }
+
+                    Circle()
+                        .fill(ThemeResolver.color(for: "accent", theme: theme))
+                        .frame(width: max(4, size * 0.042), height: max(4, size * 0.042))
                 }
-
-                hand(length: size * 0.23, width: 3, color: ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                    .rotationEffect(.degrees((Double(hour % 12) + (Double(minute) / 60)) * 30))
-
-                hand(length: size * 0.34, width: 2.4, color: ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                    .rotationEffect(.degrees((Double(minute) + (Double(second) / 60)) * 6))
-
-                if component.showSecondHand ?? true {
-                    hand(length: size * 0.38, width: 1.2, color: ThemeResolver.color(for: "accent", theme: theme))
-                        .rotationEffect(.degrees(Double(second) * 6))
-                }
-
-                Circle()
-                    .fill(ThemeResolver.color(for: "accent", theme: theme))
-                    .frame(width: 5, height: 5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
-            .frame(width: size, height: size)
+            .frame(maxWidth: .infinity, minHeight: 96)
 
             if let label = component.label, !label.isEmpty {
                 Text(label)
@@ -553,7 +572,8 @@ private struct AnalogClockComponentView: View {
         case "trailing":
             return .trailing
         default:
-            return .leading
+            // Analog clocks are visually balanced when centered.
+            return .center
         }
     }
 
@@ -918,13 +938,13 @@ private struct WorldClocksComponentView: View {
                         .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
                         .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                         .lineLimit(2)
-                        .minimumScaleFactor(0.25)
+                        .minimumScaleFactor(0.82)
                     Spacer(minLength: 4)
                     Text(timeString(for: entry.timezone))
                         .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.25)
+                        .minimumScaleFactor(0.82)
                 }
             }
         }

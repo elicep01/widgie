@@ -262,11 +262,11 @@ private struct GalleryTabButton: View {
 private struct StoreTabView: View {
     @ObservedObject var viewModel: WidgetGalleryViewModel
 
-    // Responsive 3-column grid with tight spacing
+    // Responsive dense grid
     private let columns = [
-        GridItem(.flexible(minimum: 180, maximum: 280), spacing: 14),
-        GridItem(.flexible(minimum: 180, maximum: 280), spacing: 14),
-        GridItem(.flexible(minimum: 180, maximum: 280), spacing: 14)
+        GridItem(.flexible(minimum: 168, maximum: 246), spacing: 10),
+        GridItem(.flexible(minimum: 168, maximum: 246), spacing: 10),
+        GridItem(.flexible(minimum: 168, maximum: 246), spacing: 10)
     ]
 
     var body: some View {
@@ -309,7 +309,7 @@ private struct StoreTabView: View {
                 if viewModel.filteredStoreItems.isEmpty {
                     emptyState
                 } else {
-                    LazyVGrid(columns: columns, spacing: 14) {
+                    LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(viewModel.filteredStoreItems) { item in
                             StoreCard(
                                 item: item,
@@ -320,9 +320,9 @@ private struct StoreTabView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 20)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 16)
                 }
             }
         }
@@ -440,15 +440,15 @@ private struct StoreCard: View {
         return config
     }
 
-    // Scale to fit the card while keeping aspect ratio — fill the card width
+    // Scale to fit compact preview surface while preserving aspect ratio.
     private var previewScale: CGFloat {
-        let cardWidth: CGFloat = 240
-        let cardHeight: CGFloat = 120
+        let cardWidth: CGFloat = 208
+        let cardHeight: CGFloat = 104
         let widgetW = item.config.size.width.cgFloat
         let widgetH = item.config.size.height.cgFloat
         let scaleX = cardWidth / widgetW
         let scaleY = cardHeight / widgetH
-        return min(scaleX, scaleY, 1.0)
+        return min(scaleX, scaleY, 0.92)
     }
 
     // Compute the actual rendered preview size after scaling
@@ -458,12 +458,14 @@ private struct StoreCard: View {
         return CGSize(width: w, height: h)
     }
 
+    private var previewSurfaceHeight: CGFloat {
+        (scaledSize.height + 10).clamped(72, 116)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Preview area — hugs the widget tightly
+        VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 previewBackground
-
                 WidgetRenderer(config: themedConfig)
                     .frame(
                         width: item.config.size.width.cgFloat,
@@ -472,56 +474,47 @@ private struct StoreCard: View {
                     .scaleEffect(previewScale)
                     .allowsHitTesting(false)
             }
-            .frame(width: scaledSize.width + 20, height: scaledSize.height + 16)
+            .frame(height: previewSurfaceHeight)
             .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 0.8)
+            )
 
-            // Info + Add button
+            Text(item.name)
+                .font(.system(size: 11.5, weight: .semibold))
+                .lineLimit(1)
+
             HStack(spacing: 6) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(item.name)
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
-                    Text(item.description)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 2)
-
+                Text(item.description)
+                    .font(.system(size: 9.5, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
                 Button(action: onAdd) {
-                    HStack(spacing: 3) {
-                        Image(systemName: isAdded ? "checkmark" : "plus")
-                            .font(.system(size: 9, weight: .bold))
-                        Text(isAdded ? "Added" : "Add")
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(isAdded ? Color.green : Color.accentColor)
-                    .clipShape(Capsule())
+                    Image(systemName: isAdded ? "checkmark.circle.fill" : "plus.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(isAdded ? Color.green : Color.accentColor)
                 }
                 .buttonStyle(.plain)
+                .help(isAdded ? "Added" : "Add")
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 6)
-            .padding(.bottom, 8)
         }
+        .padding(9)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.9))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .strokeBorder(
-                    isHovered ? Color.accentColor.opacity(0.4) : Color(nsColor: .separatorColor).opacity(0.15),
-                    lineWidth: isHovered ? 1 : 0.5
+                    isHovered ? Color.accentColor.opacity(0.35) : Color(nsColor: .separatorColor).opacity(0.12),
+                    lineWidth: isHovered ? 0.9 : 0.6
                 )
         )
-        .shadow(color: .black.opacity(isHovered ? 0.12 : 0.04), radius: isHovered ? 8 : 3, y: 2)
-        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .shadow(color: .black.opacity(isHovered ? 0.10 : 0.03), radius: isHovered ? 6 : 2, y: 1)
+        .scaleEffect(isHovered ? 1.01 : 1.0)
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { isHovered = $0 }
     }
@@ -691,6 +684,12 @@ private struct MyWidgetRow: View {
 
 private extension Double {
     var cgFloat: CGFloat { CGFloat(self) }
+}
+
+private extension CGFloat {
+    func clamped(_ minValue: CGFloat, _ maxValue: CGFloat) -> CGFloat {
+        Swift.min(Swift.max(self, minValue), maxValue)
+    }
 }
 
 // Color(hex:) is defined in ThemeResolver.swift
