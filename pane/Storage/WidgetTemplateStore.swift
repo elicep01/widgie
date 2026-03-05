@@ -34,7 +34,13 @@ final class WidgetTemplateStore {
 
     func storeItems() -> [StoreTemplateItem] {
         loadStoreDefinitions().map {
-            StoreTemplateItem(id: $0.id, name: $0.name, description: $0.description, category: $0.category ?? "other", config: $0.config)
+            StoreTemplateItem(
+                id: $0.id,
+                name: $0.name,
+                description: $0.description,
+                category: $0.category ?? "other",
+                config: compactElegantTemplateConfig($0.config)
+            )
         }
     }
 
@@ -86,12 +92,72 @@ final class WidgetTemplateStore {
     // MARK: - Private
 
     private func instantiate(definition: WidgetTemplateDefinition) -> WidgetConfig {
-        var config = definition.config
+        var config = compactElegantTemplateConfig(definition.config)
         config.id = UUID()
         config.name = definition.name
         config.description = definition.description
         config.position = nil
         return config
+    }
+
+    private func compactElegantTemplateConfig(_ input: WidgetConfig) -> WidgetConfig {
+        var config = input
+
+        // Keep templates compact by default without collapsing tiny cards.
+        let compactWidth = (config.size.width.cgFloat * 0.90).clamped(170, 460)
+        let compactHeight = (config.size.height.cgFloat * 0.86).clamped(120, 320)
+        config.size = WidgetSize(width: compactWidth.double, height: compactHeight.double)
+        config.minSize = nil
+        config.maxSize = nil
+
+        // Slightly tighter card chrome for cleaner composition.
+        config.cornerRadius = max(14, min(22, config.cornerRadius.cgFloat * 0.92)).double
+        var p = config.padding
+        p.top = max(8, min(18, p.top.cgFloat * 0.88)).double
+        p.bottom = max(8, min(18, p.bottom.cgFloat * 0.88)).double
+        p.leading = max(8, min(20, p.leading.cgFloat * 0.90)).double
+        p.trailing = max(8, min(20, p.trailing.cgFloat * 0.90)).double
+        config.padding = p
+
+        config.content = compactComponent(config.content)
+        return config
+    }
+
+    private func compactComponent(_ component: ComponentConfig) -> ComponentConfig {
+        var c = component
+
+        if let size = c.size {
+            // Cap oversized template typography and tighten defaults.
+            let next = (size.cgFloat * 0.90).clamped(10, 30)
+            c.size = next.double
+        }
+
+        if let spacing = c.spacing {
+            c.spacing = (spacing.cgFloat * 0.86).clamped(2, 14).double
+        }
+
+        if let padding = c.padding {
+            c.padding = EdgeInsetsConfig(
+                top: (padding.top.cgFloat * 0.86).clamped(0, 16).double,
+                bottom: (padding.bottom.cgFloat * 0.86).clamped(0, 16).double,
+                leading: (padding.leading.cgFloat * 0.90).clamped(0, 18).double,
+                trailing: (padding.trailing.cgFloat * 0.90).clamped(0, 18).double
+            )
+        }
+
+        // Favor compact presentation styles in gallery templates.
+        if c.type == .weather {
+            c.style = "compact"
+        }
+
+        if let child = c.child {
+            c.child = compactComponent(child)
+        }
+        if let children = c.children {
+            c.children = children.map(compactComponent)
+        }
+
+        return c
     }
 
     private func loadDefinitions() -> [WidgetTemplateDefinition] {
@@ -199,4 +265,16 @@ private struct WidgetTemplateDefinition: Codable {
     let description: String
     let category: String?
     let config: WidgetConfig
+}
+
+private extension Double {
+    var cgFloat: CGFloat { CGFloat(self) }
+}
+
+private extension CGFloat {
+    var double: Double { Double(self) }
+
+    func clamped(_ minValue: CGFloat, _ maxValue: CGFloat) -> CGFloat {
+        Swift.min(Swift.max(self, minValue), maxValue)
+    }
 }
