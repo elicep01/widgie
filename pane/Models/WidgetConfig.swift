@@ -215,54 +215,58 @@ struct BackgroundConfig: Codable {
         case .pastel:
             return BackgroundConfig(
                 type: "solid",
-                color: "#F5F0EC"
+                color: "#F8F0FA"
             )
         case .sakura:
             return BackgroundConfig(
-                type: "solid",
-                color: "#FFF0F3"
+                type: "gradient",
+                colors: ["#FFE0EC", "#FFF0F5"],
+                direction: "to_bottom"
             )
         case .ocean:
             return BackgroundConfig(
-                type: "solid",
-                color: "#0B1A2E"
+                type: "gradient",
+                colors: ["#051525", "#0A2A40"],
+                direction: "to_bottom"
             )
         case .sunset:
             return BackgroundConfig(
-                type: "solid",
-                color: "#1C1018"
+                type: "gradient",
+                colors: ["#1A0A10", "#2D1020"],
+                direction: "to_bottom"
             )
         case .lavender:
             return BackgroundConfig(
-                type: "solid",
-                color: "#F3F0F8"
+                type: "gradient",
+                colors: ["#E8E0F4", "#F0E8FF"],
+                direction: "to_bottom"
             )
         case .retro:
             return BackgroundConfig(
                 type: "solid",
-                color: "#F5EDDA"
+                color: "#F5E8CC"
             )
         case .cyberpunk:
             return BackgroundConfig(
                 type: "solid",
-                color: "#0A0614"
+                color: "#050008"
             )
         case .midnight:
             return BackgroundConfig(
-                type: "solid",
-                color: "#0E1529"
+                type: "gradient",
+                colors: ["#080E22", "#101830"],
+                direction: "to_bottom"
             )
         case .roseGold:
             return BackgroundConfig(
-                type: "blur",
-                material: "popover",
-                tintColor: "#F5E6E0",
-                tintOpacity: 0.65
+                type: "gradient",
+                colors: ["#F8E8E0", "#F0D8CC"],
+                direction: "to_bottom"
             )
         case .mono:
             return BackgroundConfig(
                 type: "solid",
-                color: "#FAFAFA"
+                color: "#FFFFFF"
             )
         case .custom:
             return BackgroundConfig(

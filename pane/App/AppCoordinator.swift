@@ -38,9 +38,17 @@ final class AppCoordinator {
             }
         }
     )
+    private lazy var galleryWindow = WidgetGalleryWindow(
+        templateStore: templateStore,
+        settingsStore: settingsStore,
+        onAddWidget: { [weak self] id, theme in
+            self?.addWidgetFromGallery(id: id, theme: theme)
+        }
+    )
     private lazy var menuBarController = MenuBarController(
         onNewWidget: { [weak self] in self?.openCommandBar() },
         onCreateTemplate: { [weak self] id in self?.createWidgetFromTemplate(id: id) },
+        onShowGallery: { [weak self] in self?.galleryWindow.show() },
         onImportWidgets: { [weak self] in self?.importWidgets() },
         onExportWidgets: { [weak self] in self?.exportWidgets() },
         onAutoLayout: { [weak self] in
@@ -505,6 +513,12 @@ final class AppCoordinator {
     private func applyTheme(_ theme: WidgetTheme) {
         widgetManager.applyTheme(theme)
         settingsStore.defaultTheme = theme
+        refreshMenuState()
+    }
+
+    private func addWidgetFromGallery(id: String, theme: WidgetTheme) {
+        guard let config = templateStore.instantiateTemplate(id: id, theme: theme) else { return }
+        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
         refreshMenuState()
     }
 

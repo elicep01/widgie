@@ -19,9 +19,9 @@ final class CommandBarWindow {
 
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.level = .statusBar
+        panel.level = .floating
         panel.collectionBehavior = [.moveToActiveSpace, .transient, .ignoresCycle]
-        panel.hidesOnDeactivate = true
+        panel.hidesOnDeactivate = false
         panel.hasShadow = false
         panel.isReleasedWhenClosed = false
 

@@ -68,6 +68,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     private var hoverActivationWorkItem: DispatchWorkItem?
     private var passivationWorkItem: DispatchWorkItem?
 
+    /// Height of the top strip that acts as the drag handle for moving the widget.
+    private let dragHandleHeight: CGFloat = 18
+
     init(
         config: WidgetConfig,
         settingsStore: SettingsStore,
@@ -130,14 +133,18 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             if isClickOnResizeHandle(event) {
                 // Resize handle area — let SwiftUI's DragGesture own this event.
                 super.sendEvent(event)
-            } else {
+            } else if isClickInDragZone(event) {
                 mouseDown(with: event)
                 if pendingMouseDownEvent == nil {
-                    // mouseDown short-circuited (double-click, locked, etc.) — forward normally.
+                    // mouseDown short-circuited (locked, etc.) — forward normally.
                     super.sendEvent(event)
                 }
                 // Otherwise pendingMouseDownEvent is set; we suppress the event from
                 // the view hierarchy and will re-dispatch it in mouseUp if it's a click.
+            } else {
+                // Not in drag zone — forward directly to content for interaction.
+                mouseDown(with: event)
+                super.sendEvent(event)
             }
 
         case .leftMouseDragged:
@@ -170,9 +177,15 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
     }
 
-    // Returns true when a left-mouse-down event lands on any resize edge/corner zone.
+    // Returns true when a left-mouse-down event lands on the resize corner zone.
     private func isClickOnResizeHandle(_ event: NSEvent) -> Bool {
         resizeHandle(atWindowPoint: event.locationInWindow) != nil
+    }
+
+    // Returns true when a left-mouse-down event lands in the top drag handle strip.
+    private func isClickInDragZone(_ event: NSEvent) -> Bool {
+        guard !isLocked else { return false }
+        return event.locationInWindow.y >= frame.height - dragHandleHeight
     }
 
     private func resizeHandle(atWindowPoint point: NSPoint) -> ResizeHandle? {
@@ -180,20 +193,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return nil
         }
 
-        let edgeHit: CGFloat = 9
-        let nearLeft = point.x <= edgeHit
+        // Only bottom-right corner is a resize zone.
+        let edgeHit: CGFloat = 14
         let nearRight = point.x >= frame.width - edgeHit
         let nearBottom = point.y <= edgeHit
-        let nearTop = point.y >= frame.height - edgeHit
 
-        if nearTop && nearLeft { return .topLeft }
-        if nearTop && nearRight { return .topRight }
-        if nearBottom && nearLeft { return .bottomLeft }
         if nearBottom && nearRight { return .bottomRight }
-        if nearTop { return .top }
-        if nearBottom { return .bottom }
-        if nearLeft { return .left }
-        if nearRight { return .right }
         return nil
     }
 
@@ -204,15 +209,18 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         activate()
 
-        // Double-click opens the edit panel regardless of lock state.
-        if event.clickCount == 2 {
-            onEditRequested?()
-            pendingMouseDownEvent = nil
+        // Locked widgets don't move.
+        guard !isLocked else {
+            super.mouseDown(with: event)
             return
         }
 
-        // Locked widgets don't move.
-        guard !isLocked else {
+        // Only the top drag handle strip initiates window dragging.
+        // Clicks elsewhere pass through to interactive content (buttons, text fields, etc.).
+        let localPoint = event.locationInWindow
+        let inDragZone = localPoint.y >= frame.height - dragHandleHeight
+
+        guard inDragZone else {
             super.mouseDown(with: event)
             return
         }
@@ -568,7 +576,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        NSCursor.openHand.set()
+        // Show move cursor only in the top drag handle strip.
+        if localPoint.y >= frame.height - dragHandleHeight {
+            NSCursor.openHand.set()
+        } else {
+            NSCursor.arrow.set()
+        }
     }
 
     private func scheduleHoverActivation() {
@@ -1188,6 +1201,16 @@ private struct WidgetPanelContentView: View {
                     .stroke(Color.accentColor.opacity(isActive ? 0.32 : 0), lineWidth: isActive ? 1 : 0)
             )
             .onHover { _ in }
+            .overlay(alignment: .top) {
+                if isHoverEngaged && !isLocked && !isPassive {
+                    // Subtle drag handle indicator
+                    Capsule()
+                        .fill(Color.primary.opacity(0.2))
+                        .frame(width: 32, height: 3)
+                        .padding(.top, 5)
+                        .transition(.opacity)
+                }
+            }
             .overlay(alignment: .topTrailing) {
                 if isLocked {
                     Image(systemName: "lock.fill")
@@ -1305,7 +1328,7 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static var visibleHandles: [ResizeHandle] {
-        [.topLeft, .topRight, .bottomRight, .bottomLeft]
+        [.bottomRight]
     }
 
     var affectsLeft: Bool {

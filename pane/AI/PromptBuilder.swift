@@ -223,7 +223,7 @@ struct PromptBuilder {
 
         Stock ticker rules:
         - If user requests multiple symbols, include one `stock` component per symbol.
-        - Use `hstack` for ticker-style rows with optional `divider` components.
+        - Use `vstack` of `stock` components for clean vertical lists. Use `hstack` only for 2-3 symbols in a compact row.
         - `stock.symbol` must be a single string (for example "AAPL"), never an array.
         - Never invent unsupported component types like `stocks` or `ticker`.
         - Crypto assets (bitcoin, ethereum, solana, dogecoin, etc.) must use `crypto`, not `stock`.
@@ -234,6 +234,7 @@ struct PromptBuilder {
         - If user requests a mixed market set (for example bitcoin + ethereum + gold + silver), include ALL requested assets and do not drop any.
         - For "live updates" market prompts, use a short refresh interval (for example 60s) and include change/percent fields.
         - If ticker is unknown, choose the closest obvious symbol and proceed.
+        - Stock/crypto widgets should look CLEAN and DATA-FOCUSED. Do NOT add `note`, `checklist`, `text` placeholders, or any interactive/editable components to data dashboards. A stock tracker shows stocks — nothing else.
 
         ## EXAMPLES
         \(examplesSection)
@@ -285,6 +286,11 @@ struct PromptBuilder {
         - Only use direct hex colors for structural backgrounds that are intentionally theme-independent.
         - Use typography hierarchy: large for primary data (24–42pt), small for labels (11–13pt).
         - Keep layouts glanceable and readable at a glance.
+        - COMPONENT DISCIPLINE: Only include components that directly serve the user's request.
+          A stock tracker has stock components — NO notes, NO checklists, NO editable text fields.
+          A weather widget has weather — NO random quotes or habit trackers.
+          Do NOT pad widgets with unrelated components to fill space. If a widget is simple, make it small and clean.
+        - `note` components with `editable: true` produce an empty text editor on screen. ONLY use them when the user explicitly asks for a notepad/scratch area. Never use them as decorative filler.
 
         6. Edit behavior — SURGICAL PRECISION REQUIRED.
         When editing an existing widget:

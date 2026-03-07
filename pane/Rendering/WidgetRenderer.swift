@@ -2462,17 +2462,28 @@ private struct NoteComponentView: View {
             }
 
             if component.editable ?? true {
-                TextEditor(text: $text)
-                    .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
-                    .foregroundColor(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                    .withoutWritingTools()
-                    .scrollContentBackground(.hidden)
-                    .frame(minHeight: (60 * scale).cgFloat)
-                    .onChange(of: text) { _, newValue in
-                        Task {
-                            await UserDataStore.shared.setNote(newValue, for: componentKey)
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $text)
+                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                        .foregroundColor(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        .withoutWritingTools()
+                        .scrollContentBackground(.hidden)
+                        .onChange(of: text) { _, newValue in
+                            Task {
+                                await UserDataStore.shared.setNote(newValue, for: componentKey)
+                            }
                         }
+
+                    if text.isEmpty {
+                        Text(component.content ?? "Type here...")
+                            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6))
+                            .padding(.top, 8)
+                            .padding(.leading, 5)
+                            .allowsHitTesting(false)
                     }
+                }
+                .frame(minHeight: (60 * scale).cgFloat)
             } else {
                 Text(text)
                     .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))

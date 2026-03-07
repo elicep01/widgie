@@ -395,6 +395,18 @@ final class AgentOrchestrator {
             }
         }
 
+        // Flag note/checklist components in data-focused widgets (stocks, weather, crypto, etc.)
+        let dataComponentTypes: Set<ComponentType> = [.stock, .crypto, .weather, .newsHeadlines, .systemStats, .battery, .githubRepoStats]
+        let hasDataComponents = !componentTypes.intersection(dataComponentTypes).isEmpty
+        if hasDataComponents && plan.interactionMode != .userEditable {
+            if componentTypes.contains(.note) {
+                weightedIssues.append(("Major: Data dashboard contains a note component. Remove it — data widgets should only show data, not editable text fields.", 0.20))
+            }
+            if componentTypes.contains(.checklist) {
+                weightedIssues.append(("Minor: Data dashboard contains a checklist. This is likely unrelated filler — remove unless explicitly requested.", 0.12))
+            }
+        }
+
         let penalty = weightedIssues.reduce(0.0) { $0 + $1.1 }
         let confidence = weightedIssues.isEmpty ? 0.96 : max(0.05, 1.0 - min(0.92, penalty))
         return AgentCritique(issues: weightedIssues.map(\.0), confidence: confidence)
