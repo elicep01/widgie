@@ -19,39 +19,13 @@ final class AppCoordinator {
             self?.applyTheme(theme)
         }
     )
-    private lazy var widgetGalleryWindow = WidgetGalleryWindow(
-        onCreateWidget: { [weak self] in self?.openCommandBar() },
-        onCreateTemplate: { [weak self] id in self?.createWidgetFromTemplate(id: id) },
-        onAddStoreItem: { [weak self] id, theme in self?.addStoreItemToDesktop(id: id, theme: theme) },
-        onEditWidget: { [weak self] id in self?.openEditor(for: id) },
-        onDuplicateWidget: { [weak self] id in
-            guard let self else { return }
-            _ = self.widgetManager.duplicateWidget(id: id)
-            self.refreshMenuState()
-        },
-        onToggleLock: { [weak self] id, isLocked in
-            guard let self else { return }
-            _ = self.widgetManager.setWidgetLocked(id: id, isLocked: isLocked)
-            self.refreshMenuState()
-        },
-        onRemoveWidget: { [weak self] id in
-            guard let self else { return }
-            _ = self.widgetManager.removeWidget(id: id)
-            self.refreshMenuState()
-        },
-        onAutoLayout: { [weak self] in
-            self?.widgetManager.autoLayoutWidgets()
-            self?.refreshMenuState()
-        },
-        onApplyTheme: { [weak self] theme in
-            self?.applyTheme(theme)
-        }
-    )
     private lazy var onboardingWindow = OnboardingWindow(
         settingsStore: settingsStore,
         onOpenAISettings: { [weak self] in self?.openSettings() },
-        onOpenGallery: { [weak self] in self?.openWidgetGallery() },
         onStartBuilding: { [weak self] in self?.openCommandBar() },
+        onApplyTheme: { [weak self] theme in
+            self?.applyTheme(theme)
+        },
         onDismiss: { [weak self] in
             guard let self else { return }
             self.settingsStore.didCompleteOnboarding = true
@@ -69,7 +43,6 @@ final class AppCoordinator {
         onCreateTemplate: { [weak self] id in self?.createWidgetFromTemplate(id: id) },
         onImportWidgets: { [weak self] in self?.importWidgets() },
         onExportWidgets: { [weak self] in self?.exportWidgets() },
-        onShowGallery: { [weak self] in self?.openWidgetGallery() },
         onAutoLayout: { [weak self] in
             self?.widgetManager.autoLayoutWidgets()
             self?.refreshMenuState()
@@ -83,6 +56,8 @@ final class AppCoordinator {
 
     private var editingWidgetID: UUID?
     private var settingsObserver: NSObjectProtocol?
+    private var activeConversation: AgentConversation?
+    private var activePlan: AgentBuildPlan?
 
     init(
         settingsStore: SettingsStore,
@@ -147,10 +122,6 @@ final class AppCoordinator {
         settingsWindow.show()
     }
 
-    func openWidgetGallery() {
-        widgetGalleryWindow.show()
-    }
-
     private func wireCallbacks() {
         hotkeyListener.onTrigger = { [weak self] in
             self?.toggleCommandBar()
@@ -163,10 +134,6 @@ final class AppCoordinator {
 
         widgetManager.onWidgetListChanged = { [weak self] names in
             self?.menuBarController.setWidgetNames(names)
-        }
-
-        widgetManager.onWidgetSummariesChanged = { [weak self] summaries in
-            self?.widgetGalleryWindow.setSummaries(summaries)
         }
     }
 
@@ -277,14 +244,27 @@ final class AppCoordinator {
             return
         }
 
+        activeConversation = nil
+        activePlan = nil
+
         commandBarWindow.clearBuildChecklist()
         commandBarWindow.setBuildChecklist(buildChecklist(for: prompt))
 
-        // Skip clarification when editing an existing widget — the user knows what they want.
-        guard editingWidgetID == nil else {
-            commandBarWindow.completeChecklistItem(id: "understand")
-            commandBarWindow.completeChecklistItem(id: "data")
-            proceedWithGeneration(prompt, plan: nil)
+        // For edits, still run agentic planning so the AI reasons about implications.
+        if let editingWidgetID, let existingConfig = widgetManager.widgetConfig(for: editingWidgetID) {
+            commandBarWindow.setLoading(true, message: "Reasoning about edit...")
+            commandBarWindow.clearAgentTrace()
+            commandBarWindow.appendAgentTrace("Phase: understand edit")
+            Task {
+                let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
+                let decision = await agentOrchestrator.planEdit(
+                    existingConfig: existingConfig,
+                    editPrompt: prompt,
+                    clarificationClient: clarificationClient
+                )
+                commandBarWindow.completeChecklistItem(id: "understand")
+                handlePlanningDecision(decision, originalPrompt: prompt)
+            }
             return
         }
 
@@ -300,13 +280,90 @@ final class AppCoordinator {
                 commandBarWindow.appendAgentTrace("Phase: clarify")
                 commandBarWindow.appendAgentTrace("Detected ambiguity. Asking \(preflightQuestions.count) focused question(s).")
                 commandBarWindow.setLoading(false, message: nil)
-                commandBarWindow.showClarification(
+                activeConversation = AgentConversation(originalPrompt: prompt)
+                showClarificationWithContinuation(
                     questions: preflightQuestions,
-                    originalPrompt: prompt
-                ) { [weak self] original, qs, answers in
-                    guard let self else { return }
+                    originalPrompt: prompt,
+                    plan: nil,
+                    conversation: AgentConversation(originalPrompt: prompt)
+                )
+                return
+            }
+            commandBarWindow.appendAgentTrace("Phase: understand")
+            let decision = await agentOrchestrator.plan(
+                prompt: prompt,
+                clarificationClient: clarificationClient
+            )
+            commandBarWindow.completeChecklistItem(id: "understand")
+            handlePlanningDecision(decision, originalPrompt: prompt)
+        }
+    }
+
+    /// Central handler for planning decisions — supports both initial and follow-up rounds.
+    private func handlePlanningDecision(_ decision: AgentPlanningDecision, originalPrompt: String) {
+        switch decision {
+        case .needsClarification(let plan, let questions, let conversation):
+            commandBarWindow.appendAgentTrace("Phase: clarify (round \(conversation.roundsCompleted + 1))")
+            commandBarWindow.appendAgentTrace("Questions: \(questions.count)")
+            appendSourceAttributionTrace(for: plan)
+            commandBarWindow.setLoading(false, message: nil)
+            showClarificationWithContinuation(
+                questions: questions,
+                originalPrompt: originalPrompt,
+                plan: plan,
+                conversation: conversation
+            )
+
+        case .ready(let plan):
+            commandBarWindow.appendAgentTrace("Phase: plan ready")
+            commandBarWindow.completeChecklistItem(id: "data")
+            appendSourceAttributionTrace(for: plan)
+            commandBarWindow.setLoading(false, message: nil)
+            proceedWithGeneration(
+                agentOrchestrator.executionPrompt(for: plan),
+                plan: plan
+            )
+        }
+    }
+
+    /// Show clarification questions and handle the response with multi-turn continuation.
+    private func showClarificationWithContinuation(
+        questions: [ClarificationQuestion],
+        originalPrompt: String,
+        plan: AgentBuildPlan?,
+        conversation: AgentConversation
+    ) {
+        activeConversation = conversation
+        activePlan = plan
+
+        commandBarWindow.showClarification(
+            questions: questions,
+            originalPrompt: originalPrompt
+        ) { [weak self] _, qs, answers in
+            guard let self else { return }
+            let currentConversation = self.activeConversation ?? conversation
+            let currentPlan = self.activePlan ?? plan
+
+            self.commandBarWindow.setLoading(true, message: "Thinking...")
+            self.commandBarWindow.appendAgentTrace("Processing your answers...")
+
+            Task {
+                let clarificationClient = (self.aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
+
+                if let currentPlan {
+                    // Use the agentic continuation that may ask follow-up questions.
+                    let nextDecision = await self.agentOrchestrator.continueClarification(
+                        plan: currentPlan,
+                        conversation: currentConversation,
+                        answeredQuestions: qs,
+                        answers: answers,
+                        clarificationClient: clarificationClient
+                    )
+                    self.handlePlanningDecision(nextDecision, originalPrompt: originalPrompt)
+                } else {
+                    // Fallback: simple single-round synthesis (for preflight questions without a plan).
                     let enriched = PromptClarifier().synthesizePrompt(
-                        original: original,
+                        original: originalPrompt,
                         questions: qs,
                         answers: answers
                     )
@@ -317,55 +374,6 @@ final class AppCoordinator {
                     self.commandBarWindow.appendAgentTrace("Clarifications applied")
                     self.proceedWithGeneration(enriched, plan: nil)
                 }
-                return
-            }
-            commandBarWindow.appendAgentTrace("Phase: understand")
-            let decision = await agentOrchestrator.plan(
-                prompt: prompt,
-                clarificationClient: clarificationClient
-            )
-            commandBarWindow.completeChecklistItem(id: "understand")
-
-            if case .needsClarification(let plan, let questions) = decision {
-                commandBarWindow.appendAgentTrace("Phase: clarify")
-                commandBarWindow.appendAgentTrace("Questions needed: \(questions.count)")
-                appendSourceAttributionTrace(for: plan)
-                commandBarWindow.setLoading(false, message: nil)
-                commandBarWindow.showClarification(
-                    questions: questions,
-                    originalPrompt: prompt
-                ) { [weak self] _, qs, answers in
-                    guard let self else { return }
-                    let updatedPlan = self.agentOrchestrator.applyClarifications(
-                        plan: plan,
-                        questions: qs,
-                        answers: answers
-                    )
-                    self.commandBarWindow.completeChecklistItem(id: "data")
-                    self.commandBarWindow.clearAgentTrace()
-                    self.commandBarWindow.appendAgentTrace("Clarifications applied")
-                    self.appendSourceAttributionTrace(for: updatedPlan)
-                    self.proceedWithGeneration(
-                        self.agentOrchestrator.executionPrompt(for: updatedPlan),
-                        plan: updatedPlan
-                    )
-                }
-                return
-            }
-
-            // Phase 2a: plan is ready — generate directly from synthesized execution prompt.
-            commandBarWindow.setLoading(false, message: nil)
-            if case .ready(let plan) = decision {
-                commandBarWindow.appendAgentTrace("Phase: plan")
-                commandBarWindow.appendAgentTrace("Plan ready for execution")
-                commandBarWindow.completeChecklistItem(id: "data")
-                appendSourceAttributionTrace(for: plan)
-                proceedWithGeneration(
-                    agentOrchestrator.executionPrompt(for: plan),
-                    plan: plan
-                )
-            } else {
-                proceedWithGeneration(prompt, plan: nil)
             }
         }
     }
@@ -409,23 +417,13 @@ final class AppCoordinator {
                             )
                             if !followups.isEmpty {
                                 commandBarWindow.setLoading(false, message: nil)
-                                commandBarWindow.showClarification(
+                                let followupConversation = self.activeConversation ?? AgentConversation(originalPrompt: originalPrompt)
+                                showClarificationWithContinuation(
                                     questions: followups,
-                                    originalPrompt: originalPrompt
-                                ) { [weak self] _, qs, answers in
-                                    guard let self else { return }
-                                    let updatedPlan = self.agentOrchestrator.applyClarifications(
-                                        plan: plan,
-                                        questions: qs,
-                                        answers: answers
-                                    )
-                                    self.commandBarWindow.clearAgentTrace()
-                                    self.commandBarWindow.appendAgentTrace("Low-confidence follow-up answered")
-                                    self.proceedWithGeneration(
-                                        self.agentOrchestrator.executionPrompt(for: updatedPlan),
-                                        plan: updatedPlan
-                                    )
-                                }
+                                    originalPrompt: originalPrompt,
+                                    plan: plan,
+                                    conversation: followupConversation
+                                )
                                 return
                             }
                             throw AIWidgetServiceError.requestFailed(
@@ -497,36 +495,11 @@ final class AppCoordinator {
 
     private func refreshMenuState() {
         menuBarController.setWidgetNames(widgetManager.widgetNames())
-        widgetGalleryWindow.setSummaries(widgetManager.widgetSummaries())
     }
 
     private func refreshTemplateState() {
         let templates = templateStore.availableTemplates()
         menuBarController.setTemplateSummaries(templates)
-        widgetGalleryWindow.setTemplates(templates)
-        refreshStoreState()
-    }
-
-    private func refreshStoreState() {
-        widgetGalleryWindow.setStoreItems(templateStore.storeItems())
-        widgetGalleryWindow.setStoreCategories(templateStore.storeCategories())
-    }
-
-    @discardableResult
-    private func addStoreItemToDesktop(id: String, theme: WidgetTheme) -> Bool {
-        guard let config = templateStore.instantiateTemplate(id: id, theme: theme) else {
-            return false
-        }
-        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
-        refreshMenuState()
-        return true
-    }
-
-    private func openEditor(for id: UUID) {
-        guard let config = widgetManager.widgetConfig(for: id) else {
-            return
-        }
-        showCommandBar(prefill: config.description, editingWidgetID: config.id)
     }
 
     private func applyTheme(_ theme: WidgetTheme) {

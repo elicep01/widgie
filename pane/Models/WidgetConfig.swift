@@ -157,6 +157,16 @@ enum WidgetTheme: String, Codable, CaseIterable {
     case neon
     case paper
     case transparent
+    case pastel
+    case sakura
+    case ocean
+    case sunset
+    case lavender
+    case retro
+    case cyberpunk
+    case midnight
+    case roseGold = "rose_gold"
+    case mono
     case custom
 }
 
@@ -201,6 +211,58 @@ struct BackgroundConfig: Codable {
                 material: "hudWindow",
                 tintColor: "#000000",
                 tintOpacity: 0.35
+            )
+        case .pastel:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#F5F0EC"
+            )
+        case .sakura:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#FFF0F3"
+            )
+        case .ocean:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#0B1A2E"
+            )
+        case .sunset:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#1C1018"
+            )
+        case .lavender:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#F3F0F8"
+            )
+        case .retro:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#F5EDDA"
+            )
+        case .cyberpunk:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#0A0614"
+            )
+        case .midnight:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#0E1529"
+            )
+        case .roseGold:
+            return BackgroundConfig(
+                type: "blur",
+                material: "popover",
+                tintColor: "#F5E6E0",
+                tintOpacity: 0.65
+            )
+        case .mono:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#FAFAFA"
             )
         case .custom:
             return BackgroundConfig(

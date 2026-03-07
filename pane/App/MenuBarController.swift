@@ -6,7 +6,6 @@ final class MenuBarController: NSObject {
     private let onCreateTemplate: (String) -> Void
     private let onImportWidgets: () -> Void
     private let onExportWidgets: () -> Void
-    private let onShowGallery: () -> Void
     private let onAutoLayout: () -> Void
     private let onApplyTheme: (WidgetTheme) -> Void
     private let onShowSettings: () -> Void
@@ -21,7 +20,6 @@ final class MenuBarController: NSObject {
         onCreateTemplate: @escaping (String) -> Void,
         onImportWidgets: @escaping () -> Void,
         onExportWidgets: @escaping () -> Void,
-        onShowGallery: @escaping () -> Void,
         onAutoLayout: @escaping () -> Void,
         onApplyTheme: @escaping (WidgetTheme) -> Void,
         onShowSettings: @escaping () -> Void,
@@ -31,7 +29,6 @@ final class MenuBarController: NSObject {
         self.onCreateTemplate = onCreateTemplate
         self.onImportWidgets = onImportWidgets
         self.onExportWidgets = onExportWidgets
-        self.onShowGallery = onShowGallery
         self.onAutoLayout = onAutoLayout
         self.onApplyTheme = onApplyTheme
         self.onShowSettings = onShowSettings
@@ -79,10 +76,6 @@ final class MenuBarController: NSObject {
         }
         templateItem.submenu = templateMenu
         menu.addItem(templateItem)
-
-        let gallery = NSMenuItem(title: "Widget Gallery...", action: #selector(handleGallery), keyEquivalent: "g")
-        gallery.target = self
-        menu.addItem(gallery)
 
         let autoLayout = NSMenuItem(title: "Auto Layout Widgets", action: #selector(handleAutoLayout), keyEquivalent: "l")
         autoLayout.target = self
@@ -153,11 +146,6 @@ final class MenuBarController: NSObject {
             return
         }
         onCreateTemplate(id)
-    }
-
-    @objc
-    private func handleGallery() {
-        onShowGallery()
     }
 
     @objc

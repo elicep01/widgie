@@ -164,10 +164,10 @@ final class WidgetPositionManager {
             return nil
         }
 
-        // Scan all candidates sorted by distance from screen center so new widgets
-        // appear in a visible, easy-to-find location instead of a corner.
-        let targetX = (frame.midX - size.width / 2).clamped(minX, maxX)
-        let targetY = (frame.midY - size.height / 2).clamped(minY, maxY)
+        // Scan from top-left corner outward. Widgets are desktop furniture — they
+        // belong near edges, not blocking the center of the screen.
+        let targetX = minX
+        let targetY = maxY
 
         struct Candidate {
             let point: CGPoint
@@ -231,10 +231,10 @@ final class WidgetPositionManager {
                 let overlapArea = occupied.reduce(CGFloat(0)) { partial, obstacle in
                     partial + candidate.intersection(obstacle).area
                 }
-                // Prefer center-screen over corners for new widget discoverability.
-                let centerXBias = abs(candidate.midX - frame.midX) * 0.15
-                let centerYBias = abs(candidate.midY - frame.midY) * 0.10
-                let score = overlapArea + centerXBias + centerYBias
+                // Prefer top-left region — widgets are desktop furniture, not center-screen popups.
+                let edgeXBias = candidate.origin.x * 0.05
+                let edgeYBias = (frame.maxY - candidate.maxY) * 0.05
+                let score = overlapArea + edgeXBias + edgeYBias
                 if score < bestScore {
                     bestScore = score
                     bestOrigin = candidate.origin

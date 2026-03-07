@@ -139,7 +139,7 @@ final class WidgetManager {
     func restoreWidgets() {
         let envelopes = store.loadAllEnvelopes()
         for envelope in envelopes {
-            createOrUpdateWidget(envelope.config, isLocked: envelope.metadata.isLocked)
+            createOrUpdateWidget(envelope.config, isLocked: envelope.metadata.isLocked, forceAutoFit: true)
         }
         notifyWidgetListChanged()
     }

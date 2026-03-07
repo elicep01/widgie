@@ -55,7 +55,7 @@ struct AgentExecutionOutcome {
 }
 
 enum AgentPlanningDecision {
-    case needsClarification(plan: AgentBuildPlan, questions: [ClarificationQuestion])
+    case needsClarification(plan: AgentBuildPlan, questions: [ClarificationQuestion], conversation: AgentConversation)
     case ready(plan: AgentBuildPlan)
 }
 
@@ -104,10 +104,12 @@ final class AgentOrchestrator {
             assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan) + webResolution.assumptions
         )
 
+        var conversation = AgentConversation(originalPrompt: prompt)
+
         if !deterministicQuestions.isEmpty {
             plan.phase = .clarify
             plan.openQuestions = deterministicQuestions
-            return .needsClarification(plan: plan, questions: deterministicQuestions)
+            return .needsClarification(plan: plan, questions: deterministicQuestions, conversation: conversation)
         }
 
         guard let clarificationClient else {
@@ -124,7 +126,92 @@ final class AgentOrchestrator {
             let merged = mergeClarificationQuestions(primary: deterministicQuestions, secondary: questions)
             plan.phase = .clarify
             plan.openQuestions = merged
-            return .needsClarification(plan: plan, questions: merged)
+            return .needsClarification(plan: plan, questions: merged, conversation: conversation)
+        }
+    }
+
+    /// Continue the conversation after the user answered questions. The AI may ask
+    /// follow-up questions if the answers reveal new ambiguity, up to maxRounds.
+    func continueClarification(
+        plan: AgentBuildPlan,
+        conversation: AgentConversation,
+        answeredQuestions: [ClarificationQuestion],
+        answers: [String: [String]],
+        clarificationClient: AIProviderClient?
+    ) async -> AgentPlanningDecision {
+        var updatedPlan = applyClarifications(
+            plan: plan,
+            questions: answeredQuestions,
+            answers: answers
+        )
+
+        guard let clarificationClient, conversation.canContinue else {
+            updatedPlan.phase = .plan
+            return .ready(plan: updatedPlan)
+        }
+
+        let (result, updatedConversation) = await promptClarifier.continueConversation(
+            conversation: conversation,
+            answeredQuestions: answeredQuestions,
+            answers: answers,
+            client: clarificationClient
+        )
+
+        // Update the synthesized prompt with full conversation context.
+        updatedPlan.synthesizedPrompt = promptClarifier.synthesizeFromConversation(updatedConversation)
+
+        switch result {
+        case .clear:
+            updatedPlan.phase = .plan
+            return .ready(plan: updatedPlan)
+        case .needsQuestions(let followUpQuestions):
+            updatedPlan.phase = .clarify
+            updatedPlan.openQuestions = followUpQuestions
+            return .needsClarification(
+                plan: updatedPlan,
+                questions: followUpQuestions,
+                conversation: updatedConversation
+            )
+        }
+    }
+
+    /// Plan for an edit operation — reasons about what the edit implies before generating.
+    func planEdit(
+        existingConfig: WidgetConfig,
+        editPrompt: String,
+        clarificationClient: AIProviderClient?
+    ) async -> AgentPlanningDecision {
+        let lower = editPrompt.lowercased()
+        let interaction = inferInteractionMode(from: lower)
+        let dataPlan = inferDataPlan(from: lower)
+
+        var plan = AgentBuildPlan(
+            originalPrompt: editPrompt,
+            synthesizedPrompt: editPrompt,
+            phase: .understand,
+            interactionMode: interaction,
+            dataPlan: dataPlan,
+            openQuestions: [],
+            assumptions: editAssumptions(existingConfig: existingConfig, editPrompt: editPrompt)
+        )
+
+        guard let clarificationClient else {
+            plan.phase = .plan
+            return .ready(plan: plan)
+        }
+
+        let editContext = buildEditContext(existingConfig: existingConfig, editPrompt: editPrompt)
+        let conversation = AgentConversation(originalPrompt: editContext)
+
+        let clarification = await promptClarifier.analyze(prompt: editContext, client: clarificationClient)
+        switch clarification {
+        case .clear:
+            plan.phase = .plan
+            return .ready(plan: plan)
+        case .needsQuestions(let questions):
+            plan.phase = .clarify
+            plan.openQuestions = questions
+            return .needsClarification(plan: plan, questions: questions, conversation: conversation)
         }
     }
 
@@ -243,11 +330,12 @@ final class AgentOrchestrator {
         }
 
         if !plan.dataPlan.unsupportedSources.isEmpty {
+            let sources = plan.dataPlan.unsupportedSources.prefix(2).joined(separator: "/")
             questions.append(
                 ClarificationQuestion(
                     id: "fallback-choice",
-                    question: "Fallback for unsupported source?",
-                    options: ["Use bookmarks", "Use note summary", "Use static text"],
+                    question: "Can't fetch \(sources) live. Best approach?",
+                    options: ["Clickable links", "Quick-access launcher", "Notes + bookmarks"],
                     allowsMultiple: false
                 )
             )
@@ -289,7 +377,15 @@ final class AgentOrchestrator {
            !componentTypes.contains(.linkBookmarks),
            !componentTypes.contains(.note),
            !componentTypes.contains(.text) {
-            weightedIssues.append(("Major: Unsupported data source requested without graceful fallback component.", 0.22))
+            weightedIssues.append(("Critical: Unsupported data source requested without any fallback. Widget will likely render empty. Must include link_bookmarks or note.", 0.35))
+        }
+
+        // Check for news_headlines without a proper feedUrl — high risk of empty widget
+        if componentTypes.contains(.newsHeadlines) {
+            let hasValidFeed = hasFeedUrl(in: config.content)
+            if !hasValidFeed {
+                weightedIssues.append(("Major: news_headlines component without explicit feedUrl will default to generic BBC feed. May show irrelevant or no content for topic-specific requests.", 0.20))
+            }
         }
 
         for token in plan.dataPlan.supportedSources {
@@ -334,11 +430,11 @@ final class AgentOrchestrator {
 
     private func expectedComponent(for token: String) -> ComponentType? {
         switch token {
-        case "weather":
+        case "weather", "temperature", "temp":
             return .weather
         case "stock":
             return .stock
-        case "crypto":
+        case "crypto", "bitcoin", "ethereum":
             return .crypto
         case "calendar":
             return .calendarNext
@@ -346,9 +442,9 @@ final class AgentOrchestrator {
             return .reminders
         case "battery":
             return .battery
-        case "system":
+        case "system", "cpu", "memory":
             return .systemStats
-        case "music":
+        case "music", "now playing":
             return .musicNowPlaying
         case "news":
             return .newsHeadlines
@@ -366,49 +462,103 @@ final class AgentOrchestrator {
     }
 
     private func inferInteractionMode(from lowerPrompt: String) -> AgentInteractionMode {
-        if lowerPrompt.contains("launcher") || lowerPrompt.contains("launch app") || lowerPrompt.contains("shortcut") {
+        let launcherKeywords = ["launcher", "launch app", "shortcut", "quick access", "dock", "open app"]
+        if launcherKeywords.contains(where: { lowerPrompt.contains($0) }) {
             return .launcher
         }
-        if lowerPrompt.contains("checklist")
-            || lowerPrompt.contains("todo")
-            || lowerPrompt.contains("note")
-            || lowerPrompt.contains("journal")
-            || lowerPrompt.contains("editable")
-            || lowerPrompt.contains("type in") {
+
+        let editableKeywords = [
+            "checklist", "todo", "to-do", "to do", "task list", "shopping list",
+            "note", "journal", "diary", "memo", "scratch", "jot",
+            "editable", "type in", "write", "brain dump",
+            "habit", "tracker", "mood", "routine",
+            "bookmark", "link"
+        ]
+        if editableKeywords.contains(where: { lowerPrompt.contains($0) }) {
             return .userEditable
         }
-        if lowerPrompt.contains("live")
-            || lowerPrompt.contains("real-time")
-            || lowerPrompt.contains("update")
-            || lowerPrompt.contains("refresh")
-            || lowerPrompt.contains("weather")
-            || lowerPrompt.contains("stock")
-            || lowerPrompt.contains("crypto") {
+
+        let autoRefreshKeywords = [
+            "live", "real-time", "realtime", "update", "refresh",
+            "weather", "stock", "crypto", "bitcoin", "ethereum",
+            "news", "headline", "rss",
+            "battery", "system", "cpu", "memory",
+            "music", "now playing", "screen time",
+            "github", "calendar", "reminder"
+        ]
+        if autoRefreshKeywords.contains(where: { lowerPrompt.contains($0) }) {
             return .autoRefreshing
         }
+
         return .staticDisplay
     }
 
     private func inferDataPlan(from lowerPrompt: String) -> AgentDataPlan {
+        // Native data sources (built-in providers that fetch real data)
         let sourceTokens: [(String, Bool)] = [
             ("weather", true),
             ("temperature", true),
             ("temp", true),
             ("stock", true),
             ("crypto", true),
+            ("bitcoin", true),
+            ("ethereum", true),
             ("calendar", true),
             ("reminder", true),
             ("battery", true),
             ("system", true),
+            ("cpu", true),
+            ("memory", true),
             ("music", true),
-            ("news", true),
+            ("now playing", true),
             ("screen time", true),
             ("github", true),
+            ("news", true),
+            // Unsupported external services — can't fetch, use fallback
             ("reddit", false),
             ("notion", false),
             ("x.com", false),
             ("twitter", false),
-            ("polymarket", false)
+            ("polymarket", false),
+            ("spotify", false),
+            ("instagram", false),
+            ("youtube", false),
+            ("tiktok", false),
+            ("discord", false),
+            ("slack", false),
+            ("email", false),
+            ("gmail", false),
+            ("outlook", false),
+        ]
+
+        // Composable requests — not "unsupported", just need smart composition
+        // These should NOT be flagged as unsupported — the AI knows how to build them
+        let composablePatterns = [
+            "habit", "tracker", "mood", "water", "exercise", "fitness", "workout",
+            "todo", "checklist", "task", "shopping",
+            "note", "journal", "diary", "memo", "scratch",
+            "quote", "motivation", "affirmation", "inspiration",
+            "timer", "stopwatch", "pomodoro", "focus",
+            "countdown", "deadline", "event",
+            "launcher", "shortcut", "quick access", "dock",
+            "bookmark", "link", "favorite",
+            "clock", "time", "world clock",
+            "progress", "goal", "target",
+            "schedule", "routine", "planner",
+            "budget", "expense", "money",
+            "plant", "pet", "medication", "pill",
+            "study", "learning", "flashcard",
+            "recipe", "meal", "cooking",
+            "project", "kanban", "sprint",
+            "period", "cycle", "skincare", "skin care",
+            "morning", "evening", "night", "daily",
+            "interview", "prep", "resume",
+            "game", "gaming", "wishlist", "release",
+            "class", "course", "assignment", "homework", "exam",
+            "prayer", "meditation", "gratitude", "affirmation",
+            "reading", "book", "watchlist", "movie", "show",
+            "clean", "cleaning", "chore", "laundry",
+            "birthday", "anniversary", "wedding",
         ]
 
         var requested: [String] = []
@@ -422,6 +572,15 @@ final class AgentOrchestrator {
                 supported.append(token)
             } else {
                 unsupported.append(token)
+            }
+        }
+
+        // If nothing matched as a data source but the request matches a composable pattern,
+        // mark it as supported (the AI can build it from available components)
+        if requested.isEmpty {
+            let isComposable = composablePatterns.contains(where: { lowerPrompt.contains($0) })
+            if isComposable {
+                supported.append("composable")
             }
         }
 
@@ -467,16 +626,20 @@ final class AgentOrchestrator {
     private func defaultAssumptions(for interaction: AgentInteractionMode, dataPlan: AgentDataPlan) -> [String] {
         var assumptions: [String] = []
         if interaction == .userEditable {
-            assumptions.append("Prefer interactive components when available.")
+            assumptions.append("Prefer interactive components when available (interactive: true on checklists, editable: true on notes).")
         }
         if !dataPlan.unsupportedSources.isEmpty {
-            assumptions.append("If unsupported sources are requested, prefer link/bookmark fallback.")
+            let sources = dataPlan.unsupportedSources.joined(separator: ", ")
+            assumptions.append("Cannot fetch live data from: \(sources). Use link_bookmarks with relevant URLs + text header as a useful fallback. NEVER produce an empty widget.")
         }
         if !dataPlan.missingRequirements.isEmpty {
             assumptions.append("Missing source details must be clarified before final rendering.")
         }
         if let refreshHint = dataPlan.refreshHintSeconds {
             assumptions.append("Target refresh interval around \(refreshHint) seconds when applicable.")
+        }
+        if dataPlan.requestedSources.isEmpty && dataPlan.unsupportedSources.isEmpty {
+            assumptions.append("No external data source needed. Compose from interactive/static components to best serve the user's intent.")
         }
         return assumptions
     }
@@ -570,12 +733,39 @@ final class AgentOrchestrator {
             )
         }
 
-        if !dataPlan.unsupportedSources.isEmpty, !containsURL(prompt) {
+        // Smart URL asking — if the user mentions a specific service/platform,
+        // ask them to paste the link so we can build a much better widget
+        if !containsURL(prompt) {
+            if !dataPlan.unsupportedSources.isEmpty {
+                let service = dataPlan.unsupportedSources.first ?? "that service"
+                questions.append(
+                    ClarificationQuestion(
+                        id: "service-url",
+                        question: "Got a \(service) link to include?",
+                        options: ["I'll paste a link", "Use defaults"],
+                        allowsMultiple: false
+                    )
+                )
+            } else if lowerPrompt.contains("my ") && mentionsLinkableService(lowerPrompt) {
+                // User said "my [service]" — they likely have a specific URL
+                questions.append(
+                    ClarificationQuestion(
+                        id: "personal-url",
+                        question: "Got a link to include?",
+                        options: ["I'll paste a link", "Use defaults"],
+                        allowsMultiple: false
+                    )
+                )
+            }
+        }
+
+        // GitHub-specific: ask for repo/username if they mention GitHub but don't provide it
+        if lowerPrompt.contains("github") && !containsGitHubRef(prompt) && !containsURL(prompt) {
             questions.append(
                 ClarificationQuestion(
-                    id: "unsupported-source-url",
-                    question: "Can you share source URL?",
-                    options: ["Yes, I have URL", "No, use fallback"],
+                    id: "github-repo",
+                    question: "Which GitHub repo or username?",
+                    options: ["I'll type it"],
                     allowsMultiple: false
                 )
             )
@@ -621,6 +811,21 @@ final class AgentOrchestrator {
         }
     }
 
+    private func hasFeedUrl(in component: ComponentConfig) -> Bool {
+        if component.type == .newsHeadlines, component.feedUrl != nil {
+            return true
+        }
+        if let child = component.child, hasFeedUrl(in: child) {
+            return true
+        }
+        if let children = component.children {
+            for entry in children where hasFeedUrl(in: entry) {
+                return true
+            }
+        }
+        return false
+    }
+
     private func containsLikelyLocation(_ lowerPrompt: String) -> Bool {
         let markers = [
             ",", " in ", " at ", "for ", "city", "usa", "india", "uk",
@@ -652,5 +857,87 @@ final class AgentOrchestrator {
 
     private func containsURL(_ text: String) -> Bool {
         text.range(of: #"https?://|www\."#, options: .regularExpression) != nil
+    }
+
+    /// Detects if the prompt mentions a service the user likely has a personal link for.
+    private func mentionsLinkableService(_ lowerPrompt: String) -> Bool {
+        let services = [
+            "notion", "canvas", "blackboard", "moodle", "coursera",
+            "jira", "linear", "trello", "asana",
+            "twitch", "youtube", "channel", "stream",
+            "portfolio", "website", "blog", "page",
+            "figma", "dribbble", "behance",
+            "dashboard", "board", "workspace",
+            "server", "invite",
+        ]
+        return services.contains(where: { lowerPrompt.contains($0) })
+    }
+
+    /// Detects if the prompt contains a GitHub owner/repo reference.
+    private func containsGitHubRef(_ text: String) -> Bool {
+        // Matches patterns like "owner/repo" or GitHub URLs
+        text.range(of: #"[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+"#, options: .regularExpression) != nil
+    }
+
+    // MARK: - Edit Intelligence
+
+    /// Build a context string that describes the edit in terms the AI can reason about.
+    private func buildEditContext(existingConfig: WidgetConfig, editPrompt: String) -> String {
+        let existingTypes = collectComponentTypes(from: existingConfig.content)
+        let typeNames = existingTypes.map(\.rawValue).sorted().joined(separator: ", ")
+
+        return """
+        EDIT REQUEST on existing widget.
+        Current widget: "\(existingConfig.name)" with components: [\(typeNames)], size: \(Int(existingConfig.size.width))x\(Int(existingConfig.size.height)).
+        Edit: "\(editPrompt)"
+        Consider what the target state requires that the current state doesn't have. For example, switching from digital to analog clock means using analog_clock component with animated hands. Adding cities means adding timezone data. Adding weather means specifying location and units.
+        """
+    }
+
+    /// Infer assumptions about what an edit implies.
+    private func editAssumptions(existingConfig: WidgetConfig, editPrompt: String) -> [String] {
+        let lower = editPrompt.lowercased()
+        let existingTypes = collectComponentTypes(from: existingConfig.content)
+        var assumptions: [String] = []
+
+        // Digital → analog conversion
+        if lower.contains("analog") && existingTypes.contains(.clock) && !existingTypes.contains(.analogClock) {
+            assumptions.append("Converting digital clock to analog_clock component with animated rotating hands.")
+            assumptions.append("Preserve existing timezone configuration from the digital clock.")
+        }
+
+        // Analog → digital conversion
+        if (lower.contains("digital") || lower.contains("text clock")) && existingTypes.contains(.analogClock) {
+            assumptions.append("Converting analog clock to digital clock component.")
+            assumptions.append("Preserve existing timezone configuration.")
+        }
+
+        // Adding cities/locations to an existing clock
+        if (lower.contains("cities") || lower.contains("city") || lower.contains("multiple")) &&
+           (existingTypes.contains(.clock) || existingTypes.contains(.analogClock)) {
+            assumptions.append("Expanding to multi-timezone layout. Each city needs its own timezone mapping and clock component.")
+            assumptions.append("Layout may need to change to accommodate multiple clock entries.")
+        }
+
+        // Adding weather to existing widget
+        if (lower.contains("weather") || lower.contains("temperature")) && !existingTypes.contains(.weather) {
+            assumptions.append("Adding weather component requires location and temperature unit specification.")
+        }
+
+        // Making something interactive
+        if lower.contains("interactive") || lower.contains("editable") || lower.contains("check off") {
+            assumptions.append("Enable interactive: true on relevant components.")
+        }
+
+        // Size implications
+        if lower.contains("bigger") || lower.contains("larger") || lower.contains("expand") {
+            assumptions.append("Increase to next larger Apple widget size class to fit additional content.")
+        }
+
+        if assumptions.isEmpty {
+            assumptions.append("Apply the edit while preserving all unmentioned aspects of the existing widget.")
+        }
+
+        return assumptions
     }
 }

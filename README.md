@@ -1,165 +1,155 @@
 # widgie
 
-`widgie` is a macOS menu bar app that lets you create desktop widgets by describing them in plain English.
+widgie is a macOS menu bar app that lets you create desktop widgets by describing them in plain English.
 
-Press `Cmd+Shift+W`, type what you want, and `widgie` turns that prompt into a live widget on your desktop background.
+Press `Cmd+Shift+W`, type what you want, and widgie turns your prompt into a live widget on your desktop.
 
 ## What It Does
 
-- Creates widgets from natural language prompts.
-- Supports clocks, weather, stocks, crypto, reminders, calendars, notes, checklists, habits, launchers, news, system stats, GitHub widgets, and more.
-- Lets you edit an existing widget by prompting again.
-- Runs as a background-style menu bar app with a global hotkey.
-- Persists widgets and interactive state across launches.
+- Creates widgets from natural language prompts
+- Supports clocks, weather, stocks, crypto, reminders, calendars, notes, checklists, habits, launchers, news, system stats, GitHub widgets, and more
+- Edit existing widgets by prompting again
+- Runs as a menu bar app with a global hotkey
+- Persists widgets and interactive state across launches
+- 15 built-in themes from minimal to expressive
+
+## Themes
+
+widgie ships with 15 themes you can set from onboarding or settings. Picking a theme applies it to all your widgets at once.
+
+- **Obsidian** — dark, GitHub-inspired
+- **Frosted** — light glass blur
+- **Neon** — dark with electric accents
+- **Paper** — warm parchment tones
+- **Glass** — transparent overlay
+- **Pastel** — soft mint and cream
+- **Sakura** — cherry blossom pink
+- **Ocean** — deep navy blue
+- **Sunset** — warm orange on dark
+- **Lavender** — soft purple
+- **Retro** — vintage warm tones
+- **Cyberpunk** — neon pink/purple gamer aesthetic
+- **Midnight** — deep indigo
+- **Rose Gold** — elegant metallic pink
+- **Mono** — minimalist grayscale
 
 ## How It Works
 
-`widgie` combines two systems:
+widgie combines two systems:
 
-1. A native macOS widget runtime for layout, sizing, drag/resize, locking, persistence, and desktop placement.
+1. A native macOS widget runtime that handles layout, sizing, drag, resize, snapping, locking, persistence, and desktop placement.
 2. An AI generation pipeline that interprets prompts, asks follow-up questions when needed, validates output, and repairs low-quality results before rendering.
-
-## Screens
-
-### Command Bar
-
-![Command Bar UI](docs/images/ui-command-bar.svg)
-
-### Widget Gallery
-
-![Widget Gallery UI](docs/images/ui-gallery.svg)
-
-### Desktop Widgets
-
-![Desktop Widget UI](docs/images/ui-widget-desktop.svg)
-
-### Settings
-
-![Settings UI](docs/images/ui-settings.svg)
 
 ## Features
 
 ### Prompt-to-widget
 
-- Open the command bar with `Cmd+Shift+W`.
-- Press `Cmd+Shift+W` again to close it.
-- Press `Esc` to dismiss it.
-- Ask for a widget in natural language.
-- Get clarification questions when your request is ambiguous.
+- Open the command bar with `Cmd+Shift+W`
+- Type what you want in plain English
+- Get clarification questions when your request is ambiguous
+- The AI handles everything — data sources, layout, styling
 
 ### Widget types
 
-- Time and date widgets
-- Weather widgets
-- Stock and crypto widgets
-- Calendar and reminders widgets
-- Notes and checklist widgets
-- Habit and productivity widgets
-- Quick launch and bookmarks widgets
-- Music, news, and system stats widgets
-- GitHub repo widgets
+- Time, date, clocks, countdowns, timers, pomodoro
+- Weather (any location)
+- Stocks and crypto (live prices)
+- Calendar and reminders (read-only, needs macOS permissions)
+- Notes, checklists, habit trackers
+- Quick launch and bookmark widgets
+- Music now playing, news headlines (RSS)
+- System stats (CPU, RAM, battery)
+- GitHub repo stats
 
-### Native desktop behavior
+### Desktop behavior
 
-- Apple-style size presets
-- Drag and snap positioning
-- Auto layout across screens
-- Locking, duplication, deletion, and prompt-based editing
-- Background launch support
+- Apple-style size presets (tiny, small, medium, wide, large, dashboard)
+- Drag-and-snap positioning with alignment guides
+- Smart placement that avoids overlapping existing widgets
+- Corner resize handles
+- Auto layout, locking, duplication, deletion
+- Compact auto-fitting to minimize dead space
 
 ## Example Prompts
 
-- `make a weather widget for Seattle that refreshes every 10 minutes`
+- `make a weather widget for Seattle`
 - `build a compact system monitor for cpu, ram, and battery`
 - `create a checklist for my morning routine`
 - `add a quick launcher with Safari, Notion, and Terminal`
 - `track stars for owner/repo`
+- `show me bitcoin and ethereum prices`
 
 ## Getting Started
 
 ### Requirements
 
-- macOS
-- Xcode
+- macOS 13+
+- Xcode 15+
 - An OpenAI or Claude API key
 
 ### Run Locally
 
-1. Open [pane.xcodeproj](/Users/elicepriyadarshini/Desktop/pane/pane/pane.xcodeproj).
-2. Select the `widgie` scheme.
-3. Build and run the app.
-4. Open `Settings...` from the menu bar.
-5. Add at least one AI provider key.
-6. Press `Cmd+Shift+W` and create your first widget.
+1. Open `pane.xcodeproj`
+2. Select the `widgie` scheme
+3. Build and run
+4. Open Settings from the menu bar icon
+5. Add at least one AI provider API key
+6. Press `Cmd+Shift+W` and create your first widget
 
 ## Command Bar Commands
 
-- `/list`
-- `/remove <name>`
-- `/theme <obsidian|frosted|neon|paper|transparent>`
-- `/layout auto`
-- `/templates`
-- `/template <name>`
-- `/export`
-- `/import`
-- `/settings`
+- `/list` — show all widgets
+- `/remove <name>` — delete a widget
+- `/theme <name>` — apply a theme to all widgets
+- `/layout auto` — auto-arrange widgets on screen
+- `/templates` — list saved templates
+- `/template <name>` — create widget from template
+- `/export` — export all widgets
+- `/import` — import widgets
+- `/settings` — open settings
 
 ## Data Sources
 
-Built-in providers currently include:
+Built-in data providers:
 
-- Weather
-- Stocks
-- Crypto
-- Battery
-- System stats
-- Music now playing
-- RSS news
-- Screen time
-- GitHub repository stats
-- Calendar
-- Reminders
-
-## Notes
-
-- Calendar and Reminders may require macOS permissions.
-- Music integration is designed to avoid force-launching Music unexpectedly.
-- Some external services are represented through supported native data models rather than generic arbitrary HTTP fetches.
+- Weather (Open-Meteo, any location)
+- Stocks (Yahoo Finance)
+- Crypto (CoinGecko, any coin)
+- Battery and system stats
+- Music now playing (Apple Music)
+- News headlines (RSS feeds)
+- Screen time (app names)
+- GitHub repo stats
+- Calendar and Reminders (EventKit, read-only)
 
 ## Architecture
 
-```mermaid
-flowchart TD
-  A["Prompt (Cmd+Shift+W)"] --> B["Command Bar"]
-  B --> C["AppCoordinator"]
-  C --> D["AgentOrchestrator"]
-  D --> E["Clarify / Plan / Verify"]
-  E --> F["AI Provider"]
-  F --> G["Schema Validation + Repair"]
-  G --> H["WidgetConfig"]
-  H --> I["WidgetManager"]
-  I --> J["Desktop Widget Window"]
+```
+Prompt (Cmd+Shift+W)
+  -> Command Bar
+  -> AppCoordinator
+  -> AgentOrchestrator (plan, clarify, verify)
+  -> AI Provider (OpenAI or Claude)
+  -> Schema Validation + Repair
+  -> WidgetConfig
+  -> WidgetManager
+  -> Desktop Widget Window
 ```
 
 ## Tests
 
-Unit and UI tests live in:
+Tests are in `paneTests/` and `paneUITests/`.
 
-- `paneTests/`
-- `paneUITests/`
-
-Run the app build from Terminal:
+Build from terminal:
 
 ```bash
-xcodebuild -project pane.xcodeproj -scheme widgie -configuration Debug -destination "platform=macOS,arch=arm64" build
+xcodebuild -project pane.xcodeproj -scheme widgie -configuration Debug build
 ```
 
-Run the real AI end-to-end pipeline suite:
+Run AI end-to-end tests:
 
 ```bash
 PANE_RUN_E2E_AI_TESTS=1 \
 OPENAI_API_KEY="$OPENAI_API_KEY" \
-OPENAI_MODEL="gpt-4o" \
-OPENAI_VERIFICATION_MODEL="gpt-4o-mini" \
-xcodebuild -project pane.xcodeproj -scheme widgie -configuration Debug -destination "platform=macOS,arch=arm64" -derivedDataPath /tmp/pane-build -only-testing:paneTests/PipelineE2ETests test
+xcodebuild -project pane.xcodeproj -scheme widgie -configuration Debug -only-testing:paneTests/PipelineE2ETests test
 ```

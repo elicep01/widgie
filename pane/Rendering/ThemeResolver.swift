@@ -174,6 +174,106 @@ struct ThemeResolver {
                 warning: Color(hex: "#E9BF66"),
                 muted: Color(hex: "#9BA9BB")
             )
+        case .pastel:
+            return ThemePalette(
+                primary: Color(hex: "#3D3530"),
+                secondary: Color(hex: "#7A716A"),
+                accent: Color(hex: "#7BBFAA"),
+                positive: Color(hex: "#6EAE8A"),
+                negative: Color(hex: "#D18080"),
+                warning: Color(hex: "#C9A050"),
+                muted: Color(hex: "#9A918A")
+            )
+        case .sakura:
+            return ThemePalette(
+                primary: Color(hex: "#3A2030"),
+                secondary: Color(hex: "#7A6070"),
+                accent: Color(hex: "#D4829A"),
+                positive: Color(hex: "#6EAE8A"),
+                negative: Color(hex: "#D46A6A"),
+                warning: Color(hex: "#C9A050"),
+                muted: Color(hex: "#9A808D")
+            )
+        case .ocean:
+            return ThemePalette(
+                primary: Color(hex: "#E0F0FF"),
+                secondary: Color(hex: "#8AAEC4"),
+                accent: Color(hex: "#38BDF8"),
+                positive: Color(hex: "#34D399"),
+                negative: Color(hex: "#F87171"),
+                warning: Color(hex: "#FBBF24"),
+                muted: Color(hex: "#6B8DA0")
+            )
+        case .sunset:
+            return ThemePalette(
+                primary: Color(hex: "#F5E6D8"),
+                secondary: Color(hex: "#BFA08A"),
+                accent: Color(hex: "#F97316"),
+                positive: Color(hex: "#4ADE80"),
+                negative: Color(hex: "#FB7185"),
+                warning: Color(hex: "#FCD34D"),
+                muted: Color(hex: "#8A7060")
+            )
+        case .lavender:
+            return ThemePalette(
+                primary: Color(hex: "#2D2840"),
+                secondary: Color(hex: "#6E6890"),
+                accent: Color(hex: "#8B5CF6"),
+                positive: Color(hex: "#5AA87A"),
+                negative: Color(hex: "#D06070"),
+                warning: Color(hex: "#C4A040"),
+                muted: Color(hex: "#8880A0")
+            )
+        case .retro:
+            return ThemePalette(
+                primary: Color(hex: "#3E3428"),
+                secondary: Color(hex: "#7A6E5E"),
+                accent: Color(hex: "#C87533"),
+                positive: Color(hex: "#6A8E50"),
+                negative: Color(hex: "#C05040"),
+                warning: Color(hex: "#C4A030"),
+                muted: Color(hex: "#8A7E6E")
+            )
+        case .cyberpunk:
+            return ThemePalette(
+                primary: Color(hex: "#F0E6FF"),
+                secondary: Color(hex: "#A090C0"),
+                accent: Color(hex: "#E040FB"),
+                positive: Color(hex: "#00E676"),
+                negative: Color(hex: "#FF1744"),
+                warning: Color(hex: "#FFEA00"),
+                muted: Color(hex: "#7868A0")
+            )
+        case .midnight:
+            return ThemePalette(
+                primary: Color(hex: "#E6EEFF"),
+                secondary: Color(hex: "#8898C0"),
+                accent: Color(hex: "#6366F1"),
+                positive: Color(hex: "#34D399"),
+                negative: Color(hex: "#F87171"),
+                warning: Color(hex: "#FCD34D"),
+                muted: Color(hex: "#6878A0")
+            )
+        case .roseGold:
+            return ThemePalette(
+                primary: Color(hex: "#3A2828"),
+                secondary: Color(hex: "#8A7070"),
+                accent: Color(hex: "#C47A6E"),
+                positive: Color(hex: "#5AA87A"),
+                negative: Color(hex: "#C85050"),
+                warning: Color(hex: "#C4A040"),
+                muted: Color(hex: "#9A8585")
+            )
+        case .mono:
+            return ThemePalette(
+                primary: Color(hex: "#1A1A1A"),
+                secondary: Color(hex: "#6B6B6B"),
+                accent: Color(hex: "#404040"),
+                positive: Color(hex: "#3D7A50"),
+                negative: Color(hex: "#A04040"),
+                warning: Color(hex: "#8A7030"),
+                muted: Color(hex: "#8A8A8A")
+            )
         case .custom:
             return fallbackPalette(for: .obsidian)
         }
@@ -235,6 +335,116 @@ struct ThemeResolver {
                 shadowRadius: 18,
                 shadowX: 0,
                 shadowY: 7
+            )
+        case .pastel:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#FFFFFF"),
+                innerBorderOpacity: 0.6,
+                innerBorderWidth: 0.8,
+                shadowColor: Color(hex: "#B0A090"),
+                shadowOpacity: 0.15,
+                shadowRadius: 14,
+                shadowX: 0,
+                shadowY: 5
+            )
+        case .sakura:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#FFD0E0"),
+                innerBorderOpacity: 0.5,
+                innerBorderWidth: 0.8,
+                shadowColor: Color(hex: "#C08090"),
+                shadowOpacity: 0.14,
+                shadowRadius: 14,
+                shadowX: 0,
+                shadowY: 5
+            )
+        case .ocean:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#38BDF8"),
+                innerBorderOpacity: 0.1,
+                innerBorderWidth: 0.7,
+                shadowColor: Color(hex: "#000000"),
+                shadowOpacity: 0.4,
+                shadowRadius: 22,
+                shadowX: 0,
+                shadowY: 8
+            )
+        case .sunset:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#F97316"),
+                innerBorderOpacity: 0.12,
+                innerBorderWidth: 0.7,
+                shadowColor: Color(hex: "#000000"),
+                shadowOpacity: 0.38,
+                shadowRadius: 20,
+                shadowX: 0,
+                shadowY: 8
+            )
+        case .lavender:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#C4B5FD"),
+                innerBorderOpacity: 0.35,
+                innerBorderWidth: 0.8,
+                shadowColor: Color(hex: "#6040A0"),
+                shadowOpacity: 0.12,
+                shadowRadius: 14,
+                shadowX: 0,
+                shadowY: 5
+            )
+        case .retro:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#D4C4A0"),
+                innerBorderOpacity: 0.5,
+                innerBorderWidth: 1.0,
+                shadowColor: Color(hex: "#8A7050"),
+                shadowOpacity: 0.16,
+                shadowRadius: 12,
+                shadowX: 0,
+                shadowY: 4
+            )
+        case .cyberpunk:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#E040FB"),
+                innerBorderOpacity: 0.2,
+                innerBorderWidth: 1.0,
+                shadowColor: Color(hex: "#6000A0"),
+                shadowOpacity: 0.45,
+                shadowRadius: 26,
+                shadowX: 0,
+                shadowY: 10
+            )
+        case .midnight:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#6366F1"),
+                innerBorderOpacity: 0.12,
+                innerBorderWidth: 0.7,
+                shadowColor: Color(hex: "#000020"),
+                shadowOpacity: 0.4,
+                shadowRadius: 22,
+                shadowX: 0,
+                shadowY: 8
+            )
+        case .roseGold:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#E0C0B0"),
+                innerBorderOpacity: 0.45,
+                innerBorderWidth: 0.8,
+                shadowColor: Color(hex: "#A08070"),
+                shadowOpacity: 0.14,
+                shadowRadius: 14,
+                shadowX: 0,
+                shadowY: 5
+            )
+        case .mono:
+            return ThemeSurfaceStyle(
+                innerBorderColor: Color(hex: "#000000"),
+                innerBorderOpacity: 0.06,
+                innerBorderWidth: 0.5,
+                shadowColor: Color(hex: "#000000"),
+                shadowOpacity: 0.1,
+                shadowRadius: 12,
+                shadowX: 0,
+                shadowY: 4
             )
         case .custom:
             return fallbackSurface(for: .obsidian)

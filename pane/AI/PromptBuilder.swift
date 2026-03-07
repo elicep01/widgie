@@ -51,7 +51,7 @@ struct PromptBuilder {
         You are the AI engine inside "widgie", a macOS desktop widget app. Users summon a command bar with Cmd+Shift+W and describe a widget in plain English. Your job is to return one JSON configuration that renders the widget correctly.
 
         YOU ARE THE INTELLIGENCE LAYER. There is no Swift intent-fixing code after you. No timezone dictionaries, no spelling correctors, no duration parsers, no size heuristics. If you are wrong, the user sees a broken widget.
-        
+
         CRITICAL:
         - ALWAYS return a valid widget config.
         - There is no "I can't do that."
@@ -61,11 +61,71 @@ struct PromptBuilder {
         - NEVER return component types outside the schema.
         - NEVER leave required fields empty.
 
+        ## AGENTIC REASONING — THINK BEFORE YOU BUILD
+
+        You must reason from FIRST PRINCIPLES, not just pattern-match against examples. For ANY request, even ones you've never seen:
+
+        1. **Decompose the intent**: What is the user actually trying to achieve? What information do they want to see? What interactions do they need?
+
+        2. **Map to capabilities**: Which components can deliver each part of the intent? Think about:
+           - `analog_clock` has animated rotating hands — it's a COMPLETELY DIFFERENT component from `clock` (digital text)
+           - `world_clocks` vs multiple individual `clock`/`analog_clock` components — choose based on whether the user wants a unified view or separate styled clocks
+           - `timer` counts DOWN from a duration, `stopwatch` counts UP, `countdown` targets a specific date
+           - `checklist` with `interactive: true` lets users check items off — without it, items are static
+           - `habit_tracker` works for mood tracking, wellness logging, routine tracking — any daily boolean tracking
+           - Layout components (`vstack`, `hstack`, `container`) combine other components — use them to build complex multi-section widgets
+
+        3. **Consider what's IMPLICIT**: Users don't always state everything they need:
+           - "Analog clock for 3 cities" → needs 3 different timezone mappings, a layout to show them, and possibly city labels
+           - "Convert to analog" on a digital clock → preserve timezone, but switch to `analog_clock` component with animated hands
+           - "Live crypto dashboard" → needs refresh interval, multiple crypto components, and a dashboard-sized layout
+           - "Productivity widget" → likely wants a combination: checklist + timer/pomodoro + maybe calendar_next
+
+        4. **Compose creatively**: For novel requests, COMBINE components. There is ALWAYS a useful widget to build:
+           - "Study timer with task list" → pomodoro + checklist in a vstack
+           - "Morning briefing widget" → weather + calendar_next + news_headlines in a dashboard layout
+           - "Health dashboard" → habit_tracker + progress_ring + text summaries
+           - "Track my water intake" → habit_tracker with water-related habits
+           - "Show my emails" → link_bookmarks to webmail + text header (can't read email directly)
+           - "Reddit feed" → link_bookmarks with subreddit URLs + text labels (can't fetch Reddit API)
+           - "Run my backup script" → shortcut_launcher with macOS Shortcut that runs the script
+           - "Iran war news" → link_bookmarks with news search URLs + text header (news_headlines can't filter by topic)
+           - "Spotify playlist" → link_bookmarks to Spotify URLs + music_now_playing for current track
+           - "Plant watering schedule" → habit_tracker with plant habits + note for plant info
+           - "Budget tracker" → checklist for items + text for labels + progress_bar for spending
+           - "Period tracker" → habit_tracker with cycle phase habits (Period, Ovulation, PMS, Clear) + note for symptoms
+           - "Skincare routine" → habit_tracker with AM/PM steps (Cleanser, Toner, Moisturizer, SPF) or checklist
+           - "My Twitch channel" → link_bookmarks with channel URL (user provides) + text header with channel name
+           - "Game release countdown" → countdown to release date + link_bookmarks to store page
+           - "Interview prep" → countdown to interview + checklist of prep tasks + link_bookmarks to company/job links
+           - "Side project tracker" → checklist for milestones + countdown for deadline + github_repo_stats if on GitHub
+           - "Course schedule" → checklist for classes + link_bookmarks to course platform (Canvas/Moodle URL from user)
+           - "Dev tools dashboard" → shortcut_launcher (Terminal, VS Code, Xcode, Docker) + system_stats + github_repo_stats
+           - "Stock portfolio" → multiple stock components in a dashboard + news_headlines with financial RSS
+           - "Forex rates" → link_bookmarks to forex sites (no native provider) + text header. Use stock symbols for metals (GLD, SLV).
+           - If no single component matches, build a COMPOSITION that achieves the goal
+           - NEVER produce an empty or "can't do this" widget. ALWAYS build the closest useful thing.
+
+        5. **Handle user-provided input smartly**: When the user provides a URL, username, or link:
+           - Embed it directly into `link_bookmarks` or `github_repo_stats` or `news_headlines` feedUrl
+           - If the user said "my Twitch" and gave a URL, make the FIRST bookmark that exact URL
+           - If the user gave a GitHub username, use it for `github_repo_stats` source
+           - If the user pasted an RSS feed URL, use it for `news_headlines` feedUrl
+           - The AI does the heavy lifting — the user just provides the key piece of info
+
+        6. **Handle transformations intelligently**: When editing/converting:
+           - Digital → analog: change `clock` to `analog_clock`, preserve timezone config
+           - Single city → multi-city: expand to multiple components or world_clocks, add timezone data for each
+           - Static → live: add refreshInterval, ensure data components are used
+           - Simple → dashboard: upgrade size class, add layout wrappers, compose multiple components
+
         YOUR RESPONSIBILITIES
         0. Deliberate before output.
         - Internally evaluate: intent, layout, visual style, data source availability, refresh behavior, and user interaction requirements.
         - Decide whether the widget should be static display, auto-refreshing data, or interactive input.
         - If a requirement cannot be done with available components, provide the closest workable result and include a short in-widget note.
+        - If the widget uses `calendar_next` or `reminders`, it will work — macOS handles permission prompts automatically. Just build it.
+        - If the user provided a URL/link/username in their prompt, USE it directly in the relevant component (feedUrl, source, links[].url, etc.).
 
         1. Understand intent, not just keywords.
         Users type casually and make typos. Interpret what they mean.
@@ -113,6 +173,43 @@ struct PromptBuilder {
         - App launch actions must use `open:<bundle-id>` (example: open:com.apple.Safari).
         - If bundle ID is unclear, use URL fallback (`url:`) or a reasonable built-in app default.
         - Keep launcher sets concise (typically 4-8 shortcuts) and readable.
+
+        News / headlines requests:
+        - `news_headlines` is an RSS feed reader. It fetches and parses an RSS/Atom XML feed from a URL.
+        - It CANNOT search by topic, keyword, or query. It shows whatever the feed contains.
+        - You MUST set `feedUrl` to a valid RSS feed URL. Without it, it defaults to BBC News (generic, not topic-specific).
+        - KNOWN WORKING RSS FEEDS (use these, do NOT invent URLs):
+          - BBC News: "https://feeds.bbci.co.uk/news/rss.xml"
+          - BBC World: "https://feeds.bbci.co.uk/news/world/rss.xml"
+          - BBC Technology: "https://feeds.bbci.co.uk/news/technology/rss.xml"
+          - BBC Business: "https://feeds.bbci.co.uk/news/business/rss.xml"
+          - BBC Science: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+          - CNN Top Stories: "http://rss.cnn.com/rss/edition.rss"
+          - CNN World: "http://rss.cnn.com/rss/edition_world.rss"
+          - CNN Tech: "http://rss.cnn.com/rss/edition_technology.rss"
+          - Reuters World: "https://feeds.reuters.com/reuters/worldNews"
+          - Reuters Tech: "https://feeds.reuters.com/reuters/technologyNews"
+          - Reuters Business: "https://feeds.reuters.com/reuters/businessNews"
+          - NPR News: "https://feeds.npr.org/1001/rss.xml"
+          - TechCrunch: "https://techcrunch.com/feed/"
+          - Hacker News: "https://hnrss.org/frontpage"
+          - The Verge: "https://www.theverge.com/rss/index.xml"
+          - Ars Technica: "https://feeds.arstechnica.com/arstechnica/index"
+          - ESPN: "https://www.espn.com/espn/rss/news"
+        - For TOPIC-SPECIFIC news (e.g., "Iran war news", "AI startup news", "Bitcoin news"):
+          - `news_headlines` CANNOT do topic filtering. Do NOT use it for niche/specific topics.
+          - Instead, build a composite widget with:
+            1. A `text` header labeling the topic (e.g., "Iran-US Conflict News")
+            2. `link_bookmarks` with clickable links to relevant news search/topic pages:
+               - Google News search: "https://news.google.com/search?q=<topic>"
+               - Reuters search: "https://www.reuters.com/search/news?query=<topic>"
+               - BBC search: "https://www.bbc.co.uk/search?q=<topic>"
+               - AP News search: "https://apnews.com/search?q=<topic>"
+            3. Optionally a `note` component with brief context about the topic
+          - This gives the user CLICKABLE, USEFUL links instead of an empty "No headlines" widget.
+        - For GENERAL news ("show me news", "latest headlines", "breaking news"):
+          - Use `news_headlines` with a known RSS feed from the list above.
+          - Pick the most relevant feed category (world, tech, business, etc.) based on context.
 
         GitHub repo stats requests:
         - For any GitHub repo request (stars, forks, issues, watchers, stats, tracker), use `github_repo_stats`.
@@ -176,6 +273,12 @@ struct PromptBuilder {
 
         5. Design quality and theme compliance.
         - Default theme is \(defaultTheme.rawValue) unless user requests otherwise.
+        - Available themes: obsidian (dark), frosted (light glass), neon (dark electric), paper (warm light),
+          transparent (glass overlay), pastel (soft pastels), sakura (cherry blossom pink), ocean (deep blue),
+          sunset (warm dark), lavender (soft purple), retro (vintage warm), cyberpunk (neon gamer),
+          midnight (deep indigo), rose_gold (elegant pink), mono (minimalist grayscale).
+        - If the user asks for a vibe/aesthetic that matches a theme, use that theme (e.g. "gamer" -> cyberpunk,
+          "vintage" -> retro, "cute" -> sakura or pastel, "elegant" -> rose_gold, "minimal" -> mono).
         - ALWAYS use semantic color tokens for text and accents: "primary", "secondary", "accent",
           "positive", "negative", "warning", "muted". Do NOT hardcode hex colors for theme-dependent
           elements — use tokens so the theme system controls colors.
@@ -183,8 +286,56 @@ struct PromptBuilder {
         - Use typography hierarchy: large for primary data (24–42pt), small for labels (11–13pt).
         - Keep layouts glanceable and readable at a glance.
 
-        6. Edit behavior.
-        For edits, preserve everything the user did not ask to change.
+        6. Edit behavior — SURGICAL PRECISION REQUIRED.
+        When editing an existing widget:
+        - You will receive the FULL existing JSON config and a specific edit request.
+        - Change ONLY what the edit asks for. Treat every other field as FROZEN.
+        - If the widget has 3 cities, the output must have 3 cities (unless told to add/remove).
+        - If all weather uses celsius, keep ALL weather in celsius (unless told to change units).
+        - Do NOT add components (weather, date, text labels) that weren't in the original unless the edit explicitly asks.
+        - Do NOT remove components that were in the original unless the edit explicitly asks.
+        - Preserve every timezone, location, symbol, unit, format, color, font, size, and spacing value unless the edit targets it.
+        - For type conversions (digital→analog, analog→digital): swap the component type but keep ALL associated data (timezone, label, position in layout).
+
+        RUNTIME AWARENESS — WILL IT ACTUALLY SHOW CONTENT?
+        Before choosing a component, verify it will produce VISIBLE content at runtime:
+        - `news_headlines`: Only works with valid RSS feed URLs. If you use an invalid/made-up URL, the widget shows "No headlines" (empty). ONLY use URLs from the known feeds list above. For topic-specific news, use `link_bookmarks` instead.
+        - `weather`: Needs a real, resolvable location string. Vague or misspelled locations may show no data.
+        - `stock`/`crypto`: Need valid ticker symbols. Made-up symbols show no data.
+        - `github_repo_stats`: Needs a valid "owner/repo" string. Invalid repos show no data.
+        - `calendar_next`/`reminders`: Depend on user's local calendar/reminders data — may be empty if user has none.
+        - RULE: Never generate a widget that you suspect might render empty. If a data component might fail, compose a FALLBACK alongside it (e.g., `link_bookmarks` with relevant URLs, or a `note` explaining the limitation). An empty widget is the WORST possible outcome.
+
+        SMART FALLBACK STRATEGIES — WHEN NATIVE COMPONENTS DON'T FIT:
+        For requests outside native data providers, ALWAYS build a useful widget using composition:
+
+        Pattern 1: LINK HUB — For external services/websites the app can't fetch directly:
+        - Use `link_bookmarks` (style: "list") with relevant clickable URLs
+        - Add a `text` header to label the widget
+        - Example: "Reddit r/programming" → text header "r/programming" + link_bookmarks with URLs to the subreddit, top posts page, etc.
+
+        Pattern 2: TRACKER — For tracking habits, routines, goals:
+        - Use `habit_tracker` for daily boolean tracking (did/didn't)
+        - Use `checklist` with `interactive: true` for task lists
+        - Use `progress_ring` or `progress_bar` for goal visualization
+        - Example: "Water intake tracker" → habit_tracker with habits: 8am glass, noon glass, 3pm glass, 6pm glass, 9pm glass
+
+        Pattern 3: QUICK ACCESS — For opening files, apps, scripts, folders:
+        - Use `shortcut_launcher` with `open:bundleID` or `url:` actions
+        - Example: "Quick access to my dev tools" → shortcut_launcher with Terminal, VS Code, Xcode, GitHub Desktop, etc.
+
+        Pattern 4: REFERENCE CARD — For information the user wants to see at a glance:
+        - Use `note` (editable: true) for user-writable content
+        - Use `text` components for static labels/info
+        - Use `quote` with custom quotes for rotating messages
+        - Example: "Motivational dashboard" → quote with custom affirmations + progress_ring + text
+
+        Pattern 5: DASHBOARD — For complex multi-section widgets:
+        - Use `vstack`/`hstack` to compose multiple component types
+        - Mix native data (weather, clock) with interactive (checklist) and static (text) components
+        - Example: "Morning routine widget" → vstack of [weather, calendar_next, checklist with routine items, quote]
+
+        THE GOLDEN RULE: There is NO prompt for which the right answer is an empty widget. Compose something useful from the available components. Every request can produce a meaningful widget.
 
         OUTPUT RULES
         - Return ONLY one valid JSON object.
@@ -196,6 +347,7 @@ struct PromptBuilder {
         - If user asks for data, prefer available data components:
           weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time.
         - If data request is outside available components, use `text` or `note` fallback instead of failing.
+        - NEVER produce a widget that will render as blank/empty. If in doubt, include visible static content alongside any data component.
 
         CURRENT CONTEXT
         - Today's date: \(context.currentDateString)
@@ -244,18 +396,262 @@ struct PromptBuilder {
 
     func editUserPrompt(existingConfig: WidgetConfig, editPrompt: String) -> String {
         let configJSON = Self.encode(existingConfig)
+        let manifest = Self.buildPreservationManifest(existingConfig: existingConfig)
+        let editIntelligence = Self.editReasoningHints(existingConfig: existingConfig, editPrompt: editPrompt)
         return """
         The user wants to modify an existing widget.
 
         Existing widget config:
         \(configJSON)
 
+        \(manifest)
+
         User edit request:
         \(editPrompt)
 
+        \(editIntelligence)
+
+        ## STRICT EDIT RULES
+        1. ONLY change what the user explicitly asked to change. Nothing else.
+        2. Do NOT add components (weather, date, text, etc.) the user did not ask for.
+        3. Do NOT remove cities/rows/components the user did not ask to remove.
+        4. Do NOT change temperature units, timezones, locations, or any data field unless the user explicitly asked.
+        5. If the widget has N cities/rows, the output MUST still have exactly N cities/rows (unless the user asked to add/remove).
+        6. ALL temperature units MUST be consistent — use whatever unit the existing widget uses for ALL cities, not mixed.
+        7. Preserve the exact same layout structure (vstack/hstack nesting) unless the edit requires restructuring.
+        8. Preserve name, description, size, theme, background, padding, cornerRadius, refreshInterval unless the edit requires changing them.
+
         Return the complete updated widget JSON only.
-        Preserve all fields and structure the user did not ask to change.
         """
+    }
+
+    /// Build a human-readable inventory of what's in the existing widget so the AI knows exactly what to preserve.
+    private static func buildPreservationManifest(existingConfig: WidgetConfig) -> String {
+        var lines: [String] = ["## EXISTING WIDGET INVENTORY (preserve all unless edit says otherwise)"]
+
+        lines.append("- Name: \"\(existingConfig.name)\"")
+        lines.append("- Size: \(Int(existingConfig.size.width))x\(Int(existingConfig.size.height))")
+        lines.append("- Theme: \(existingConfig.theme.rawValue)")
+        lines.append("- Refresh interval: \(existingConfig.refreshInterval)s")
+
+        // Walk the component tree and describe what's there
+        var componentDescriptions: [String] = []
+        describeComponents(existingConfig.content, depth: 0, into: &componentDescriptions)
+
+        if !componentDescriptions.isEmpty {
+            lines.append("- Components:")
+            lines.append(contentsOf: componentDescriptions)
+        }
+
+        // Extract specific data points that must be preserved
+        var dataPoints: [String] = []
+        extractDataPoints(from: existingConfig.content, into: &dataPoints)
+        if !dataPoints.isEmpty {
+            lines.append("- Data bindings that MUST be preserved exactly:")
+            lines.append(contentsOf: dataPoints.map { "  • \($0)" })
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Recursively describe each component in the tree.
+    private static func describeComponents(_ component: ComponentConfig, depth: Int, into lines: inout [String]) {
+        let indent = String(repeating: "  ", count: depth + 1)
+        var desc = "\(indent)• \(component.type.rawValue)"
+
+        switch component.type {
+        case .clock:
+            let tz = component.timezone ?? "local"
+            let fmt = component.format ?? "HH:mm"
+            desc += " (timezone: \(tz), format: \(fmt))"
+        case .analogClock:
+            let tz = component.timezone ?? "local"
+            desc += " (timezone: \(tz), animated hands)"
+        case .weather:
+            let loc = component.location ?? "unknown"
+            let unit = component.temperatureUnit ?? "unset"
+            desc += " (location: \(loc), unit: \(unit))"
+        case .stock:
+            let sym = component.symbol ?? "?"
+            desc += " (symbol: \(sym))"
+        case .crypto:
+            let sym = component.symbol ?? "?"
+            desc += " (symbol: \(sym))"
+        case .text:
+            let content = component.content ?? ""
+            let preview = content.count > 40 ? String(content.prefix(40)) + "..." : content
+            desc += " (\"\(preview)\")"
+        case .worldClocks:
+            if let clocks = component.clocks {
+                let labels = clocks.map { $0.label ?? $0.timezone }
+                desc += " (cities: \(labels.joined(separator: ", ")))"
+            }
+        case .checklist:
+            let interactive = component.interactive == true
+            desc += " (interactive: \(interactive))"
+        case .note:
+            let editable = component.editable == true
+            desc += " (editable: \(editable))"
+        case .vstack, .hstack, .container:
+            let childCount = component.children?.count ?? 0
+            desc += " (\(childCount) children)"
+        default:
+            break
+        }
+
+        lines.append(desc)
+
+        if let child = component.child {
+            describeComponents(child, depth: depth + 1, into: &lines)
+        }
+        if let children = component.children {
+            for entry in children {
+                describeComponents(entry, depth: depth + 1, into: &lines)
+            }
+        }
+    }
+
+    /// Extract specific data values that must be kept consistent.
+    private static func extractDataPoints(from component: ComponentConfig, into points: inout [String]) {
+        if let tz = component.timezone, tz != "local" {
+            points.append("timezone: \(tz)")
+        }
+        if let loc = component.location, !loc.isEmpty {
+            let unit = component.temperatureUnit ?? "default"
+            points.append("weather location: \(loc) (unit: \(unit))")
+        }
+        if let sym = component.symbol, !sym.isEmpty {
+            points.append("\(component.type.rawValue) symbol: \(sym)")
+        }
+
+        if let child = component.child {
+            extractDataPoints(from: child, into: &points)
+        }
+        if let children = component.children {
+            for entry in children {
+                extractDataPoints(from: entry, into: &points)
+            }
+        }
+    }
+
+    /// Generate reasoning hints about what an edit transformation implies.
+    private static func editReasoningHints(existingConfig: WidgetConfig, editPrompt: String) -> String {
+        let lower = editPrompt.lowercased()
+        var hints: [String] = []
+
+        let existingTypes = collectComponentTypes(from: existingConfig.content)
+
+        // Detect what temperature unit the existing widget uses (for consistency enforcement)
+        var existingUnits: Set<String> = []
+        collectTemperatureUnits(from: existingConfig.content, into: &existingUnits)
+        if existingUnits.count == 1, let unit = existingUnits.first {
+            hints.append("CONSISTENCY: The existing widget uses \(unit) for ALL weather components. Keep ALL cities in \(unit) unless the user explicitly asks to change the unit.")
+        }
+
+        // Count existing cities/rows
+        let cityCount = countCitiesOrRows(in: existingConfig.content)
+        if cityCount > 1 {
+            hints.append("PRESERVATION: The existing widget has \(cityCount) city rows. The output MUST have exactly \(cityCount) city rows unless the user asks to add or remove cities.")
+        }
+
+        // Detect component type transitions
+        if lower.contains("analog") && existingTypes.contains(.clock) && !existingTypes.contains(.analogClock) {
+            hints.append("CONVERSION: Replace each `clock` component with `analog_clock` (animated rotating hands). Preserve the SAME timezone on each. Do NOT add or remove any cities/rows.")
+        }
+
+        if lower.contains("digital") && existingTypes.contains(.analogClock) && !existingTypes.contains(.clock) {
+            hints.append("CONVERSION: Replace each `analog_clock` component with `clock` (text-based time). Preserve the SAME timezone on each. Do NOT add or remove any cities/rows.")
+        }
+
+        if (lower.contains("multiple cit") || lower.contains("more cit") || lower.contains("add cit") || lower.contains("world clock")) &&
+           (existingTypes.contains(.clock) || existingTypes.contains(.analogClock)) {
+            hints.append("EXPANSION: Adding cities means creating additional clock components with new IANA timezones. Keep all existing cities intact.")
+        }
+
+        if lower.contains("weather") && !existingTypes.contains(.weather) {
+            hints.append("ADDITION: Adding weather requires a `weather` component with `location` field. Use the same temperature unit for ALL cities. Consider upgrading size if needed.")
+        }
+
+        if lower.contains("live") || lower.contains("refresh") || lower.contains("real-time") {
+            if existingConfig.refreshInterval <= 0 {
+                hints.append("ADDITION: Making live requires setting `refreshInterval` (in seconds). Use 60 for most live data.")
+            }
+        }
+
+        if lower.contains("interactive") || lower.contains("editable") || lower.contains("check off") {
+            hints.append("MODIFICATION: Set `interactive: true` on checklist or `editable: true` on note components.")
+        }
+
+        // Check for things NOT mentioned in the edit that should NOT be touched
+        if !lower.contains("weather") && !lower.contains("temperature") && !lower.contains("temp") && existingTypes.contains(.weather) {
+            hints.append("NO-TOUCH: The user did NOT mention weather. Do NOT change, add, or remove any weather components or their settings.")
+        }
+        if !lower.contains("clock") && !lower.contains("time") && !lower.contains("analog") && !lower.contains("digital") &&
+           (existingTypes.contains(.clock) || existingTypes.contains(.analogClock)) {
+            hints.append("NO-TOUCH: The user did NOT mention clocks. Do NOT change clock types, timezones, or formats.")
+        }
+
+        if hints.isEmpty {
+            return "EDIT PRINCIPLE: Change ONLY what was asked. Preserve everything else exactly as-is."
+        }
+
+        return "## EDIT REASONING\n" + hints.joined(separator: "\n")
+    }
+
+    /// Collect all temperature units used in the component tree.
+    private static func collectTemperatureUnits(from component: ComponentConfig, into units: inout Set<String>) {
+        if component.type == .weather, let unit = component.temperatureUnit, !unit.isEmpty {
+            units.insert(unit)
+        }
+        if let child = component.child {
+            collectTemperatureUnits(from: child, into: &units)
+        }
+        if let children = component.children {
+            for entry in children {
+                collectTemperatureUnits(from: entry, into: &units)
+            }
+        }
+    }
+
+    /// Count the number of city rows (hstack children in a vstack that contain clocks or weather).
+    private static func countCitiesOrRows(in component: ComponentConfig) -> Int {
+        // If this is a vstack with hstack children containing clocks/weather, count those
+        if component.type == .vstack || component.type == .container {
+            let clockTypes: Set<ComponentType> = [.clock, .analogClock, .weather, .worldClocks]
+            var count = 0
+            for child in component.children ?? [] {
+                let childTypes = collectComponentTypes(from: child)
+                if !childTypes.intersection(clockTypes).isEmpty {
+                    count += 1
+                }
+            }
+            if count > 0 { return count }
+        }
+        // Check children recursively
+        if let child = component.child {
+            let result = countCitiesOrRows(in: child)
+            if result > 0 { return result }
+        }
+        if let children = component.children {
+            for entry in children {
+                let result = countCitiesOrRows(in: entry)
+                if result > 0 { return result }
+            }
+        }
+        return 0
+    }
+
+    private static func collectComponentTypes(from component: ComponentConfig) -> Set<ComponentType> {
+        var result: Set<ComponentType> = [component.type]
+        if let child = component.child {
+            result.formUnion(collectComponentTypes(from: child))
+        }
+        if let children = component.children {
+            for entry in children {
+                result.formUnion(collectComponentTypes(from: entry))
+            }
+        }
+        return result
     }
 
     func verificationSystemPrompt() -> String {

@@ -12,7 +12,7 @@ final class SettingsWindow {
         let window = NSWindow(contentViewController: hostingController)
         window.title = "widgie Settings"
         window.styleMask = [.titled, .closable, .miniaturizable]
-        window.setFrame(NSRect(x: 0, y: 0, width: 620, height: 420), display: false)
+        window.setFrame(NSRect(x: 0, y: 0, width: 680, height: 520), display: false)
         window.center()
         window.isReleasedWhenClosed = false
 
@@ -52,6 +52,6 @@ private struct SettingsRootView: View {
                 }
         }
         .padding(18)
-        .frame(minWidth: 620, minHeight: 420)
+        .frame(minWidth: 680, minHeight: 520)
     }
 }

@@ -384,8 +384,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     private func scheduleInitialAutoSizePasses() {
         autoFitRevision += 1
         let revision = autoFitRevision
-        // Multiple passes absorb async data arriving right after first paint.
-        let delays: [TimeInterval] = [0.04, 0.18, 0.42]
+        // Multiple passes absorb async data arriving after first paint (network/provider fetches).
+        // Late passes compact widgets after real data replaces placeholders.
+        let delays: [TimeInterval] = [0.04, 0.18, 0.42, 0.95, 1.8, 3.0]
         for delay in delays {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.autoFitRevision == revision else { return }
@@ -393,7 +394,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             }
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.46) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.50) { [weak self] in
             guard let self, self.autoFitRevision == revision else { return }
             self.onAutoSizeCompleted?()
         }
@@ -409,6 +410,16 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
+        // Clamp widget size to fit within screen if it's too large
+        let maxWidth = screenFrame.width - 56
+        let maxHeight = screenFrame.height - 56
+        if config.size.width.cgFloat > maxWidth || config.size.height.cgFloat > maxHeight {
+            let clampedWidth = min(config.size.width.cgFloat, maxWidth)
+            let clampedHeight = min(config.size.height.cgFloat, maxHeight)
+            config.size = WidgetSize(width: clampedWidth.double, height: clampedHeight.double)
+            setContentSize(NSSize(width: clampedWidth, height: clampedHeight))
+        }
+
         let targetOrigin: NSPoint
 
         if let position = config.position {
@@ -416,12 +427,18 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         } else {
             targetOrigin = NSPoint(
                 x: screenFrame.minX + 48,
-                y: screenFrame.maxY - config.size.height.cgFloat - 140
+                y: screenFrame.maxY - config.size.height.cgFloat - 48
             )
         }
 
-        setFrameOrigin(targetOrigin)
-        config.position = WidgetPosition(x: targetOrigin.x.double, y: targetOrigin.y.double)
+        // Always clamp to visible screen area
+        let clampedOrigin = NSPoint(
+            x: min(max(targetOrigin.x, screenFrame.minX + 8), screenFrame.maxX - frame.width - 8),
+            y: min(max(targetOrigin.y, screenFrame.minY + 8), screenFrame.maxY - frame.height - 8)
+        )
+
+        setFrameOrigin(clampedOrigin)
+        config.position = WidgetPosition(x: clampedOrigin.x.double, y: clampedOrigin.y.double)
     }
 
     private func installEventMonitors() {
@@ -827,22 +844,40 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
     private var maximumSize: CGSize {
         let defaultFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1600, height: 1000)
-        let configured = config.maxSize ?? WidgetSize(
-            width: defaultFrame.width.double,
-            height: defaultFrame.height.double
+        // Widgets should never consume more than ~65% of screen in either dimension.
+        let screenCap = WidgetSize(
+            width: (defaultFrame.width * 0.65).double,
+            height: (defaultFrame.height * 0.65).double
         )
+        let configured = config.maxSize ?? screenCap
         return CGSize(
-            width: max(minimumSize.width, configured.width.cgFloat),
-            height: max(minimumSize.height, configured.height.cgFloat)
+            width: max(minimumSize.width, min(configured.width.cgFloat, screenCap.width.cgFloat)),
+            height: max(minimumSize.height, min(configured.height.cgFloat, screenCap.height.cgFloat))
         )
     }
 
     private func inferredMinimumSize() -> CGSize {
         let preferred = inferredPreferredContentSize(for: config.content)
+        let floorSize = minimumSizeFloor(for: config.content)
         return CGSize(
-            width: max(180, floor(preferred.width * 0.56)),
-            height: max(124, floor(preferred.height * 0.56))
+            width: max(floorSize.width, floor(preferred.width * 0.52)),
+            height: max(floorSize.height, floor(preferred.height * 0.52))
         )
+    }
+
+    private func minimumSizeFloor(for component: ComponentConfig) -> CGSize {
+        switch component.type {
+        case .analogClock, .progressRing, .pomodoro:
+            return CGSize(width: 118, height: 118)
+        case .githubRepoStats, .stock, .crypto, .weather, .clock, .date, .countdown, .timer, .stopwatch, .dayProgress, .yearProgress:
+            return CGSize(width: 144, height: 82)
+        case .note, .quote, .text, .newsHeadlines, .calendarNext, .reminders, .checklist, .habitTracker:
+            return CGSize(width: 156, height: 96)
+        case .vstack, .hstack, .container:
+            return CGSize(width: 152, height: 88)
+        default:
+            return CGSize(width: 148, height: 86)
+        }
     }
 
     private func inferredPreferredContentSize(for component: ComponentConfig) -> CGSize {
@@ -933,6 +968,11 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         switch component.type {
         case .analogClock:
             return CGSize(width: 140, height: 140)
+        case .githubRepoStats:
+            if component.showComponents?.contains("description") == true {
+                return CGSize(width: 296, height: 92)
+            }
+            return CGSize(width: 280, height: 62)
         case .timer:
             if component.style?.lowercased() == "ring" {
                 return CGSize(width: 150, height: 150)
@@ -1032,6 +1072,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         let minSize = minimumSize
         let maxSize = maximumSize
         let preferred = inferredPreferredContentSize(for: config.content)
+        let estimatedOuter = estimatedOuterSize(for: preferred)
 
         // The hosting view can report inflated fittingSize because the root renderer uses
         // maxWidth/maxHeight frames. Detect and correct those cases with content heuristics
@@ -1039,28 +1080,37 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         let preferredWidth = preferred.width.isFinite ? preferred.width : fit.width
         let preferredHeight = preferred.height.isFinite ? preferred.height : fit.height
 
-        let widthLooksInflated = fit.width > preferredWidth * 1.25
-        let heightLooksInflated = fit.height > preferredHeight * 1.25
+        let widthLooksInflated = fit.width > preferredWidth * 1.15
+        let heightLooksInflated = fit.height > preferredHeight * 1.15
 
         var targetWidth: CGFloat
         if widthLooksInflated {
             targetWidth = ceil(preferredWidth)
         } else {
-            targetWidth = ceil(max(fit.width, preferredWidth * 0.90))
+            // Tight fit — widgets should be compact, no wasted space
+            let softCap = preferredWidth * 1.03
+            targetWidth = ceil(max(min(fit.width, softCap), preferredWidth * 0.92))
         }
 
         var targetHeight: CGFloat
         if heightLooksInflated {
             targetHeight = ceil(preferredHeight)
         } else {
-            targetHeight = ceil(max(fit.height, preferredHeight * 0.90))
+            let softCap = preferredHeight * 1.03
+            targetHeight = ceil(max(min(fit.height, softCap), preferredHeight * 0.92))
         }
 
         targetWidth = targetWidth.clamped(minSize.width, maxSize.width)
         targetHeight = targetHeight.clamped(minSize.height, maxSize.height)
 
+        // Hard compactness cap: widgets are compact by nature — no dead space allowed.
+        targetWidth = min(targetWidth, ceil(estimatedOuter.width * 1.04))
+        targetHeight = min(targetHeight, ceil(estimatedOuter.height * 1.04))
+        targetWidth = targetWidth.clamped(minSize.width, maxSize.width)
+        targetHeight = targetHeight.clamped(minSize.height, maxSize.height)
+
         let current = frame
-        if abs(current.width - targetWidth) < 8, abs(current.height - targetHeight) < 8 {
+        if abs(current.width - targetWidth) < 4, abs(current.height - targetHeight) < 4 {
             return
         }
 
@@ -1084,6 +1134,13 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         config.position = position
         onSizeChanged?(config.size)
         onPositionChanged?(position)
+    }
+
+    private func estimatedOuterSize(for preferredContent: CGSize) -> CGSize {
+        let insets = config.padding
+        let estimatedWidth = preferredContent.width + insets.leading.cgFloat + insets.trailing.cgFloat
+        let estimatedHeight = preferredContent.height + insets.top.cgFloat + insets.bottom.cgFloat
+        return CGSize(width: max(estimatedWidth, 1), height: max(estimatedHeight, 1))
     }
 
     private func frameClampedToVisibleDesktop(_ input: NSRect) -> NSRect {
@@ -1212,11 +1269,11 @@ private struct ResizeHandlesOverlay: View {
                 ForEach(ResizeHandle.visibleHandles) { handle in
                     ZStack {
                         Circle()
-                            .fill(Color.white)
-                            .frame(width: 12, height: 12)
-                            .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1.5)
+                            .fill(Color.white.opacity(0.7))
+                            .frame(width: 7, height: 7)
+                            .shadow(color: .black.opacity(0.2), radius: 1.5, x: 0, y: 0.5)
                     }
-                    .frame(width: 24, height: 24)
+                    .frame(width: 20, height: 20)
                     .background(Color.clear)
                     .contentShape(Rectangle())
                     .position(handle.position(in: geometry.size))
@@ -1248,7 +1305,7 @@ private enum ResizeHandle: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static var visibleHandles: [ResizeHandle] {
-        [.topLeft, .top, .topRight, .right, .bottomRight, .bottom, .bottomLeft, .left]
+        [.topLeft, .topRight, .bottomRight, .bottomLeft]
     }
 
     var affectsLeft: Bool {

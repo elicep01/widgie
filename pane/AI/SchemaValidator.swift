@@ -4,7 +4,7 @@ struct SchemaValidator {
     private let semanticColors: Set<String> = ["primary", "secondary", "accent", "positive", "negative", "warning", "muted"]
     private let colorRegex = try? NSRegularExpression(pattern: "^#(?:[A-Fa-f0-9]{3}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$")
 
-    private let allowedThemes: Set<String> = ["obsidian", "frosted", "neon", "paper", "transparent", "custom"]
+    private let allowedThemes: Set<String> = Set(WidgetTheme.allCases.map(\.rawValue))
     private let allowedComponentTypes: Set<String> = [
         "text", "icon", "divider", "spacer", "progress_ring", "progress_bar", "chart",
         "clock", "analog_clock", "date", "countdown", "timer", "stopwatch", "world_clocks",
@@ -442,39 +442,15 @@ struct SchemaValidator {
     }
 
     private func defaultBackground(theme: String) -> [String: Any] {
-        switch theme {
-        case "frosted":
-            return [
-                "type": "blur",
-                "material": "popover",
-                "tintColor": "#FFFFFF",
-                "tintOpacity": 0.55
-            ]
-        case "neon":
-            return [
-                "type": "solid",
-                "color": "#080A12"
-            ]
-        case "paper":
-            return [
-                "type": "solid",
-                "color": "#F4EFE6"
-            ]
-        case "transparent":
-            return [
-                "type": "blur",
-                "material": "hudWindow",
-                "tintColor": "#000000",
-                "tintOpacity": 0.35
-            ]
-        default:
-            return [
-                "type": "blur",
-                "material": "hudWindow",
-                "tintColor": "#0D1117",
-                "tintOpacity": 0.72
-            ]
-        }
+        let widgetTheme = WidgetTheme(rawValue: theme) ?? .obsidian
+        let bg = BackgroundConfig.default(for: widgetTheme)
+
+        var result: [String: Any] = ["type": bg.type]
+        if let material = bg.material { result["material"] = material }
+        if let tintColor = bg.tintColor { result["tintColor"] = tintColor }
+        if let tintOpacity = bg.tintOpacity { result["tintOpacity"] = tintOpacity }
+        if let color = bg.color { result["color"] = color }
+        return result
     }
 
     private func normalizeComponentDictionary(_ component: inout [String: Any]) {
