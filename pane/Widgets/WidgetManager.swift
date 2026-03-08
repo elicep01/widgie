@@ -156,6 +156,7 @@ final class WidgetManager {
     }
 
     func applyTheme(_ theme: WidgetTheme) {
+        settingsStore.defaultTheme = theme
         for (id, window) in windows {
             var updated = window.config
             updated.theme = theme
@@ -298,6 +299,10 @@ final class WidgetManager {
 
         window.onDragEnded = { [weak self] in
             self?.alignmentGuideOverlay.hide()
+        }
+
+        window.onThemeChanged = { [weak self] theme in
+            self?.applyTheme(theme)
         }
 
         window.onAutoSizeCompleted = { [weak self, weak window] in

@@ -15,6 +15,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     var onDragFeedbackRequested: ((CGRect) -> WidgetDragFeedback)?
     var onDragEnded: (() -> Void)?
     var onAutoSizeCompleted: (() -> Void)?
+    var onThemeChanged: ((WidgetTheme) -> Void)?
 
     var isPositionLocked: Bool { isLocked }
 
@@ -374,6 +375,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             },
             onResizeEnd: { [weak self] in
                 self?.endResizeDrag()
+            },
+            onThemeChanged: { [weak self] theme in
+                self?.onThemeChanged?(theme)
             }
         )
 
@@ -459,7 +463,16 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
-            self?.deactivateIfOutside(from: event)
+            guard let self else { return }
+            // If click lands inside a passive widget, activate immediately so the
+            // very next click is received. This prevents "click twice to interact".
+            let clickPoint = NSEvent.mouseLocation
+            if self.isPassive, self.frame.contains(clickPoint) {
+                self.setPassiveMode(enabled: false)
+                self.activate()
+            } else {
+                self.deactivateIfOutside(from: event)
+            }
         }
 
         localMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged]) { [weak self] event in
@@ -592,27 +605,11 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return
         }
 
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.hoverActivationWorkItem = nil
-
-            guard self.isPassive,
-                  self.isPointerInside,
-                  !self.isDragging,
-                  !self.isResizing else {
-                return
-            }
-
-            self.setPassiveMode(enabled: false)
-            self.isHoverEngaged = true
-        }
-
-        hoverActivationWorkItem = workItem
-        // Interactive widgets (buttons, checklists, launchers) activate instantly
-        // so clicks register without waiting. Non-interactive widgets use a small
-        // delay to prevent accidental activation when the cursor passes over.
-        let delay: Double = config.hasInteractiveContent ? 0.02 : 0.12
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        // Activate immediately — no delay. The mouseMoved event always fires before
+        // a click, so by the time the user clicks, ignoresMouseEvents is already false.
+        hoverActivationWorkItem = nil
+        setPassiveMode(enabled: false)
+        isHoverEngaged = true
     }
 
     private func cancelHoverActivation() {
@@ -640,7 +637,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         }
 
         passivationWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: workItem)
     }
 
     private func cancelPassivation() {
@@ -1193,6 +1190,7 @@ private struct WidgetPanelContentView: View {
     let onToggleLock: () -> Void
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
+    let onThemeChanged: (WidgetTheme) -> Void
 
     var body: some View {
         WidgetRenderer(config: config)
@@ -1256,6 +1254,21 @@ private struct WidgetPanelContentView: View {
 
                 Button(isLocked ? "Unlock Position" : "Lock Position") {
                     onToggleLock()
+                }
+
+                Menu("Theme") {
+                    ForEach(WidgetTheme.allCases.filter { $0 != .custom }, id: \.rawValue) { theme in
+                        Button {
+                            onThemeChanged(theme)
+                        } label: {
+                            HStack {
+                                Text(theme.displayName)
+                                if theme == config.theme {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Divider()

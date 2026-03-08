@@ -19,15 +19,16 @@ final class WidgetGalleryWindow {
         self.rootView = root
 
         let hostingController = NSHostingController(rootView: root)
-        let panel = NSPanel(contentViewController: hostingController)
-        panel.title = "Widget Gallery"
-        panel.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        panel.setFrame(NSRect(x: 0, y: 0, width: 780, height: 620), display: false)
-        panel.minSize = NSSize(width: 600, height: 480)
-        panel.center()
-        panel.isReleasedWhenClosed = false
-        panel.isFloatingPanel = false
-        self.window = panel
+        let win = NSPanel(contentViewController: hostingController)
+        win.title = "Widget Gallery"
+        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        win.setFrame(NSRect(x: 0, y: 0, width: 780, height: 620), display: false)
+        win.minSize = NSSize(width: 600, height: 480)
+        win.center()
+        win.isReleasedWhenClosed = false
+        win.isFloatingPanel = false
+        win.becomesKeyOnlyIfNeeded = false
+        self.window = win
     }
 
     func show() {
