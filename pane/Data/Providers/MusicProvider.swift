@@ -6,7 +6,8 @@ struct MusicProvider {
     // MARK: - Fetch Now Playing (Universal)
 
     func fetch() async -> MusicSnapshot {
-        // Try MediaRemote first — works with YouTube Music, Spotify, Apple Music, VLC, etc.
+        // Strategy: Try MediaRemote first (universal, works with browser-based players).
+        // If it returns data, use it. If not, fall back to AppleScript for known apps.
         if MediaRemoteBridge.isAvailable {
             async let info = MediaRemoteBridge.fetchNowPlaying()
             async let bundleID = MediaRemoteBridge.fetchNowPlayingBundleID()
@@ -41,7 +42,7 @@ struct MusicProvider {
 
         // Fallback: AppleScript for Spotify / Apple Music
         if isSpotifyRunning {
-            return fetchSpotifyViaAppleScript()
+            return await fetchSpotifyViaAppleScript()
         }
         if isMusicRunning {
             return fetchAppleMusicViaAppleScript()
@@ -64,32 +65,33 @@ struct MusicProvider {
     // MARK: - Playback Controls (Universal)
 
     func playPause() {
-        if MediaRemoteBridge.isAvailable {
-            MediaRemoteBridge.sendCommand(.togglePlayPause)
-        } else if isSpotifyRunning {
+        // Prefer AppleScript for known apps (reliable in sandbox), MediaRemote for others
+        if isSpotifyRunning {
             runAppleScript("tell application \"Spotify\" to playpause")
         } else if isMusicRunning {
             runAppleScript("tell application \"Music\" to playpause")
+        } else if MediaRemoteBridge.isAvailable {
+            MediaRemoteBridge.sendCommand(.togglePlayPause)
         }
     }
 
     func nextTrack() {
-        if MediaRemoteBridge.isAvailable {
-            MediaRemoteBridge.sendCommand(.nextTrack)
-        } else if isSpotifyRunning {
+        if isSpotifyRunning {
             runAppleScript("tell application \"Spotify\" to next track")
         } else if isMusicRunning {
             runAppleScript("tell application \"Music\" to next track")
+        } else if MediaRemoteBridge.isAvailable {
+            MediaRemoteBridge.sendCommand(.nextTrack)
         }
     }
 
     func previousTrack() {
-        if MediaRemoteBridge.isAvailable {
-            MediaRemoteBridge.sendCommand(.previousTrack)
-        } else if isSpotifyRunning {
+        if isSpotifyRunning {
             runAppleScript("tell application \"Spotify\" to previous track")
         } else if isMusicRunning {
             runAppleScript("tell application \"Music\" to back track")
+        } else if MediaRemoteBridge.isAvailable {
+            MediaRemoteBridge.sendCommand(.previousTrack)
         }
     }
 
@@ -104,7 +106,7 @@ struct MusicProvider {
 
     // MARK: - AppleScript Fallbacks
 
-    private func fetchSpotifyViaAppleScript() -> MusicSnapshot {
+    private func fetchSpotifyViaAppleScript() async -> MusicSnapshot {
         let title = runAppleScript("""
         tell application "Spotify"
             if player state is playing or player state is paused then
@@ -160,6 +162,9 @@ struct MusicProvider {
             progress = nil
         }
 
+        // Fetch Spotify artwork URL and download it
+        let artworkData = await fetchSpotifyArtwork()
+
         return MusicSnapshot(
             title: title?.isEmpty == true ? nil : title,
             artist: artist?.isEmpty == true ? nil : artist,
@@ -167,11 +172,33 @@ struct MusicProvider {
             progress: progress,
             isPlaying: (state ?? "").lowercased().contains("playing"),
             source: "Spotify",
-            artworkData: nil,
+            artworkData: artworkData,
             elapsedTime: position,
             duration: trackDuration,
             updatedAt: Date()
         )
+    }
+
+    private func fetchSpotifyArtwork() async -> Data? {
+        let urlString = runAppleScript("""
+        tell application "Spotify"
+            if player state is playing or player state is paused then
+                return artwork url of current track
+            end if
+            return ""
+        end tell
+        """)
+
+        guard let urlString, !urlString.isEmpty, let url = URL(string: urlString) else {
+            return nil
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return data
+        } catch {
+            return nil
+        }
     }
 
     private func fetchAppleMusicViaAppleScript() -> MusicSnapshot {
@@ -230,6 +257,9 @@ struct MusicProvider {
             progress = nil
         }
 
+        // Apple Music artwork via AppleScript (returns raw data)
+        let artworkData = fetchAppleMusicArtwork()
+
         return MusicSnapshot(
             title: title?.isEmpty == true ? nil : title,
             artist: artist?.isEmpty == true ? nil : artist,
@@ -237,11 +267,32 @@ struct MusicProvider {
             progress: progress,
             isPlaying: (state ?? "").lowercased().contains("playing"),
             source: "Apple Music",
-            artworkData: nil,
+            artworkData: artworkData,
             elapsedTime: position,
             duration: trackDuration,
             updatedAt: Date()
         )
+    }
+
+    private func fetchAppleMusicArtwork() -> Data? {
+        guard let script = NSAppleScript(source: """
+        tell application "Music"
+            if player state is playing or player state is paused then
+                try
+                    return raw data of artwork 1 of current track
+                end try
+            end if
+            return ""
+        end tell
+        """) else { return nil }
+
+        var error: NSDictionary?
+        let result = script.executeAndReturnError(&error)
+        if error != nil { return nil }
+
+        // The raw data descriptor contains image bytes
+        let data = result.data
+        return data.isEmpty ? nil : data
     }
 
     // MARK: - Helpers

@@ -129,15 +129,15 @@ actor DataServiceManager {
         return value
     }
 
-    func musicPlayPause() {
+    nonisolated func musicPlayPause() {
         musicProvider.playPause()
     }
 
-    func musicNextTrack() {
+    nonisolated func musicNextTrack() {
         musicProvider.nextTrack()
     }
 
-    func musicPreviousTrack() {
+    nonisolated func musicPreviousTrack() {
         musicProvider.previousTrack()
     }
 
