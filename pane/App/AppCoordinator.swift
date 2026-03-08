@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Foundation
 import UniformTypeIdentifiers
 
@@ -83,6 +84,7 @@ final class AppCoordinator {
         wireCallbacks()
         observeSettings()
         applyRuntimeSettings()
+        registerExtraHotkeys()
 
         hotkeyListener.start()
         menuBarController.start()
@@ -163,6 +165,29 @@ final class AppCoordinator {
         agentOrchestrator = AppCoordinator.makeAgentOrchestrator(
             enableWebDiscovery: settingsStore.enableWebDiscovery
         )
+    }
+
+    private func registerExtraHotkeys() {
+        // Cmd+G → Widget Gallery
+        hotkeyListener.registerExtra(
+            keyCode: UInt32(kVK_ANSI_G),
+            modifiers: UInt32(cmdKey)
+        ) { [weak self] in
+            Task { @MainActor in
+                self?.galleryWindow.show()
+            }
+        }
+
+        // Cmd+L → Auto Layout
+        hotkeyListener.registerExtra(
+            keyCode: UInt32(kVK_ANSI_L),
+            modifiers: UInt32(cmdKey)
+        ) { [weak self] in
+            Task { @MainActor in
+                self?.widgetManager.autoLayoutWidgets()
+                self?.refreshMenuState()
+            }
+        }
     }
 
     private func showCommandBar(prefill: String?, editingWidgetID: UUID?) {

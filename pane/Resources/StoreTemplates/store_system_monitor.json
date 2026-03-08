@@ -10,11 +10,7 @@
       "width": 200,
       "height": 90
     },
-    "theme": "neon",
-    "background": {
-      "type": "gradient",
-      "colors": ["#0A0A0A", "#0D1117", "#0A0A0A"]
-    },
+    "theme": "obsidian",
     "cornerRadius": 16,
     "padding": {
       "top": 8,

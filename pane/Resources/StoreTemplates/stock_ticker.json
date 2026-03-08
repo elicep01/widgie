@@ -11,10 +11,6 @@
       "height": 50
     },
     "theme": "obsidian",
-    "background": {
-      "type": "gradient",
-      "colors": ["#1A1A2E", "#16213E"]
-    },
     "cornerRadius": 14,
     "padding": {
       "top": 8,

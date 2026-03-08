@@ -1943,6 +1943,8 @@ private struct RemindersComponentView: View {
     }
 }
 
+// MARK: - Battery
+
 private struct BatteryComponentView: View {
     let component: ComponentConfig
     let theme: WidgetTheme
@@ -2014,12 +2016,12 @@ private struct BatteryComponentView: View {
 
     private var alignment: Alignment {
         switch component.alignment?.lowercased() {
-        case "center":
-            return .center
+        case "leading":
+            return .leading
         case "trailing":
             return .trailing
         default:
-            return .leading
+            return .center
         }
     }
 }

@@ -10,11 +10,7 @@
       "width": 320,
       "height": 145
     },
-    "theme": "sunset",
-    "background": {
-      "type": "gradient",
-      "colors": ["#1A1A2E", "#16213E", "#0F3460"]
-    },
+    "theme": "obsidian",
     "cornerRadius": 16,
     "padding": {
       "top": 10,
@@ -51,26 +47,15 @@
               "color": "muted"
             },
             {
-              "type": "container",
-              "background": "gradient:#E94560,#C23152",
-              "cornerRadius": 8,
-              "padding": {
-                "top": 6,
-                "bottom": 6,
-                "leading": 8,
-                "trailing": 8
-              },
-              "child": {
-                "type": "weather",
-                "location": "auto",
-                "style": "compact",
-                "showIcon": true,
-                "showTemperature": true,
-                "showCondition": true,
-                "showHighLow": false,
-                "temperatureUnit": "fahrenheit",
-                "color": "primary"
-              }
+              "type": "weather",
+              "location": "auto",
+              "style": "compact",
+              "showIcon": true,
+              "showTemperature": true,
+              "showCondition": true,
+              "showHighLow": false,
+              "temperatureUnit": "fahrenheit",
+              "color": "accent"
             },
             {
               "type": "day_progress",

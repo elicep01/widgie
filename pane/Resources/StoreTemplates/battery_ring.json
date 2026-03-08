@@ -6,22 +6,10 @@
   "config": {
     "name": "Battery",
     "description": "Battery ring indicator",
-    "size": {
-      "width": 110,
-      "height": 95
-    },
-    "theme": "neon",
-    "background": {
-      "type": "gradient",
-      "colors": ["#0A0A0A", "#1A1A2E"]
-    },
+    "size": { "width": 110, "height": 95 },
+    "theme": "obsidian",
     "cornerRadius": 16,
-    "padding": {
-      "top": 8,
-      "bottom": 8,
-      "leading": 8,
-      "trailing": 8
-    },
+    "padding": { "top": 8, "bottom": 8, "leading": 8, "trailing": 8 },
     "refreshInterval": 30,
     "content": {
       "type": "battery",
@@ -30,11 +18,9 @@
       "lowThreshold": 20,
       "color": "positive",
       "lowColor": "negative",
-      "size": 12
+      "size": 12,
+      "alignment": "center"
     },
-    "maxSize": {
-      "width": 150,
-      "height": 130
-    }
+    "maxSize": { "width": 150, "height": 130 }
   }
 }

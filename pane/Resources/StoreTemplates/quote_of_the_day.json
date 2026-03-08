@@ -10,11 +10,7 @@
       "width": 230,
       "height": 75
     },
-    "theme": "rose_gold",
-    "background": {
-      "type": "gradient",
-      "colors": ["#2B1B2E", "#3D2244", "#1A1A2E"]
-    },
+    "theme": "obsidian",
     "cornerRadius": 16,
     "padding": {
       "top": 12,

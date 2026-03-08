@@ -8,10 +8,6 @@
     "description": "Daily screen time",
     "size": { "width": 220, "height": 140 },
     "theme": "obsidian",
-    "background": {
-      "type": "gradient",
-      "colors": ["#1A1A2E", "#16213E"]
-    },
     "cornerRadius": 16,
     "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
     "refreshInterval": 60,

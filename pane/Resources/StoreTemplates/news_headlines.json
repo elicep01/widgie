@@ -8,10 +8,6 @@
     "description": "Breaking news feed",
     "size": { "width": 230, "height": 110 },
     "theme": "obsidian",
-    "background": {
-      "type": "gradient",
-      "colors": ["#1A1A2E", "#16213E"]
-    },
     "cornerRadius": 16,
     "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
     "refreshInterval": 300,

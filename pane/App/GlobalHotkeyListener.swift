@@ -14,12 +14,24 @@ final class GlobalHotkeyListener {
 
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
-    private let hotKeyID = UInt32(1)
+    private let primaryID = UInt32(1)
     private let signature: OSType = 0x57464745
     private var registration: HotkeyRegistration
     private var lastTriggerDate: Date = .distantPast
     private let minimumTriggerInterval: TimeInterval = 0.35
     private(set) var isRunning = false
+
+    // Extra global hotkeys
+    private struct ExtraHotkey {
+        let id: UInt32
+        let keyCode: UInt32
+        let modifiers: UInt32
+        let handler: Handler
+        var ref: EventHotKeyRef?
+    }
+
+    private var extras: [ExtraHotkey] = []
+    private var nextExtraID: UInt32 = 10
 
     init(registration: HotkeyRegistration) {
         self.registration = registration
@@ -35,6 +47,24 @@ final class GlobalHotkeyListener {
             stop()
             start()
         }
+    }
+
+    /// Register an additional global hotkey. Call before or after start().
+    func registerExtra(keyCode: UInt32, modifiers: UInt32, handler: @escaping Handler) {
+        let id = nextExtraID
+        nextExtraID += 1
+        var extra = ExtraHotkey(id: id, keyCode: keyCode, modifiers: modifiers, handler: handler)
+
+        if isRunning {
+            var ref: EventHotKeyRef?
+            let identifier = EventHotKeyID(signature: signature, id: id)
+            let status = RegisterEventHotKey(keyCode, modifiers, identifier, GetApplicationEventTarget(), 0, &ref)
+            if status == noErr {
+                extra.ref = ref
+            }
+        }
+
+        extras.append(extra)
     }
 
     func start() {
@@ -71,14 +101,20 @@ final class GlobalHotkeyListener {
                     .fromOpaque(userData)
                     .takeUnretainedValue()
 
-                if pressedHotKeyID.signature == listener.signature,
-                   pressedHotKeyID.id == listener.hotKeyID {
-                    let now = Date()
-                    guard now.timeIntervalSince(listener.lastTriggerDate) >= listener.minimumTriggerInterval else {
-                        return noErr
-                    }
-                    listener.lastTriggerDate = now
+                guard pressedHotKeyID.signature == listener.signature else {
+                    return noErr
+                }
+
+                let now = Date()
+                guard now.timeIntervalSince(listener.lastTriggerDate) >= listener.minimumTriggerInterval else {
+                    return noErr
+                }
+                listener.lastTriggerDate = now
+
+                if pressedHotKeyID.id == listener.primaryID {
                     listener.onTrigger?()
+                } else if let extra = listener.extras.first(where: { $0.id == pressedHotKeyID.id }) {
+                    extra.handler()
                 }
 
                 return noErr
@@ -94,7 +130,8 @@ final class GlobalHotkeyListener {
             return
         }
 
-        let identifier = EventHotKeyID(signature: signature, id: hotKeyID)
+        // Register primary hotkey
+        let identifier = EventHotKeyID(signature: signature, id: primaryID)
         let registerStatus = RegisterEventHotKey(
             registration.keyCode,
             registration.modifiers,
@@ -108,6 +145,24 @@ final class GlobalHotkeyListener {
 
         if !isRunning {
             stop()
+            return
+        }
+
+        // Register extra hotkeys
+        for i in extras.indices {
+            var ref: EventHotKeyRef?
+            let extraID = EventHotKeyID(signature: signature, id: extras[i].id)
+            let status = RegisterEventHotKey(
+                extras[i].keyCode,
+                extras[i].modifiers,
+                extraID,
+                GetApplicationEventTarget(),
+                0,
+                &ref
+            )
+            if status == noErr {
+                extras[i].ref = ref
+            }
         }
     }
 
@@ -115,6 +170,15 @@ final class GlobalHotkeyListener {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
             self.hotKeyRef = nil
+        }
+
+        for extra in extras {
+            if let ref = extra.ref {
+                UnregisterEventHotKey(ref)
+            }
+        }
+        for i in extras.indices {
+            extras[i].ref = nil
         }
 
         if let eventHandler {

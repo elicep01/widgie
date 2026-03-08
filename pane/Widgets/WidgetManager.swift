@@ -173,34 +173,114 @@ final class WidgetManager {
     }
 
     func autoLayoutWidgets() {
-        let screens = orderedPlacementScreens()
-        guard !screens.isEmpty else {
-            return
+        guard let screen = NSScreen.main else { return }
+        let frame = screen.visibleFrame
+        let spacing: CGFloat = 10
+        let margin: CGFloat = 20
+
+        // Gather desktop obstacles (icons, native widgets) — NOT our own widgets
+        let desktopIcons = desktopIconReservedFrames(in: frame)
+        let nativeWidgets = nativeDesktopWidgetFrames(in: frame).map { $0.insetBy(dx: -10, dy: -10) }
+        let obstacles = desktopIcons + nativeWidgets
+
+        // Sort widgets: tallest first for better column packing
+        let sortedWindows = windows.values.sorted { lhs, rhs in
+            lhs.frame.height > rhs.frame.height
         }
 
-        let sortedIDs = windows.keys.sorted { lhs, rhs in
-            let left = windows[lhs]?.config.name ?? ""
-            let right = windows[rhs]?.config.name ?? ""
-            return left.localizedCaseInsensitiveCompare(right) == .orderedAscending
+        guard !sortedWindows.isEmpty else { return }
+
+        // Determine which side has more free space by checking obstacle density
+        let leftHalf = CGRect(x: frame.minX, y: frame.minY, width: frame.width / 2, height: frame.height)
+        let rightHalf = CGRect(x: frame.midX, y: frame.minY, width: frame.width / 2, height: frame.height)
+
+        let leftObstacleArea = obstacles.reduce(CGFloat(0)) { $0 + $1.intersection(leftHalf).area }
+        let rightObstacleArea = obstacles.reduce(CGFloat(0)) { $0 + $1.intersection(rightHalf).area }
+
+        // Pack widgets on the side with fewer obstacles, from top-right or top-left corner
+        let packFromRight = leftObstacleArea >= rightObstacleArea
+
+        // Column-pack algorithm: fill columns from top to bottom, then move to next column
+        struct Column {
+            var x: CGFloat
+            var width: CGFloat
+            var nextY: CGFloat  // next available Y (goes downward from top)
+            var bottomY: CGFloat
         }
 
-        var states = screens.map { screen in
-            ScreenPlacementState(
-                frame: screen.visibleFrame,
-                occupied: placementObstacles(in: screen.visibleFrame, excluding: nil)
-            )
-        }
+        let topY = frame.maxY - margin
+        let bottomLimit = frame.minY + margin
 
-        for id in sortedIDs {
-            guard let window = windows[id] else { continue }
+        var columns: [Column] = []
+        var placed: [CGRect] = []
+
+        for window in sortedWindows {
             let size = window.frame.size
-            guard let choice = bestPlacementChoice(for: size, states: states) else { continue }
+            var didPlace = false
 
-            window.setFrameOrigin(choice.origin)
-            states[choice.index].occupied.append(
-                CGRect(origin: choice.origin, size: size).insetBy(dx: -12, dy: -12)
-            )
+            // Try to fit in existing columns
+            for ci in columns.indices {
+                let candidateY = columns[ci].nextY - size.height
+                if candidateY >= columns[ci].bottomY {
+                    let candidateX = columns[ci].x
+                    let candidateRect = CGRect(x: candidateX, y: candidateY, width: size.width, height: size.height)
 
+                    // Check if it overlaps with obstacles
+                    let overlaps = obstacles.contains { $0.intersects(candidateRect.insetBy(dx: -4, dy: -4)) }
+                    if !overlaps {
+                        window.setFrameOrigin(candidateRect.origin)
+                        columns[ci].nextY = candidateY - spacing
+                        columns[ci].width = max(columns[ci].width, size.width)
+                        placed.append(candidateRect)
+                        didPlace = true
+                        break
+                    }
+                }
+            }
+
+            if didPlace { continue }
+
+            // Start a new column
+            let newColumnX: CGFloat
+            if packFromRight {
+                // Rightmost available position
+                if let lastColumn = columns.last {
+                    newColumnX = lastColumn.x - size.width - spacing
+                } else {
+                    newColumnX = frame.maxX - margin - size.width
+                }
+            } else {
+                // Leftmost available position
+                if let lastColumn = columns.last {
+                    newColumnX = lastColumn.x + lastColumn.width + spacing
+                } else {
+                    newColumnX = frame.minX + margin
+                }
+            }
+
+            // Clamp to screen
+            let clampedX = min(max(newColumnX, frame.minX + margin), frame.maxX - margin - size.width)
+            let candidateY = topY - size.height
+            var origin = CGPoint(x: clampedX, y: candidateY)
+
+            // Slide down if overlapping obstacles
+            var candidateRect = CGRect(origin: origin, size: size)
+            var attempts = 0
+            while obstacles.contains(where: { $0.intersects(candidateRect.insetBy(dx: -4, dy: -4)) }) && attempts < 30 {
+                origin.y -= 20
+                candidateRect = CGRect(origin: origin, size: size)
+                attempts += 1
+            }
+
+            if origin.y >= bottomLimit {
+                window.setFrameOrigin(origin)
+                columns.append(Column(x: clampedX, width: size.width, nextY: origin.y - spacing, bottomY: bottomLimit))
+                placed.append(CGRect(origin: origin, size: size))
+            }
+        }
+
+        // Save all positions
+        for window in sortedWindows {
             var updated = window.config
             updated.position = WidgetPosition(x: window.frame.origin.x.double, y: window.frame.origin.y.double)
             window.update(config: updated)
