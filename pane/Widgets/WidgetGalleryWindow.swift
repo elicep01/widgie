@@ -163,6 +163,10 @@ private struct GalleryRootView: View {
         }
     }
 
+    /// Uniform preview size for all gallery cards so they look consistent.
+    private static let previewWidth: CGFloat = 260
+    private static let previewHeight: CGFloat = 160
+
     private func galleryCard(_ item: StoreTemplateItem) -> some View {
         let isHovered = hoveredItem == item.id
         let isAdded = addedItems.contains(item.id)
@@ -170,17 +174,27 @@ private struct GalleryRootView: View {
         themedConfig.theme = selectedTheme
         themedConfig.background = BackgroundConfig.default(for: selectedTheme)
 
+        // Scale the widget to fit uniformly inside the preview box
+        let widgetW = CGFloat(item.config.size.width)
+        let widgetH = CGFloat(item.config.size.height)
+        let scaleX = Self.previewWidth / widgetW
+        let scaleY = Self.previewHeight / widgetH
+        let fitScale = min(scaleX, scaleY, 1.0)  // never upscale past 1×
+
         return VStack(spacing: 0) {
-            // Widget preview — disable hit testing so buttons inside don't intercept
-            WidgetRenderer(config: themedConfig)
-                .frame(
-                    width: min(item.config.size.width, 280),
-                    height: min(item.config.size.height, 200)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .allowsHitTesting(false)
-                .scaleEffect(isHovered ? 1.03 : 1.0)
-                .animation(.easeOut(duration: 0.15), value: isHovered)
+            // Uniform preview container — centers the widget inside
+            ZStack {
+                Color.clear
+                WidgetRenderer(config: themedConfig)
+                    .frame(width: widgetW, height: widgetH)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .scaleEffect(fitScale)
+                    .allowsHitTesting(false)
+            }
+            .frame(width: Self.previewWidth, height: Self.previewHeight)
+            .clipped()
+            .scaleEffect(isHovered ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
 
             // Info + Add button
             HStack {
