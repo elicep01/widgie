@@ -70,7 +70,8 @@ struct PromptBuilder {
         2. **Map to capabilities**: Which components can deliver each part of the intent? Think about:
            - `analog_clock` has animated rotating hands — it's a COMPLETELY DIFFERENT component from `clock` (digital text)
            - `world_clocks` vs multiple individual `clock`/`analog_clock` components — choose based on whether the user wants a unified view or separate styled clocks
-           - `timer` counts DOWN from a duration, `stopwatch` counts UP, `countdown` targets a specific date
+           - `timer` counts DOWN from a duration, `stopwatch` counts UP, `countdown` targets a specific date (targetDate MUST be ISO8601 with timezone: "2027-01-01T00:00:00Z")
+           - `music_now_playing` auto-detects Spotify or Apple Music. Set showControls:true for play/pause/skip buttons. Works live — no setup needed.
            - `checklist` with `interactive: true` lets users check items off — without it, items are static
            - `habit_tracker` works for mood tracking, wellness logging, routine tracking — any daily boolean tracking
            - Layout components (`vstack`, `hstack`, `container`) combine other components — use them to build complex multi-section widgets
@@ -86,11 +87,13 @@ struct PromptBuilder {
            - "Morning briefing widget" → weather + calendar_next + news_headlines in a dashboard layout
            - "Health dashboard" → habit_tracker + progress_ring + text summaries
            - "Track my water intake" → habit_tracker with water-related habits
+           - "File drop zone" / "Desktop clipboard" / "Drag files here" → file_clipboard (drag-and-drop file zone, stores files, can drag them back out)
            - "Show my emails" → link_bookmarks to webmail + text header (can't read email directly)
            - "Reddit feed" → link_bookmarks with subreddit URLs + text labels (can't fetch Reddit API)
            - "Run my backup script" → shortcut_launcher with macOS Shortcut that runs the script
            - "Iran war news" → link_bookmarks with news search URLs + text header (news_headlines can't filter by topic)
-           - "Spotify playlist" → link_bookmarks to Spotify URLs + music_now_playing for current track
+           - "Spotify player" / "Now playing" / "Music widget" → music_now_playing with showControls:true (works with both Spotify AND Apple Music automatically)
+           - "Spotify playlist" → music_now_playing for current track + link_bookmarks to specific playlist URLs
            - "Plant watering schedule" → habit_tracker with plant habits + note for plant info
            - "Budget tracker" → checklist for items + text for labels + progress_bar for spending
            - "Period tracker" → habit_tracker with cycle phase habits (Period, Ovulation, PMS, Clear) + note for symptoms
@@ -118,6 +121,17 @@ struct PromptBuilder {
            - Single city → multi-city: expand to multiple components or world_clocks, add timezone data for each
            - Static → live: add refreshInterval, ensure data components are used
            - Simple → dashboard: upgrade size class, add layout wrappers, compose multiple components
+
+        7. **ALWAYS prefer INTERACTIVE over static**: When in doubt, make it interactive.
+           - To-do/task lists → `checklist` with `interactive: true` (not static text)
+           - Notes/journaling → `note` with `editable: true` (not static text)
+           - Music → `music_now_playing` with `showControls: true` (play/pause/skip)
+           - App launcher → `shortcut_launcher` with `open:bundleID` actions (actually launches apps)
+           - Links → `link_bookmarks` (clickable, opens in browser)
+           - File staging → `file_clipboard` (drag files in/out)
+           - Timers → `pomodoro`/`timer`/`stopwatch` all have start/stop/reset controls
+           - Habits → `habit_tracker` with clickable increment buttons
+           - RULE: If there is an interactive component that fits, USE IT. Never make a static version of something that could be interactive.
 
         YOUR RESPONSIBILITIES
         0. Deliberate before output.
@@ -348,10 +362,12 @@ struct PromptBuilder {
         - No markdown, no code fences, no explanation.
         - Use only component types and fields from schema.
         - Use one of the Apple widget size classes exactly.
-        - Prefer interactive components when the user intent implies editing/toggling/launching.
+        - ALWAYS prefer interactive components when intent implies editing/toggling/launching/playing.
+          music_now_playing has playback controls (play/pause/skip) and auto-detects Spotify, Apple Music, YouTube Music, VLC, etc.
+          file_clipboard accepts drag-and-drop files, stores them, and lets users drag them back out.
         - Omit minSize/maxSize unless explicitly needed.
         - If user asks for data, prefer available data components:
-          weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time.
+          weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time, github_repo_stats.
         - If data request is outside available components, use `text` or `note` fallback instead of failing.
         - NEVER produce a widget that will render as blank/empty. If in doubt, include visible static content alongside any data component.
 
@@ -803,7 +819,7 @@ struct PromptBuilder {
     private static func loadComponentSchema() -> String {
         guard let url = Bundle.main.url(forResource: "ComponentSchema", withExtension: "json"),
               let text = try? String(contentsOf: url, encoding: .utf8) else {
-            return "{\"types\":[\"text\",\"icon\",\"divider\",\"spacer\",\"progress_ring\",\"progress_bar\",\"chart\",\"clock\",\"analog_clock\",\"date\",\"countdown\",\"timer\",\"stopwatch\",\"world_clocks\",\"pomodoro\",\"day_progress\",\"year_progress\",\"weather\",\"stock\",\"crypto\",\"calendar_next\",\"reminders\",\"battery\",\"system_stats\",\"music_now_playing\",\"news_headlines\",\"screen_time\",\"checklist\",\"habit_tracker\",\"quote\",\"note\",\"shortcut_launcher\",\"link_bookmarks\",\"vstack\",\"hstack\",\"container\"]}"
+            return "{\"types\":[\"text\",\"icon\",\"divider\",\"spacer\",\"progress_ring\",\"progress_bar\",\"chart\",\"clock\",\"analog_clock\",\"date\",\"countdown\",\"timer\",\"stopwatch\",\"world_clocks\",\"pomodoro\",\"day_progress\",\"year_progress\",\"weather\",\"stock\",\"crypto\",\"calendar_next\",\"reminders\",\"battery\",\"system_stats\",\"music_now_playing\",\"news_headlines\",\"screen_time\",\"checklist\",\"habit_tracker\",\"quote\",\"note\",\"shortcut_launcher\",\"link_bookmarks\",\"file_clipboard\",\"vstack\",\"hstack\",\"container\"]}"
         }
 
         return text

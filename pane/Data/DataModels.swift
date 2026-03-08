@@ -60,6 +60,7 @@ struct MusicSnapshot: Codable {
     var album: String?
     var progress: Double?
     var isPlaying: Bool
+    var source: String?
     var updatedAt: Date
 }
 

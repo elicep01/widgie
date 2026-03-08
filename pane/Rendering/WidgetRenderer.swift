@@ -210,6 +210,9 @@ struct WidgetRenderer: View {
         case .linkBookmarks:
             return AnyView(LinkBookmarksComponentView(component: component, theme: config.theme))
 
+        case .fileClipboard:
+            return AnyView(FileClipboardComponentView(widgetID: config.id, component: component, theme: config.theme))
+
         case .githubRepoStats:
             return AnyView(GitHubStatsComponentView(component: component, theme: config.theme))
 
@@ -667,7 +670,7 @@ private struct CountdownComponentView: View {
 
     private func remainingText(now: Date) -> String {
         guard let targetString = component.targetDate,
-              let target = ISO8601DateFormatter().date(from: targetString) else {
+              let target = Self.parseDate(targetString) else {
             return "--"
         }
 
@@ -685,6 +688,30 @@ private struct CountdownComponentView: View {
         if units.contains("seconds"), let second = values.second { parts.append("\(second)s") }
 
         return parts.joined(separator: " ")
+    }
+
+    private static func parseDate(_ string: String) -> Date? {
+        // Try standard ISO8601 with timezone first.
+        let iso = ISO8601DateFormatter()
+        if let date = iso.date(from: string) { return date }
+
+        // Try without timezone suffix (e.g. "2027-01-01T00:00:00").
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: string) { return date }
+
+        // Manual fallback: append Z and retry.
+        if !string.hasSuffix("Z") && !string.contains("+") {
+            if let date = ISO8601DateFormatter().date(from: string + "Z") { return date }
+        }
+
+        // Last resort: DateFormatter with common patterns.
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        for fmt in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"] {
+            df.dateFormat = fmt
+            if let date = df.date(from: string) { return date }
+        }
+        return nil
     }
 }
 
@@ -2029,18 +2056,32 @@ private struct MusicNowPlayingComponentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
-            Text(snapshot?.title ?? "Nothing Playing")
-                .font(.system(size: (13 * scale).cgFloat, weight: .semibold))
-                .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                .lineLimit(1)
+            // Track info
+            HStack(spacing: (6 * scale).cgFloat) {
+                VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                    Text(snapshot?.title ?? "Nothing Playing")
+                        .font(.system(size: (13 * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        .lineLimit(1)
 
-            if component.showArtist ?? true {
-                Text(snapshot?.artist ?? "Music")
-                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                    .lineLimit(1)
+                    if component.showArtist ?? true {
+                        HStack(spacing: (4 * scale).cgFloat) {
+                            Text(snapshot?.artist ?? "Open a music app to see what's playing")
+                                .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                                .lineLimit(1)
+                            if let source = snapshot?.source {
+                                Text("· \(source)")
+                                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                            }
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
             }
 
+            // Progress bar
             if component.showProgress ?? true {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -2049,14 +2090,62 @@ private struct MusicNowPlayingComponentView: View {
                         Capsule()
                             .fill(ThemeResolver.color(for: "accent", theme: theme))
                             .frame(width: geo.size.width * (snapshot?.progress ?? 0).cgFloat)
+                            .animation(.linear(duration: 0.5), value: snapshot?.progress)
                     }
                 }
-                .frame(height: (5 * scale).cgFloat)
+                .frame(height: (4 * scale).cgFloat)
+            }
+
+            // Playback controls
+            if component.showControls ?? true {
+                HStack(spacing: (16 * scale).cgFloat) {
+                    Spacer(minLength: 0)
+                    Button {
+                        DataServiceManager.shared.musicPreviousTrack()
+                        refreshAfterDelay()
+                    } label: {
+                        Image(systemName: "backward.fill")
+                            .font(.system(size: (12 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        DataServiceManager.shared.musicPlayPause()
+                        refreshAfterDelay()
+                    } label: {
+                        Image(systemName: (snapshot?.isPlaying ?? false) ? "pause.fill" : "play.fill")
+                            .font(.system(size: (16 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        DataServiceManager.shared.musicNextTrack()
+                        refreshAfterDelay()
+                    } label: {
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: (12 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer(minLength: 0)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
         .polling(every: 1) {
             let value = await DataServiceManager.shared.musicNowPlaying()
+            await MainActor.run {
+                snapshot = value
+            }
+        }
+    }
+
+    private func refreshAfterDelay() {
+        Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            let value = await DataServiceManager.shared.musicNowPlaying(forceRefresh: true)
             await MainActor.run {
                 snapshot = value
             }
@@ -2619,6 +2708,157 @@ private struct QuoteComponentView: View {
             "You do not rise to the level of your goals. You fall to the level of your systems. — James Clear",
             "Do the hard things first. Easy gets easier after. — Unknown"
         ]
+    }
+}
+
+// MARK: - File Clipboard
+
+private struct FileClipboardComponentView: View {
+    let widgetID: UUID
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var files: [FileClipboardEntry] = []
+    @State private var hasLoaded = false
+    @State private var isTargeted = false
+    @Environment(\.widgetScaleFactor) private var scale
+
+    private var maxFiles: Int { Int(component.maxFiles ?? 12) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
+            if let label = component.label, !label.isEmpty {
+                Text(label)
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+            }
+
+            if files.isEmpty && hasLoaded {
+                VStack(spacing: (6 * scale).cgFloat) {
+                    Image(systemName: "square.and.arrow.down.on.square")
+                        .font(.system(size: (20 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    Text("Drop files here")
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                }
+                .frame(maxWidth: .infinity, minHeight: (50 * scale).cgFloat)
+            } else {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: (56 * scale).cgFloat), spacing: (6 * scale).cgFloat)],
+                    spacing: (6 * scale).cgFloat
+                ) {
+                    ForEach(files) { file in
+                        fileCell(file)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding((4 * scale).cgFloat)
+        .background(
+            RoundedRectangle(cornerRadius: (8 * scale).cgFloat, style: .continuous)
+                .fill(isTargeted
+                      ? ThemeResolver.color(for: "accent", theme: theme).opacity(0.08)
+                      : Color.clear)
+                .overlay(
+                    RoundedRectangle(cornerRadius: (8 * scale).cgFloat, style: .continuous)
+                        .strokeBorder(
+                            isTargeted
+                                ? ThemeResolver.color(for: "accent", theme: theme).opacity(0.4)
+                                : ThemeResolver.color(for: "muted", theme: theme).opacity(files.isEmpty ? 0.2 : 0),
+                            style: StrokeStyle(lineWidth: 1.5, dash: files.isEmpty ? [5, 3] : [])
+                        )
+                )
+        )
+        .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
+            handleDrop(providers)
+            return true
+        }
+        .task {
+            guard !hasLoaded else { return }
+            hasLoaded = true
+            files = await loadFiles()
+        }
+    }
+
+    private func fileCell(_ file: FileClipboardEntry) -> some View {
+        VStack(spacing: (3 * scale).cgFloat) {
+            // Drag the file back out
+            fileIcon(file)
+                .onDrag {
+                    NSItemProvider(contentsOf: URL(fileURLWithPath: file.path)) ?? NSItemProvider()
+                }
+
+            Text(file.name)
+                .font(.system(size: (9 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(width: (56 * scale).cgFloat)
+        .contextMenu {
+            Button("Open") {
+                NSWorkspace.shared.open(URL(fileURLWithPath: file.path))
+            }
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.selectFile(file.path, inFileViewerRootedAtPath: "")
+            }
+            Divider()
+            Button("Remove", role: .destructive) {
+                files.removeAll { $0.id == file.id }
+                Task { await saveFiles() }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fileIcon(_ file: FileClipboardEntry) -> some View {
+        let iconImage = NSWorkspace.shared.icon(forFile: file.path)
+        Image(nsImage: iconImage)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: (32 * scale).cgFloat, height: (32 * scale).cgFloat)
+    }
+
+    // MARK: - Drag & Drop
+
+    private func handleDrop(_ providers: [NSItemProvider]) {
+        for provider in providers {
+            provider.loadItem(forTypeIdentifier: "public.file-url", options: nil) { data, _ in
+                guard let data = data as? Data,
+                      let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
+
+                let item = FileClipboardEntry(
+                    id: UUID().uuidString,
+                    name: url.lastPathComponent,
+                    path: url.path
+                )
+
+                DispatchQueue.main.async {
+                    guard !self.files.contains(where: { $0.path == item.path }) else { return }
+                    if self.files.count >= self.maxFiles {
+                        self.files.removeFirst()
+                    }
+                    self.files.append(item)
+                    Task { await self.saveFiles() }
+                }
+            }
+        }
+    }
+
+    // MARK: - Persistence
+
+    private var storageKey: String {
+        componentStorageKey(widgetID: widgetID, component: component, fallback: "file_clipboard")
+    }
+
+    private func loadFiles() async -> [FileClipboardEntry] {
+        await UserDataStore.shared.fileClipboardItems(for: storageKey)
+    }
+
+    private func saveFiles() async {
+        await UserDataStore.shared.setFileClipboardItems(files, for: storageKey)
     }
 }
 

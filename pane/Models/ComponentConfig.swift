@@ -34,6 +34,7 @@ enum ComponentType: String, Codable {
     case note
     case shortcutLauncher = "shortcut_launcher"
     case linkBookmarks = "link_bookmarks"
+    case fileClipboard = "file_clipboard"
     case githubRepoStats = "github_repo_stats"
     case vstack
     case hstack
@@ -158,6 +159,7 @@ final class ComponentConfig: Codable {
     var height: Double?
     var lowThreshold: Double?
     var showMetrics: [String]?
+    var maxFiles: Int?
 
     var direction: String?
     var thickness: Double?
@@ -177,7 +179,8 @@ final class ComponentConfig: Codable {
         let interactiveTypes: Set<ComponentType> = [
             .shortcutLauncher, .linkBookmarks, .checklist,
             .pomodoro, .note, .stopwatch, .timer,
-            .musicNowPlaying, .habitTracker, .reminders
+            .musicNowPlaying, .habitTracker, .reminders,
+            .fileClipboard
         ]
         if interactiveTypes.contains(type) { return true }
         if child?.hasInteractiveContent == true { return true }

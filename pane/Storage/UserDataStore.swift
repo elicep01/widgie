@@ -1,5 +1,11 @@
 import Foundation
 
+struct FileClipboardEntry: Codable, Identifiable {
+    var id: String
+    var name: String
+    var path: String
+}
+
 actor UserDataStore {
     static let shared = UserDataStore()
 
@@ -11,6 +17,7 @@ actor UserDataStore {
         var habitStreaks: [String: Int] = [:]
         var habitLastLogDay: [String: String] = [:]
         var notes: [String: String] = [:]
+        var fileClipboards: [String: [[String: String]]] = [:]
     }
 
     private let fileManager: FileManager
@@ -130,6 +137,20 @@ actor UserDataStore {
 
     func setNote(_ value: String, for key: String) {
         payload.notes[key] = value
+        persist()
+    }
+
+    // MARK: - File Clipboard
+
+    func fileClipboardItems(for key: String) -> [FileClipboardEntry] {
+        (payload.fileClipboards[key] ?? []).compactMap { dict in
+            guard let id = dict["id"], let name = dict["name"], let path = dict["path"] else { return nil }
+            return FileClipboardEntry(id: id, name: name, path: path)
+        }
+    }
+
+    func setFileClipboardItems(_ items: [FileClipboardEntry], for key: String) {
+        payload.fileClipboards[key] = items.map { ["id": $0.id, "name": $0.name, "path": $0.path] }
         persist()
     }
 

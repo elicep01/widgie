@@ -21,13 +21,12 @@ final class WidgetGalleryWindow {
         let hostingController = NSHostingController(rootView: root)
         let panel = NSPanel(contentViewController: hostingController)
         panel.title = "Widget Gallery"
-        panel.styleMask = [.titled, .closable, .miniaturizable, .resizable, .nonactivatingPanel]
+        panel.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         panel.setFrame(NSRect(x: 0, y: 0, width: 780, height: 620), display: false)
         panel.minSize = NSSize(width: 600, height: 480)
         panel.center()
         panel.isReleasedWhenClosed = false
         panel.isFloatingPanel = false
-        panel.becomesKeyOnlyIfNeeded = true
         self.window = panel
     }
 
@@ -49,6 +48,7 @@ private struct GalleryRootView: View {
     @State private var selectedTheme: WidgetTheme = .obsidian
     @State private var selectedCategory: String = "all"
     @State private var hoveredItem: String?
+    @State private var addedItems: Set<String> = []
 
     private var categories: [String] {
         templateStore.storeCategories()
@@ -79,37 +79,42 @@ private struct GalleryRootView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
+            // Title row with theme picker on the right
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Widget Gallery")
                         .font(.system(size: 18, weight: .semibold))
-                    Text("Pick a widget, preview it in any theme, and add it to your desktop.")
+                    Text("Preview widgets in any theme and add them to your desktop.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-            }
 
-            HStack(spacing: 16) {
-                // Theme picker
+                // Compact theme dropdown
                 HStack(spacing: 6) {
-                    Text("Theme")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 4) {
-                            ForEach(WidgetTheme.allCases.filter { $0 != .custom }, id: \.rawValue) { theme in
-                                themeChip(theme)
+                    Circle()
+                        .fill(ThemeResolver.palette(for: selectedTheme).accent)
+                        .frame(width: 10, height: 10)
+                    Picker("Theme", selection: $selectedTheme) {
+                        ForEach(WidgetTheme.allCases.filter { $0 != .custom }, id: \.rawValue) { theme in
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(ThemeResolver.palette(for: theme).accent)
+                                    .frame(width: 8, height: 8)
+                                Text(theme.displayName)
                             }
+                            .tag(theme)
                         }
                     }
+                    .pickerStyle(.menu)
+                    .frame(width: 130)
                 }
+            }
 
-                Spacer()
-
-                // Category filter
-                HStack(spacing: 4) {
+            // Category filter row
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
                     categoryChip("all", label: "All")
                     ForEach(categories, id: \.self) { cat in
                         categoryChip(cat, label: cat.capitalized)
@@ -121,35 +126,6 @@ private struct GalleryRootView: View {
         .padding(.vertical, 14)
     }
 
-    private func themeChip(_ theme: WidgetTheme) -> some View {
-        let palette = ThemeResolver.palette(for: theme)
-        let isSelected = selectedTheme == theme
-        return Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                selectedTheme = theme
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(palette.accent)
-                    .frame(width: 8, height: 8)
-                Text(theme.displayName)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isSelected ? palette.accent.opacity(0.15) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(isSelected ? palette.accent.opacity(0.5) : Color.primary.opacity(0.08), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     private func categoryChip(_ id: String, label: String) -> some View {
         let isSelected = selectedCategory == id
         return Button {
@@ -158,15 +134,15 @@ private struct GalleryRootView: View {
             }
         } label: {
             Text(label)
-                .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(isSelected ? Color.accentColor.opacity(0.4) : Color.primary.opacity(0.08), lineWidth: 1)
                 )
         }
@@ -189,18 +165,20 @@ private struct GalleryRootView: View {
 
     private func galleryCard(_ item: StoreTemplateItem) -> some View {
         let isHovered = hoveredItem == item.id
+        let isAdded = addedItems.contains(item.id)
         var themedConfig = item.config
         themedConfig.theme = selectedTheme
         themedConfig.background = BackgroundConfig.default(for: selectedTheme)
 
         return VStack(spacing: 0) {
-            // Widget preview
+            // Widget preview — disable hit testing so buttons inside don't intercept
             WidgetRenderer(config: themedConfig)
                 .frame(
                     width: min(item.config.size.width, 280),
                     height: min(item.config.size.height, 200)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .allowsHitTesting(false)
                 .scaleEffect(isHovered ? 1.03 : 1.0)
                 .animation(.easeOut(duration: 0.15), value: isHovered)
 
@@ -216,15 +194,29 @@ private struct GalleryRootView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                Button {
-                    onAddWidget(item.id, selectedTheme)
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(ThemeResolver.palette(for: selectedTheme).accent)
+                if isAdded {
+                    HStack(spacing: 3) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.green)
+                        Text("Added")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button {
+                        onAddWidget(item.id, selectedTheme)
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            addedItems.insert(item.id)
+                        }
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(ThemeResolver.palette(for: selectedTheme).accent)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Add to desktop")
                 }
-                .buttonStyle(.plain)
-                .help("Add to desktop")
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)

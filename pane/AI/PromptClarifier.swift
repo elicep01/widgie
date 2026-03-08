@@ -276,17 +276,19 @@ struct PromptClarifier {
         - Reminders → `reminders` (reads user's macOS Reminders — read-only)
         - Battery → `battery` (reads Mac battery level, charging state)
         - System stats → `system_stats` (CPU load, memory %, disk %)
-        - Now playing → `music_now_playing` (reads Apple Music track info — read-only, can't control playback)
+        - Now playing → `music_now_playing` (auto-detects Spotify or Apple Music; shows track info, progress, and play/pause/skip controls)
         - Screen time → `screen_time` (lists running apps — NOTE: only app names, no duration data due to macOS sandbox)
         - General news → `news_headlines` (RSS feeds ONLY — must use known valid URLs, CANNOT filter by topic)
         - GitHub repos → `github_repo_stats` (needs owner/repo format)
 
-        ### INTERACTIVE (user can click/type/toggle):
+        ### INTERACTIVE (user can click/type/toggle/drag):
         - To-do lists → `checklist` with `interactive: true`
         - Notes/journaling → `note` with `editable: true`
         - Habit/mood tracking → `habit_tracker` (daily check-off)
-        - App launcher → `shortcut_launcher` (opens apps/URLs/shortcuts)
+        - App launcher → `shortcut_launcher` (opens apps/URLs/shortcuts via open:bundleID)
         - Bookmarks → `link_bookmarks` (clickable URL grid or list)
+        - File drop zone → `file_clipboard` (drag-and-drop files in/out, persistent, shows file icons)
+        - Music player → `music_now_playing` with showControls:true (play/pause/skip, auto-detects Spotify/Apple Music/YouTube Music)
 
         ### STATIC DISPLAY (informational, decorative):
         - Countdown to date → `countdown` (target date)
@@ -312,9 +314,9 @@ struct PromptClarifier {
         - **Topic-specific news** (e.g., "AI news", "war news") → `link_bookmarks` with news search URLs + `text` header. NOT news_headlines (can't filter by topic).
         - **Social media** (Twitter, Reddit, Instagram) → `link_bookmarks` with profile/feed URLs + `text` showing the account name
         - **Email/inbox** → `link_bookmarks` to webmail + `text` with quick-access label. Cannot read email directly.
-        - **Local files/folders** → `shortcut_launcher` with `open:` actions to Finder paths or apps + `note` for file descriptions
+        - **Local files/folders** → `file_clipboard` for drag-and-drop file staging + `shortcut_launcher` with `open:` actions for quick app access
         - **Running scripts/commands** → `shortcut_launcher` with macOS Shortcuts integration. User can create a Shortcut that runs their script.
-        - **Spotify/music playlists** → `link_bookmarks` with Spotify URLs + `music_now_playing` for current track
+        - **Spotify/music playlists** → `music_now_playing` with showControls:true (auto-detects Spotify or Apple Music, live track + controls) + `link_bookmarks` for playlist URLs
         - **Notion/docs** → `link_bookmarks` to Notion pages + `note` for quick reference text
         - **Fitness/exercise** → `habit_tracker` for daily workouts + `progress_ring` for goals + `checklist` for routines
         - **Water/medication tracking** → `habit_tracker` with relevant habits
@@ -428,7 +430,7 @@ struct PromptClarifier {
         - `note` for quick-reference info the user types themselves
         - `text` for labels and headers
 
-        ALSO: Calendar and Reminders are READ-ONLY. Music is read-only (can't control playback).
+        ALSO: Calendar and Reminders are READ-ONLY. Music supports playback controls (play/pause, next, previous) and works with both Spotify and Apple Music.
         Screen time only shows app names, not duration.
 
         CRITICAL: `news_headlines` is RSS-only and CANNOT filter by topic/keyword.
@@ -482,7 +484,7 @@ struct PromptClarifier {
                 "pomodoro", "day_progress", "year_progress", "weather", "stock", "crypto",
                 "calendar_next", "reminders", "battery", "system_stats", "music_now_playing",
                 "news_headlines", "screen_time", "checklist", "habit_tracker", "quote", "note",
-                "shortcut_launcher", "link_bookmarks", "github_repo_stats", "vstack", "hstack", "container"
+                "shortcut_launcher", "link_bookmarks", "file_clipboard", "github_repo_stats", "vstack", "hstack", "container"
             ]
         }
         return types

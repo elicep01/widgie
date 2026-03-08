@@ -1,8 +1,9 @@
 {
   "name": "Now Playing",
+  "description": "Live track info and playback controls — auto-detects Spotify or Apple Music",
   "size": {
     "width": 240,
-    "height": 80
+    "height": 110
   },
   "theme": "obsidian",
   "background": {
@@ -15,17 +16,15 @@
   "padding": {
     "top": 10,
     "bottom": 10,
-    "leading": 10,
-    "trailing": 10
+    "leading": 12,
+    "trailing": 12
   },
+  "refreshInterval": 2,
   "content": {
     "type": "music_now_playing",
-    "showAlbumArt": true,
     "showArtist": true,
-    "showTitle": true,
     "showProgress": true,
     "showControls": true,
-    "albumArtSize": 56,
     "color": "primary"
   }
 }

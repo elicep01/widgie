@@ -124,9 +124,21 @@ actor DataServiceManager {
             return cached
         }
 
-        let value = musicProvider.fetch()
+        let value = await musicProvider.fetch()
         await cache.store(value, key: key, ttl: 1)
         return value
+    }
+
+    func musicPlayPause() {
+        musicProvider.playPause()
+    }
+
+    func musicNextTrack() {
+        musicProvider.nextTrack()
+    }
+
+    func musicPreviousTrack() {
+        musicProvider.previousTrack()
     }
 
     func news(feedURL: String, maxItems: Int, forceRefresh: Bool = false) async -> [NewsHeadlineSnapshot] {

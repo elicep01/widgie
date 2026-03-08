@@ -12,18 +12,12 @@
     "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
     "content": {
       "type": "countdown",
-      "targetDate": "2027-01-01T00:00:00",
+      "targetDate": "2027-01-01T00:00:00Z",
       "label": "New Year",
-      "style": "compact",
-      "showDays": true,
-      "showHours": true,
-      "showMinutes": true,
-      "showSeconds": false,
-      "font": "sf-mono",
+      "showComponents": ["days", "hours", "minutes", "seconds"],
       "size": 20,
-      "weight": "light",
-      "color": "primary",
-      "labelColor": "muted"
+      "color": "accent",
+      "alignment": "center"
     },
     "maxSize": { "width": 260, "height": 85 }
   }

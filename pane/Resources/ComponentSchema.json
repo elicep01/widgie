@@ -33,6 +33,7 @@
     "note",
     "shortcut_launcher",
     "link_bookmarks",
+    "file_clipboard",
     "vstack",
     "hstack",
     "container"

@@ -1796,6 +1796,9 @@ struct SchemaValidator {
                 throw AIWidgetServiceError.schemaValidationFailed("link_bookmarks entries require valid name/url at \(path).")
             }
 
+        case .fileClipboard:
+            break
+
         case .chart:
             guard let source = component.source, !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw AIWidgetServiceError.schemaValidationFailed("chart.source is required at \(path).")
