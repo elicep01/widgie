@@ -305,6 +305,27 @@ struct PromptBuilder {
           A weather widget has weather — NO random quotes or habit trackers.
           Do NOT pad widgets with unrelated components to fill space. If a widget is simple, make it small and clean.
         - `note` components with `editable: true` produce an empty text editor on screen. ONLY use them when the user explicitly asks for a notepad/scratch area. Never use them as decorative filler.
+        - ICON DISCIPLINE: Do NOT add decorative icons unless they serve a clear functional purpose (e.g. weather icon next to temperature, play button on music player). No gratuitous icons.
+        - TIME/TIMER WIDGETS (clock, countdown, stopwatch, pomodoro, year_progress) should be CENTERED by default. Use "alignment": "center".
+
+        THEME-SPECIFIC DESIGN LANGUAGE — Each theme has a distinct aesthetic personality.
+        Design widgets to HONOR the active theme. The same widget should feel different across themes:
+
+        OBSIDIAN: Developer-dark, refined. Blur bg with dark tint. Minimal decoration, let data breathe. Monospaced numbers. Subtle deep blue/gray gradients (#0D1117→#161B22). Accent: soft blue.
+        FROSTED: macOS-native, airy, translucent. Blur bg with light tint. Generous padding, thin fonts. No heavy borders/shadows. Everything light and clean. Accent: deep blue.
+        NEON: Sci-fi terminal, electric glow. Solid near-black bg. Use glow effects (shadow with accent color, radius 8-12, opacity 0.3). Deep space gradients. Monospaced, terminal feel. Accent: electric cyan.
+        PAPER: Warm, book-like, tactile. Solid warm cream bg. Warm browns, subtle shadows. Feels like ink on paper. No bright neon. Accent: warm brown.
+        TRANSPARENT: Invisible HUD overlay. Blur with very low opacity tint. Minimal, high-contrast white text. Small, unobtrusive widgets. Accent: light blue.
+        PASTEL: Soft candy, playful, gentle. Solid soft lavender-cream bg. Rounded shapes, pastel tints for containers (#F0E8FF, #E8F8F0). Accent: soft mint.
+        SAKURA: Japanese spring, floral, romantic. Pink gradient bg. Rose and blush containers. Warm pink tones throughout. Accent: vivid pink.
+        OCEAN: Deep sea, calm, vast. Dark navy gradient bg. Teal/aquamarine accents on navy. Navy→teal gradients (#0F2027→#203A43→#2C5364). Accent: teal.
+        SUNSET: Golden hour, dramatic warmth. Dark warm gradient bg. Oranges and magentas on dark. Rich warm gradients. Accent: burnt orange.
+        LAVENDER: Ethereal, dreamy purple. Soft purple gradient bg. Violet tones, lilac containers. Light and dreamy. Accent: vibrant violet.
+        RETRO: 70s/80s vintage, nostalgic. Solid warm tan bg. Mustard, burnt orange, olive. Chunky borders, hand-crafted feel. Accent: mustard.
+        CYBERPUNK: Blade Runner neon on black. Solid pure black bg. Hot pink and cyan neon. Aggressive glow effects (shadow #FF00AA, radius 10, opacity 0.4). Hard edges. Accent: hot pink.
+        MIDNIGHT: Starry night, royal, sophisticated. Deep indigo gradient bg. Silver and indigo, starlight feel. Rich regal blues (#0F0C29→#302B63). Accent: royal blue.
+        ROSE GOLD: Luxury metallic, premium. Warm cream gradient bg. Copper and blush tones. Elegant spacing, refined typography. Subtle warm shadows. Accent: copper.
+        MONO: Pure black and white. Solid white bg. Maximum contrast, zero decoration. NO colored gradients, NO colored elements. Only grayscale. Accent: dark gray.
 
         VISUAL DESIGN — MAKE WIDGETS BEAUTIFUL AND ARTISTIC:
         Widgets should look polished, vibrant, and alive — not flat or plain. Use these techniques:
@@ -316,12 +337,10 @@ struct PromptBuilder {
            Example: Wrap a section in a container with "background": "gradient:#1a1a2e,#16213e,to_bottom_right"
            Use gradients on section containers, card backgrounds, and accent panels.
 
-        B) DECORATIVE ICONS — Use `icon` components as visual accents alongside data:
-           Add a thematic SF Symbol near headers or data points for visual identity.
-           Use `opacity` (0.1–0.3) for large background icons that add atmosphere without competing with data.
-           Good examples: "cloud.sun.fill" next to weather, "chart.line.uptrend.xyaxis" near stocks,
-           "music.note" near now playing, "flame.fill" near streaks, "trophy.fill" near goals.
-           Icons with size 28–48 and opacity 0.15 make great watermark accents in corners.
+        B) ICONS — Only use icons when they serve a FUNCTIONAL purpose:
+           A weather icon next to temperature, a play/pause button on a music player, a checkmark on a completed task.
+           Do NOT add decorative icons just for visual flair. No gratuitous sparkles, flames, or trophies unless the user asks.
+           When an icon IS appropriate, use a single well-chosen SF Symbol. Keep it small (10–14pt) and functional.
 
         C) BORDERS AND SHADOWS — Use container `border` and `shadow` for polish:
            Subtle borders: {"color": "accent", "width": 1} gives containers elegant edges.

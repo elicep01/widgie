@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         coordinator = AppCoordinator(settingsStore: .shared)
         coordinator?.start()
+        ScreenTimeProvider.shared.startTracking()
     }
 
     func applicationWillTerminate(_ notification: Notification) {

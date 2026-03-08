@@ -11,7 +11,7 @@ actor DataServiceManager {
     private let systemStatsProvider = SystemStatsProvider()
     private let musicProvider = MusicProvider()
     private let rssProvider = RSSProvider()
-    private let screenTimeProvider = ScreenTimeProvider()
+    private let screenTimeProvider = ScreenTimeProvider.shared
     private let gitHubProvider = GitHubProvider()
 
     func weather(location: String, fahrenheit: Bool, forceRefresh: Bool = false) async -> WeatherSnapshot? {
@@ -179,7 +179,7 @@ actor DataServiceManager {
         }
 
         let value = screenTimeProvider.fetch(maxApps: maxApps)
-        await cache.store(value, key: key, ttl: 5 * 60)
+        await cache.store(value, key: key, ttl: 30)
         return value
     }
 }

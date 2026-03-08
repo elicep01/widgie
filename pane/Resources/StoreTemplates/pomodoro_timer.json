@@ -6,64 +6,23 @@
   "config": {
     "name": "Pomodoro Timer",
     "description": "Pomodoro focus timer",
-    "size": {
-      "width": 150,
-      "height": 135
-    },
-    "theme": "cyberpunk",
-    "background": {
-      "type": "gradient",
-      "colors": ["#0A0A0A", "#1A0A2E", "#0A0A0A"]
-    },
+    "size": { "width": 150, "height": 125 },
+    "theme": "obsidian",
     "cornerRadius": 16,
-    "padding": {
-      "top": 10,
-      "bottom": 8,
-      "leading": 10,
-      "trailing": 10
-    },
+    "padding": { "top": 10, "bottom": 8, "leading": 10, "trailing": 10 },
     "content": {
-      "type": "vstack",
-      "alignment": "center",
-      "spacing": 4,
-      "children": [
-        {
-          "type": "pomodoro",
-          "workDuration": 1500,
-          "breakDuration": 300,
-          "longBreakDuration": 900,
-          "sessionsBeforeLongBreak": 4,
-          "showSessionCount": true,
-          "style": "ring",
-          "workColor": "negative",
-          "breakColor": "positive",
-          "showControls": true
-        },
-        {
-          "type": "hstack",
-          "alignment": "center",
-          "spacing": 4,
-          "children": [
-            {
-              "type": "icon",
-              "name": "flame.fill",
-              "size": 10,
-              "color": "accent"
-            },
-            {
-              "type": "text",
-              "content": "Focus",
-              "size": 10,
-              "weight": "bold",
-              "color": "accent"
-            }
-          ]
-        }
-      ]
+      "type": "pomodoro",
+      "workDuration": 1500,
+      "breakDuration": 300,
+      "longBreakDuration": 900,
+      "sessionsBeforeLongBreak": 4,
+      "showSessionCount": true,
+      "style": "ring",
+      "workColor": "negative",
+      "breakColor": "positive",
+      "showControls": true,
+      "alignment": "center"
     },
-    "maxSize": {
-      "width": 200,
-      "height": 175
-    }
+    "maxSize": { "width": 200, "height": 175 }
   }
 }

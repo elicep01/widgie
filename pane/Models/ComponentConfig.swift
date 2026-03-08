@@ -152,6 +152,11 @@ final class ComponentConfig: Codable {
     var maxEvents: Int?
     var maxItems: Int?
     var maxApps: Int?
+    var goalHours: Int?
+    var showDailyGoal: Bool?
+    var showCategories: Bool?
+    var overColor: String?
+    var barColor: String?
     var forecastDays: Int?
     var rotateInterval: Int?
     var albumArtSize: Double?

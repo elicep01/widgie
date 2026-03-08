@@ -498,7 +498,7 @@ private struct ClockComponentView: View {
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
+        VStack(alignment: stackAlignment, spacing: (4 * scale).cgFloat) {
             Text(clockFormatter.string(from: time.now))
                 .font(.system(size: ((component.size ?? 24) * scale).cgFloat, weight: .regular, design: .monospaced))
                 .foregroundStyle(ThemeResolver.color(for: component.color, theme: theme))
@@ -517,12 +517,20 @@ private struct ClockComponentView: View {
 
     private var alignment: Alignment {
         switch component.alignment?.lowercased() {
-        case "center":
-            return .center
+        case "leading":
+            return .leading
         case "trailing":
             return .trailing
         default:
-            return .leading
+            return .center
+        }
+    }
+
+    private var stackAlignment: HorizontalAlignment {
+        switch alignment {
+        case .trailing: return .trailing
+        case .leading: return .leading
+        default: return .center
         }
     }
 
@@ -909,7 +917,7 @@ private struct StopwatchComponentView: View {
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (7 * scale).cgFloat) {
+        VStack(spacing: (7 * scale).cgFloat) {
             if let label = component.label, !label.isEmpty {
                 Text(label)
                     .font(.system(size: (11 * scale).cgFloat, weight: .medium))
@@ -950,12 +958,12 @@ private struct StopwatchComponentView: View {
 
     private var alignment: Alignment {
         switch component.alignment?.lowercased() {
-        case "center":
-            return .center
+        case "leading":
+            return .leading
         case "trailing":
             return .trailing
         default:
-            return .leading
+            return .center
         }
     }
 
@@ -1063,7 +1071,7 @@ private struct PomodoroComponentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (7 * scale).cgFloat) {
+        VStack(spacing: (7 * scale).cgFloat) {
             HStack {
                 Text(phase.title)
                     .font(.system(size: (12 * scale).cgFloat, weight: .semibold))
@@ -1164,12 +1172,12 @@ private struct PomodoroComponentView: View {
 
     private var alignment: Alignment {
         switch component.alignment?.lowercased() {
-        case "center":
-            return .center
+        case "leading":
+            return .leading
         case "trailing":
             return .trailing
         default:
-            return .leading
+            return .center
         }
     }
 
@@ -1391,7 +1399,7 @@ private struct YearProgressComponentView: View {
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+        VStack(spacing: (5 * scale).cgFloat) {
             Text(component.label ?? String(Calendar.current.component(.year, from: time.now)))
                 .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                 .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
@@ -1439,12 +1447,12 @@ private struct YearProgressComponentView: View {
 
     private var alignment: Alignment {
         switch component.alignment?.lowercased() {
-        case "center":
-            return .center
+        case "leading":
+            return .leading
         case "trailing":
             return .trailing
         default:
-            return .leading
+            return .center
         }
     }
 
@@ -2326,41 +2334,109 @@ private struct ScreenTimeComponentView: View {
     @State private var snapshot: ScreenTimeSnapshot?
     @Environment(\.widgetScaleFactor) private var scale
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
-            Text(snapshot?.total ?? "Screen Time Unavailable")
-                .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
-                .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
+    private var goalSeconds: TimeInterval {
+        TimeInterval((component.goalHours ?? 4) * 3600)
+    }
 
-            ForEach(snapshot?.topApps.prefix(max(1, component.maxApps ?? 3)) ?? []) { app in
-                HStack {
-                    Text(app.name)
-                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                    Spacer(minLength: 4)
-                    Text(app.durationText)
-                        .font(.system(size: (10 * scale).cgFloat, weight: .medium, design: .monospaced))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+    var body: some View {
+        let palette = ThemeResolver.palette(for: theme)
+        let accentColor = ThemeResolver.color(for: component.color ?? "accent", theme: theme)
+        let primaryColor = ThemeResolver.color(for: "primary", theme: theme)
+        let secondaryColor = ThemeResolver.color(for: "secondary", theme: theme)
+
+        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
+            // Header: total time
+            HStack(alignment: .firstTextBaseline, spacing: (4 * scale).cgFloat) {
+                Image(systemName: "desktopcomputer")
+                    .font(.system(size: (10 * scale).cgFloat))
+                    .foregroundStyle(accentColor)
+                Text(snapshot?.total ?? "0m")
+                    .font(.system(size: (16 * scale).cgFloat, weight: .bold, design: .rounded))
+                    .foregroundStyle(primaryColor)
+                Text("today")
+                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(secondaryColor)
+                Spacer(minLength: 0)
+            }
+
+            // Goal progress bar
+            if component.showDailyGoal ?? false {
+                let progress = min((snapshot?.totalSeconds ?? 0) / goalSeconds, 1.0)
+                let isOver = (snapshot?.totalSeconds ?? 0) > goalSeconds
+                let barColor = isOver
+                    ? ThemeResolver.color(for: component.overColor ?? "negative", theme: theme)
+                    : accentColor
+
+                VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: (3 * scale).cgFloat)
+                                .fill(primaryColor.opacity(0.1))
+                            RoundedRectangle(cornerRadius: (3 * scale).cgFloat)
+                                .fill(barColor)
+                                .frame(width: geo.size.width * CGFloat(progress))
+                        }
+                    }
+                    .frame(height: (5 * scale).cgFloat)
+
+                    HStack {
+                        Text(isOver ? "Over goal" : "\(Int(progress * 100))% of goal")
+                            .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(isOver ? barColor : secondaryColor)
+                        Spacer()
+                        Text("\(Int(component.goalHours ?? 4))h goal")
+                            .font(.system(size: (8 * scale).cgFloat))
+                            .foregroundStyle(secondaryColor)
+                    }
                 }
             }
+
+            // Top apps list
+            if let apps = snapshot?.topApps, !apps.isEmpty {
+                VStack(alignment: .leading, spacing: (3 * scale).cgFloat) {
+                    ForEach(Array(apps.prefix(max(1, component.maxApps ?? 3)))) { app in
+                        HStack(spacing: (5 * scale).cgFloat) {
+                            // Category color dot
+                            Circle()
+                                .fill(Self.categoryColor(app.category, palette: palette))
+                                .frame(width: (5 * scale).cgFloat, height: (5 * scale).cgFloat)
+                            Text(app.name)
+                                .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                                .foregroundStyle(primaryColor)
+                                .lineLimit(1)
+                            Spacer(minLength: 2)
+                            Text(app.durationText)
+                                .font(.system(size: (9 * scale).cgFloat, weight: .medium, design: .monospaced))
+                                .foregroundStyle(secondaryColor)
+                        }
+                    }
+                }
+            } else {
+                Text("Tracking started…")
+                    .font(.system(size: (10 * scale).cgFloat))
+                    .foregroundStyle(secondaryColor)
+            }
         }
-        .frame(maxWidth: .infinity, alignment: alignment)
-        .polling(every: 5 * 60) {
-            let value = await DataServiceManager.shared.screenTime(maxApps: component.maxApps ?? 3)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 60) {
+            let value = await DataServiceManager.shared.screenTime(maxApps: component.maxApps ?? 5)
             await MainActor.run {
                 snapshot = value
             }
         }
     }
 
-    private var alignment: Alignment {
-        switch component.alignment?.lowercased() {
-        case "center":
-            return .center
-        case "trailing":
-            return .trailing
-        default:
-            return .leading
+    private static func categoryColor(_ category: String, palette: ThemePalette) -> Color {
+        switch category {
+        case "Browsing": return .blue
+        case "Communication": return .green
+        case "Development": return .purple
+        case "Productivity": return .orange
+        case "Entertainment": return .pink
+        case "Social": return .cyan
+        case "Design": return .mint
+        case "System": return .gray
+        default: return palette.accent
         }
     }
 }

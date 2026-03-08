@@ -6,48 +6,18 @@
   "config": {
     "name": "New Year Countdown",
     "description": "Countdown to Jan 1",
-    "size": { "width": 200, "height": 80 },
-    "theme": "midnight",
-    "background": {
-      "type": "gradient",
-      "colors": ["#0F0C29", "#302B63", "#24243E"]
-    },
+    "size": { "width": 200, "height": 70 },
+    "theme": "obsidian",
     "cornerRadius": 16,
     "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
     "content": {
-      "type": "vstack",
-      "spacing": 4,
-      "children": [
-        {
-          "type": "hstack",
-          "alignment": "center",
-          "spacing": 4,
-          "children": [
-            {
-              "type": "icon",
-              "name": "sparkles",
-              "size": 12,
-              "color": "accent"
-            },
-            {
-              "type": "text",
-              "content": "New Year",
-              "size": 11,
-              "weight": "semibold",
-              "color": "accent"
-            }
-          ]
-        },
-        {
-          "type": "countdown",
-          "targetDate": "2027-01-01T00:00:00Z",
-          "label": "",
-          "showComponents": ["days", "hours", "minutes", "seconds"],
-          "size": 20,
-          "color": "primary",
-          "alignment": "center"
-        }
-      ]
+      "type": "countdown",
+      "targetDate": "2027-01-01T00:00:00Z",
+      "label": "New Year",
+      "showComponents": ["days", "hours", "minutes", "seconds"],
+      "size": 20,
+      "color": "accent",
+      "alignment": "center"
     },
     "maxSize": { "width": 260, "height": 100 }
   }

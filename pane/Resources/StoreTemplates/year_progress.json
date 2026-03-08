@@ -11,24 +11,11 @@
     "cornerRadius": 14,
     "padding": { "top": 8, "bottom": 8, "leading": 8, "trailing": 8 },
     "content": {
-      "type": "vstack",
-      "alignment": "center",
-      "spacing": 3,
-      "children": [
-        {
-          "type": "year_progress",
-          "style": "ring",
-          "showPercentage": true,
-          "color": "accent"
-        },
-        {
-          "type": "text",
-          "content": "2026",
-          "size": 10,
-          "weight": "medium",
-          "color": "muted"
-        }
-      ]
+      "type": "year_progress",
+      "style": "ring",
+      "showPercentage": true,
+      "color": "accent",
+      "alignment": "center"
     },
     "maxSize": { "width": 160, "height": 150 }
   }

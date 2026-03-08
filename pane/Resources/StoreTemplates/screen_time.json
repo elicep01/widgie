@@ -6,22 +6,25 @@
   "config": {
     "name": "Screen Time",
     "description": "Daily screen time",
-    "size": { "width": 180, "height": 100 },
+    "size": { "width": 220, "height": 140 },
     "theme": "obsidian",
-    "cornerRadius": 14,
-    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "background": {
+      "type": "gradient",
+      "colors": ["#1A1A2E", "#16213E"]
+    },
+    "cornerRadius": 16,
+    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
     "refreshInterval": 60,
     "content": {
       "type": "screen_time",
-      "style": "compact",
-      "showCategories": true,
+      "maxApps": 4,
       "showDailyGoal": true,
+      "showCategories": true,
       "goalHours": 4,
       "size": 11,
-      "color": "primary",
-      "barColor": "accent",
+      "color": "accent",
       "overColor": "negative"
     },
-    "maxSize": { "width": 240, "height": 140 }
+    "maxSize": { "width": 280, "height": 180 }
   }
 }

@@ -32,7 +32,7 @@ final class WidgetManager {
         self.settingsStore = settingsStore
     }
 
-    func createOrUpdateWidget(_ config: WidgetConfig, isLocked: Bool? = nil, forceAutoFit: Bool = false) {
+    func createOrUpdateWidget(_ config: WidgetConfig, isLocked: Bool? = nil, forceAutoFit: Bool = false, isRestore: Bool = false) {
         let normalized = normalizedForWallpaper(config)
 
         if let window = windows[normalized.id] {
@@ -40,7 +40,9 @@ final class WidgetManager {
             if forceAutoFit {
                 window.forceAutoSizeToContent()
             }
-            resolveOverlapIfNeeded(for: window)
+            if !isRestore {
+                resolveOverlapIfNeeded(for: window)
+            }
             if let isLocked {
                 window.setLocked(isLocked)
             }
@@ -63,6 +65,9 @@ final class WidgetManager {
         if shouldAutoArrange {
             // First-render placement avoids pane widgets, likely native widgets, and desktop icon lanes.
             resolvedOrigin = nextAutoOrigin(for: window.frame.size, excluding: normalized.id)
+        } else if isRestore {
+            // Restoring from disk — trust the saved position, only clamp to screen bounds.
+            resolvedOrigin = clampedToScreen(for: window)
         } else {
             // Keep restored placement stable, but recover from off-screen or pane-overlap states.
             resolvedOrigin = resolvedStoredOrigin(for: window)
@@ -71,7 +76,7 @@ final class WidgetManager {
         window.updatePosition(WidgetPosition(x: resolvedOrigin.x.double, y: resolvedOrigin.y.double))
 
         interactionController.attach(to: window)
-        wireCallbacks(for: window)
+        wireCallbacks(for: window, isRestore: isRestore)
         windows[normalized.id] = window
         WidgetAnimator.animateAppearance(of: window)
 
@@ -139,7 +144,7 @@ final class WidgetManager {
     func restoreWidgets() {
         let envelopes = store.loadAllEnvelopes()
         for envelope in envelopes {
-            createOrUpdateWidget(envelope.config, isLocked: envelope.metadata.isLocked, forceAutoFit: true)
+            createOrUpdateWidget(envelope.config, isLocked: envelope.metadata.isLocked, forceAutoFit: true, isRestore: true)
         }
         notifyWidgetListChanged()
     }
@@ -244,7 +249,7 @@ final class WidgetManager {
         return true
     }
 
-    private func wireCallbacks(for window: WidgetWindow) {
+    private func wireCallbacks(for window: WidgetWindow, isRestore: Bool = false) {
         window.onEditRequested = { [weak self, weak window] in
             guard let self, let config = window?.config else { return }
             self.onEditRequested?(config)
@@ -307,6 +312,11 @@ final class WidgetManager {
 
         window.onAutoSizeCompleted = { [weak self, weak window] in
             guard let self, let window else { return }
+            // During restore, keep the saved position — only save the updated size.
+            if isRestore {
+                self.store.save(window.config, isLocked: window.isPositionLocked)
+                return
+            }
             // After the deferred auto-size pass the window's actual rendered size is now
             // known. Re-run placement so the widget doesn't overlap obstacles that were
             // fine for the LLM-specified size but conflict with the real rendered size.
@@ -390,6 +400,14 @@ final class WidgetManager {
             in: frame,
             margin: 28
         )
+    }
+
+    /// Clamp the window to screen bounds only — no collision avoidance. Used during restore.
+    private func clampedToScreen(for window: WidgetWindow) -> CGPoint {
+        let size = window.frame.size
+        let frame = screenFrame(for: window.frame)
+        let original = window.frame.origin
+        return positionManager.clampedOrigin(original, size: size, in: frame, margin: 8)
     }
 
     private func resolvedStoredOrigin(for window: WidgetWindow) -> CGPoint {

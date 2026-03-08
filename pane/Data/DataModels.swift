@@ -77,6 +77,7 @@ struct NewsHeadlineSnapshot: Codable, Identifiable {
 
 struct ScreenTimeSnapshot: Codable {
     var total: String
+    var totalSeconds: TimeInterval
     var topApps: [ScreenTimeAppSnapshot]
     var isAvailable: Bool
     var updatedAt: Date
@@ -85,6 +86,8 @@ struct ScreenTimeSnapshot: Codable {
 struct ScreenTimeAppSnapshot: Codable, Identifiable {
     var id: String
     var name: String
+    var category: String
+    var durationSeconds: TimeInterval
     var durationText: String
 }
 
