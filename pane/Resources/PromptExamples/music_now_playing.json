@@ -2,8 +2,8 @@
   "name": "Now Playing",
   "description": "Live track info and playback controls — auto-detects Spotify or Apple Music",
   "size": {
-    "width": 240,
-    "height": 110
+    "width": 280,
+    "height": 130
   },
   "theme": "obsidian",
   "background": {

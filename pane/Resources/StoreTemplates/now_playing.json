@@ -7,8 +7,8 @@
     "name": "Now Playing",
     "description": "Music now playing widget",
     "size": {
-      "width": 240,
-      "height": 110
+      "width": 280,
+      "height": 130
     },
     "theme": "obsidian",
     "cornerRadius": 14,
@@ -27,8 +27,8 @@
       "color": "primary"
     },
     "maxSize": {
-      "width": 320,
-      "height": 140
+      "width": 360,
+      "height": 160
     }
   }
 }

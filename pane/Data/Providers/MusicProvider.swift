@@ -31,6 +31,9 @@ struct MusicProvider {
                     progress: progress,
                     isPlaying: nowPlaying.isPlaying,
                     source: source,
+                    artworkData: nowPlaying.artworkData,
+                    elapsedTime: nowPlaying.elapsedTime,
+                    duration: nowPlaying.duration,
                     updatedAt: Date()
                 )
             }
@@ -51,6 +54,9 @@ struct MusicProvider {
             progress: nil,
             isPlaying: false,
             source: nil,
+            artworkData: nil,
+            elapsedTime: nil,
+            duration: nil,
             updatedAt: Date()
         )
     }
@@ -161,6 +167,9 @@ struct MusicProvider {
             progress: progress,
             isPlaying: (state ?? "").lowercased().contains("playing"),
             source: "Spotify",
+            artworkData: nil,
+            elapsedTime: position,
+            duration: trackDuration,
             updatedAt: Date()
         )
     }
@@ -228,6 +237,9 @@ struct MusicProvider {
             progress: progress,
             isPlaying: (state ?? "").lowercased().contains("playing"),
             source: "Apple Music",
+            artworkData: nil,
+            elapsedTime: position,
+            duration: trackDuration,
             updatedAt: Date()
         )
     }

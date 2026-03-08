@@ -157,9 +157,12 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
 
         case .leftMouseUp:
             let wasResizing = isResizing
+            // Content-area clicks have no dragAnchorScreenPoint; they need mouseUp
+            // forwarded to SwiftUI so buttons (shortcut launcher, playback controls, etc.) fire.
+            // Drag-zone clicks forward the full cycle inside mouseUp itself.
+            let hadDragAnchor = dragAnchorScreenPoint != nil
             mouseUp(with: event)
-            if wasResizing {
-                // Let SwiftUI complete its DragGesture so onResizeEnd fires cleanly.
+            if !hadDragAnchor || wasResizing {
                 super.sendEvent(event)
             }
 

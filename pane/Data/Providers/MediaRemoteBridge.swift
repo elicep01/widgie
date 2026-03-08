@@ -14,6 +14,7 @@ enum MediaRemoteBridge {
         var duration: TimeInterval?
         var elapsedTime: TimeInterval?
         var isPlaying: Bool
+        var artworkData: Data?
     }
 
     enum Command: UInt32 {
@@ -65,7 +66,8 @@ enum MediaRemoteBridge {
             album: info["kMRMediaRemoteNowPlayingInfoAlbum"] as? String,
             duration: info["kMRMediaRemoteNowPlayingInfoDuration"] as? TimeInterval,
             elapsedTime: info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? TimeInterval,
-            isPlaying: isPlaying
+            isPlaying: isPlaying,
+            artworkData: info["kMRMediaRemoteNowPlayingInfoArtworkData"] as? Data
         )
     }
 

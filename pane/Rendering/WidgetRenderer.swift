@@ -2052,88 +2052,134 @@ private struct MusicNowPlayingComponentView: View {
     let theme: WidgetTheme
 
     @State private var snapshot: MusicSnapshot?
+    @State private var isPlayToggling = false
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
-            // Track info
-            HStack(spacing: (6 * scale).cgFloat) {
-                VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
-                    Text(snapshot?.title ?? "Nothing Playing")
-                        .font(.system(size: (13 * scale).cgFloat, weight: .semibold))
-                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                        .lineLimit(1)
+        HStack(spacing: (10 * scale).cgFloat) {
+            // Album artwork
+            albumArtView
+                .frame(
+                    width: (artSize * scale).cgFloat,
+                    height: (artSize * scale).cgFloat
+                )
+                .clipShape(RoundedRectangle(cornerRadius: (6 * scale).cgFloat))
 
-                    if component.showArtist ?? true {
-                        HStack(spacing: (4 * scale).cgFloat) {
-                            Text(snapshot?.artist ?? "Open a music app to see what's playing")
-                                .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                                .lineLimit(1)
-                            if let source = snapshot?.source {
-                                Text("· \(source)")
-                                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
-                                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                            }
+            // Track info + controls
+            VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
+                // Song title
+                Text(snapshot?.title ?? "Nothing Playing")
+                    .font(.system(size: (13 * scale).cgFloat, weight: .bold))
+                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                    .lineLimit(1)
+
+                // Artist + source
+                if component.showArtist ?? true {
+                    HStack(spacing: (3 * scale).cgFloat) {
+                        Text(snapshot?.artist ?? "Open a music app")
+                            .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                            .lineLimit(1)
+                        if let source = snapshot?.source {
+                            Text("·")
+                                .font(.system(size: (9 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                            Text(source)
+                                .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                         }
                     }
                 }
-                Spacer(minLength: 0)
-            }
 
-            // Progress bar
-            if component.showProgress ?? true {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.3))
-                        Capsule()
-                            .fill(ThemeResolver.color(for: "accent", theme: theme))
-                            .frame(width: geo.size.width * (snapshot?.progress ?? 0).cgFloat)
-                            .animation(.linear(duration: 0.5), value: snapshot?.progress)
+                Spacer(minLength: 0)
+
+                // Progress bar with time labels
+                if component.showProgress ?? true {
+                    VStack(spacing: (2 * scale).cgFloat) {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.25))
+                                Capsule()
+                                    .fill(ThemeResolver.color(for: "accent", theme: theme))
+                                    .frame(width: max(0, geo.size.width * (snapshot?.progress ?? 0).cgFloat))
+                                    .animation(.linear(duration: 1.0), value: snapshot?.progress)
+                            }
+                        }
+                        .frame(height: (3 * scale).cgFloat)
+
+                        HStack {
+                            Text(formatTime(snapshot?.elapsedTime))
+                                .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                            Spacer(minLength: 0)
+                            Text(formatTime(snapshot?.duration))
+                                .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        }
                     }
                 }
-                .frame(height: (4 * scale).cgFloat)
-            }
 
-            // Playback controls
-            if component.showControls ?? true {
-                HStack(spacing: (16 * scale).cgFloat) {
-                    Spacer(minLength: 0)
-                    Button {
-                        DataServiceManager.shared.musicPreviousTrack()
-                        refreshAfterDelay()
-                    } label: {
-                        Image(systemName: "backward.fill")
-                            .font(.system(size: (12 * scale).cgFloat))
-                            .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
-                    }
-                    .buttonStyle(.plain)
+                // Playback controls
+                if component.showControls ?? true {
+                    HStack(spacing: (18 * scale).cgFloat) {
+                        Spacer(minLength: 0)
 
-                    Button {
-                        DataServiceManager.shared.musicPlayPause()
-                        refreshAfterDelay()
-                    } label: {
-                        Image(systemName: (snapshot?.isPlaying ?? false) ? "pause.fill" : "play.fill")
-                            .font(.system(size: (16 * scale).cgFloat))
-                            .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
-                    }
-                    .buttonStyle(.plain)
+                        Button {
+                            DataServiceManager.shared.musicPreviousTrack()
+                            refreshAfterDelay()
+                        } label: {
+                            Image(systemName: "backward.fill")
+                                .font(.system(size: (11 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                        }
+                        .buttonStyle(.plain)
 
-                    Button {
-                        DataServiceManager.shared.musicNextTrack()
-                        refreshAfterDelay()
-                    } label: {
-                        Image(systemName: "forward.fill")
-                            .font(.system(size: (12 * scale).cgFloat))
-                            .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isPlayToggling = true
+                            }
+                            DataServiceManager.shared.musicPlayPause()
+                            refreshAfterDelay()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isPlayToggling = false
+                                }
+                            }
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(ThemeResolver.color(for: "accent", theme: theme))
+                                    .frame(
+                                        width: (26 * scale).cgFloat,
+                                        height: (26 * scale).cgFloat
+                                    )
+
+                                Image(systemName: (snapshot?.isPlaying ?? false) ? "pause.fill" : "play.fill")
+                                    .font(.system(size: (12 * scale).cgFloat, weight: .bold))
+                                    .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                                    .scaleEffect(isPlayToggling ? 0.7 : 1.0)
+                                    .animation(.spring(response: 0.25, dampingFraction: 0.5), value: isPlayToggling)
+                            }
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            DataServiceManager.shared.musicNextTrack()
+                            refreshAfterDelay()
+                        } label: {
+                            Image(systemName: "forward.fill")
+                                .font(.system(size: (11 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
-                    Spacer(minLength: 0)
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: alignment)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .polling(every: 1) {
             let value = await DataServiceManager.shared.musicNowPlaying()
             await MainActor.run {
@@ -2142,6 +2188,40 @@ private struct MusicNowPlayingComponentView: View {
         }
     }
 
+    // MARK: - Album Art
+
+    @ViewBuilder
+    private var albumArtView: some View {
+        if let data = snapshot?.artworkData, let nsImage = NSImage(data: data) {
+            Image(nsImage: nsImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else {
+            // Placeholder with music note icon
+            ZStack {
+                RoundedRectangle(cornerRadius: (6 * scale).cgFloat)
+                    .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.2))
+                Image(systemName: "music.note")
+                    .font(.system(size: (20 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6))
+            }
+        }
+    }
+
+    private var artSize: Double { 58 }
+
+    // MARK: - Time Formatting
+
+    private func formatTime(_ seconds: Double?) -> String {
+        guard let seconds, seconds.isFinite, seconds >= 0 else { return "--:--" }
+        let total = Int(seconds)
+        let m = total / 60
+        let s = total % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    // MARK: - Helpers
+
     private func refreshAfterDelay() {
         Task {
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -2149,17 +2229,6 @@ private struct MusicNowPlayingComponentView: View {
             await MainActor.run {
                 snapshot = value
             }
-        }
-    }
-
-    private var alignment: Alignment {
-        switch component.alignment?.lowercased() {
-        case "center":
-            return .center
-        case "trailing":
-            return .trailing
-        default:
-            return .leading
         }
     }
 }
