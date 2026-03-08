@@ -2095,130 +2095,14 @@ private struct MusicNowPlayingComponentView: View {
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        HStack(spacing: (10 * scale).cgFloat) {
-            // Album artwork
-            albumArtView
-                .frame(
-                    width: (artSize * scale).cgFloat,
-                    height: (artSize * scale).cgFloat
-                )
-                .clipShape(RoundedRectangle(cornerRadius: (6 * scale).cgFloat))
-
-            // Track info + controls
-            VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
-                // Song title
-                Text(snapshot?.title ?? "Nothing Playing")
-                    .font(.system(size: (13 * scale).cgFloat, weight: .bold))
-                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                    .lineLimit(1)
-
-                // Artist + source
-                if component.showArtist ?? true {
-                    HStack(spacing: (3 * scale).cgFloat) {
-                        Text(snapshot?.artist ?? "Open a music app")
-                            .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                            .lineLimit(1)
-                        if let source = snapshot?.source {
-                            Text("·")
-                                .font(.system(size: (9 * scale).cgFloat))
-                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                            Text(source)
-                                .font(.system(size: (9 * scale).cgFloat, weight: .medium))
-                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                        }
-                    }
-                }
-
-                Spacer(minLength: 0)
-
-                // Progress bar with time labels
-                if component.showProgress ?? true {
-                    VStack(spacing: (2 * scale).cgFloat) {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.25))
-                                Capsule()
-                                    .fill(ThemeResolver.color(for: "accent", theme: theme))
-                                    .frame(width: max(0, geo.size.width * (snapshot?.progress ?? 0).cgFloat))
-                                    .animation(.linear(duration: 1.0), value: snapshot?.progress)
-                            }
-                        }
-                        .frame(height: (3 * scale).cgFloat)
-
-                        HStack {
-                            Text(formatTime(snapshot?.elapsedTime))
-                                .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
-                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                            Spacer(minLength: 0)
-                            Text(formatTime(snapshot?.duration))
-                                .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
-                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                        }
-                    }
-                }
-
-                // Playback controls
-                if component.showControls ?? true {
-                    HStack(spacing: (18 * scale).cgFloat) {
-                        Spacer(minLength: 0)
-
-                        Button {
-                            DataServiceManager.shared.musicPreviousTrack()
-                            refreshAfterDelay()
-                        } label: {
-                            Image(systemName: "backward.fill")
-                                .font(.system(size: (11 * scale).cgFloat))
-                                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isPlayToggling = true
-                            }
-                            DataServiceManager.shared.musicPlayPause()
-                            refreshAfterDelay()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    isPlayToggling = false
-                                }
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(ThemeResolver.color(for: "accent", theme: theme))
-                                    .frame(
-                                        width: (26 * scale).cgFloat,
-                                        height: (26 * scale).cgFloat
-                                    )
-
-                                Image(systemName: (snapshot?.isPlaying ?? false) ? "pause.fill" : "play.fill")
-                                    .font(.system(size: (12 * scale).cgFloat, weight: .bold))
-                                    .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
-                                    .scaleEffect(isPlayToggling ? 0.7 : 1.0)
-                                    .animation(.spring(response: 0.25, dampingFraction: 0.5), value: isPlayToggling)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            DataServiceManager.shared.musicNextTrack()
-                            refreshAfterDelay()
-                        } label: {
-                            Image(systemName: "forward.fill")
-                                .font(.system(size: (11 * scale).cgFloat))
-                                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
-                        }
-                        .buttonStyle(.plain)
-
-                        Spacer(minLength: 0)
-                    }
-                }
+        GeometryReader { geo in
+            if geo.size.height > 160 * scale.cgFloat {
+                expandedLayout(availableSize: geo.size)
+            } else {
+                compactLayout
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .polling(every: 1) {
             let value = await DataServiceManager.shared.musicNowPlaying()
             await MainActor.run {
@@ -2227,27 +2111,195 @@ private struct MusicNowPlayingComponentView: View {
         }
     }
 
-    // MARK: - Album Art
+    // MARK: - Compact Layout (default, art left + text right)
+
+    private var compactLayout: some View {
+        HStack(spacing: (10 * scale).cgFloat) {
+            albumArtView(size: (58 * scale).cgFloat)
+
+            VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
+                trackTitleView
+                artistView
+
+                Spacer(minLength: 0)
+
+                progressBarView
+                controlsView
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Expanded Layout (big centered art + text below)
+
+    private func expandedLayout(availableSize: CGSize) -> some View {
+        let artDimension = min(availableSize.width * 0.6, availableSize.height * 0.5)
+
+        return VStack(spacing: (8 * scale).cgFloat) {
+            Spacer(minLength: 0)
+
+            albumArtView(size: artDimension)
+                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+
+            VStack(spacing: (4 * scale).cgFloat) {
+                trackTitleView
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                artistView
+                    .frame(maxWidth: .infinity)
+            }
+
+            progressBarView
+
+            controlsView
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Shared Subviews
+
+    private var trackTitleView: some View {
+        Text(snapshot?.title ?? "Nothing Playing")
+            .font(.system(size: (13 * scale).cgFloat, weight: .bold))
+            .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+            .lineLimit(1)
+    }
 
     @ViewBuilder
-    private var albumArtView: some View {
-        if let data = snapshot?.artworkData, let nsImage = NSImage(data: data) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-        } else {
-            // Placeholder with music note icon
-            ZStack {
-                RoundedRectangle(cornerRadius: (6 * scale).cgFloat)
-                    .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.2))
-                Image(systemName: "music.note")
-                    .font(.system(size: (20 * scale).cgFloat, weight: .medium))
-                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6))
+    private var artistView: some View {
+        if component.showArtist ?? true {
+            HStack(spacing: (3 * scale).cgFloat) {
+                Spacer(minLength: 0)
+                Text(snapshot?.artist ?? "Open a music app")
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                    .lineLimit(1)
+                if let source = snapshot?.source {
+                    Text("·")
+                        .font(.system(size: (9 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    Text(source)
+                        .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                }
+                Spacer(minLength: 0)
             }
         }
     }
 
-    private var artSize: Double { 58 }
+    @ViewBuilder
+    private var progressBarView: some View {
+        if component.showProgress ?? true {
+            VStack(spacing: (2 * scale).cgFloat) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.25))
+                        Capsule()
+                            .fill(ThemeResolver.color(for: "accent", theme: theme))
+                            .frame(width: max(0, geo.size.width * (snapshot?.progress ?? 0).cgFloat))
+                            .animation(.linear(duration: 1.0), value: snapshot?.progress)
+                    }
+                }
+                .frame(height: (3 * scale).cgFloat)
+
+                HStack {
+                    Text(formatTime(snapshot?.elapsedTime))
+                        .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    Spacer(minLength: 0)
+                    Text(formatTime(snapshot?.duration))
+                        .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var controlsView: some View {
+        if component.showControls ?? true {
+            HStack(spacing: (18 * scale).cgFloat) {
+                Spacer(minLength: 0)
+
+                Button {
+                    DataServiceManager.shared.musicPreviousTrack()
+                    refreshAfterDelay()
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isPlayToggling = true
+                    }
+                    DataServiceManager.shared.musicPlayPause()
+                    refreshAfterDelay()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isPlayToggling = false
+                        }
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(ThemeResolver.color(for: "accent", theme: theme))
+                            .frame(
+                                width: (26 * scale).cgFloat,
+                                height: (26 * scale).cgFloat
+                            )
+
+                        Image(systemName: (snapshot?.isPlaying ?? false) ? "pause.fill" : "play.fill")
+                            .font(.system(size: (12 * scale).cgFloat, weight: .bold))
+                            .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                            .scaleEffect(isPlayToggling ? 0.7 : 1.0)
+                            .animation(.spring(response: 0.25, dampingFraction: 0.5), value: isPlayToggling)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    DataServiceManager.shared.musicNextTrack()
+                    refreshAfterDelay()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    // MARK: - Album Art
+
+    @ViewBuilder
+    private func albumArtView(size: CGFloat) -> some View {
+        Group {
+            if let data = snapshot?.artworkData, let nsImage = NSImage(data: data) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: (6 * scale).cgFloat)
+                        .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.2))
+                    Image(systemName: "music.note")
+                        .font(.system(size: (20 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6))
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: (8 * scale).cgFloat))
+    }
 
     // MARK: - Time Formatting
 
@@ -2306,10 +2358,10 @@ private struct NewsHeadlinesComponentView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
-        .polling(every: 30 * 60) {
+        .polling(every: 5 * 60) {
             let feed = component.feedUrl ?? "https://feeds.bbci.co.uk/news/rss.xml"
             let maxItems = component.maxItems ?? 3
-            let value = await DataServiceManager.shared.news(feedURL: feed, maxItems: maxItems)
+            let value = await DataServiceManager.shared.news(feedURL: feed, maxItems: maxItems, forceRefresh: true)
             await MainActor.run {
                 headlines = value
                 hasLoaded = true

@@ -149,9 +149,10 @@ actor DataServiceManager {
 
         do {
             let value = try await rssProvider.fetch(feedURL: feedURL, maxItems: maxItems)
-            await cache.store(value, key: key, ttl: 30 * 60)
+            await cache.store(value, key: key, ttl: 5 * 60)
             return value
         } catch {
+            print("[RSS] Failed to fetch \(feedURL): \(error.localizedDescription)")
             return await cache.load([NewsHeadlineSnapshot].self, key: key) ?? []
         }
     }

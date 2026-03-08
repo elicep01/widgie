@@ -49,6 +49,15 @@ private final class RSSParserDelegate: NSObject, XMLParserDelegate {
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
         guard insideItem else { return }
+        appendContent(string)
+    }
+
+    func parser(_ parser: XMLParser, foundCDATA CDATABlock: Data) {
+        guard insideItem, let string = String(data: CDATABlock, encoding: .utf8) else { return }
+        appendContent(string)
+    }
+
+    private func appendContent(_ string: String) {
         switch currentElement {
         case "title":
             currentTitle += string
