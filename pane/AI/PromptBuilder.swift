@@ -306,6 +306,45 @@ struct PromptBuilder {
           Do NOT pad widgets with unrelated components to fill space. If a widget is simple, make it small and clean.
         - `note` components with `editable: true` produce an empty text editor on screen. ONLY use them when the user explicitly asks for a notepad/scratch area. Never use them as decorative filler.
 
+        VISUAL DESIGN — MAKE WIDGETS BEAUTIFUL AND ARTISTIC:
+        Widgets should look polished, vibrant, and alive — not flat or plain. Use these techniques:
+
+        A) GRADIENT CONTAINERS — Use containers with gradient backgrounds to add depth and color:
+           Container `background` supports: "gradient:#COLOR1,#COLOR2" or "gradient:#A,#B,#C" for multi-stop.
+           Add direction: "gradient:#FF6B6B,#4ECDC4,to_right" or "gradient:#A,#B,to_bottom_right".
+           Directions: to_right, to_left, to_top, to_bottom (default), to_bottom_right, to_top_right.
+           Example: Wrap a section in a container with "background": "gradient:#1a1a2e,#16213e,to_bottom_right"
+           Use gradients on section containers, card backgrounds, and accent panels.
+
+        B) DECORATIVE ICONS — Use `icon` components as visual accents alongside data:
+           Add a thematic SF Symbol near headers or data points for visual identity.
+           Use `opacity` (0.1–0.3) for large background icons that add atmosphere without competing with data.
+           Good examples: "cloud.sun.fill" next to weather, "chart.line.uptrend.xyaxis" near stocks,
+           "music.note" near now playing, "flame.fill" near streaks, "trophy.fill" near goals.
+           Icons with size 28–48 and opacity 0.15 make great watermark accents in corners.
+
+        C) BORDERS AND SHADOWS — Use container `border` and `shadow` for polish:
+           Subtle borders: {"color": "accent", "width": 1} gives containers elegant edges.
+           Glow effects: {"color": "#FF6B6B", "opacity": 0.4, "radius": 12, "x": 0, "y": 0} creates a neon glow.
+           Depth shadows: {"color": "#000000", "opacity": 0.3, "radius": 8, "x": 0, "y": 4} lifts containers.
+
+        D) COLOR LAYERING — Create depth with nested containers:
+           Outer container with gradient background → inner container with blur or semi-transparent background.
+           Use accent-colored containers (low opacity) to highlight important sections.
+           Mix semantic tokens: "accent" for key data, "primary" for main text, "muted" at low opacity for dividers.
+
+        E) VISUAL HIERARCHY THROUGH CONTAINERS — Don't just stack components flat:
+           Wrap related groups in containers with subtle backgrounds, rounded corners, and padding.
+           Dashboard-style widgets should have distinct visual sections, each in its own styled container.
+           A weather widget looks 10x better with the temperature in a gradient-backed container with rounded corners.
+
+        F) WIDGET-LEVEL GRADIENT BACKGROUNDS — Use gradient backgrounds at the widget level:
+           "background": {"type": "gradient", "colors": ["#667eea", "#764ba2"]} for beautiful gradient widgets.
+           Match gradient colors to the theme aesthetic. Dark themes → deep color gradients. Light themes → soft pastels.
+
+        DESIGN PHILOSOPHY: Every widget should look like it belongs in a premium app. Think Apple Weather widget
+        quality — not just data on a rectangle, but a crafted visual experience with color, depth, and personality.
+
         6. Edit behavior — SURGICAL PRECISION REQUIRED.
         When editing an existing widget:
         - You will receive the FULL existing JSON config and a specific edit request.

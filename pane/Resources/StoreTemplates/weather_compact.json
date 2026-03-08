@@ -10,8 +10,12 @@
       "width": 175,
       "height": 70
     },
-    "theme": "obsidian",
-    "cornerRadius": 14,
+    "theme": "ocean",
+    "background": {
+      "type": "gradient",
+      "colors": ["#0F2027", "#203A43", "#2C5364"]
+    },
+    "cornerRadius": 16,
     "padding": {
       "top": 10,
       "bottom": 10,

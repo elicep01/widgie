@@ -97,6 +97,7 @@ struct WidgetRenderer: View {
                 Image(systemName: component.name ?? "questionmark.circle")
                     .font(.system(size: (component.size ?? 20).cgFloat))
                     .foregroundStyle(ThemeResolver.color(for: component.color, theme: config.theme))
+                    .opacity(component.opacity ?? 1)
                     .frame(maxWidth: .infinity, alignment: frameAlignment(for: component.alignment))
             )
 
@@ -335,6 +336,34 @@ struct WidgetRenderer: View {
             return AnyView(
                 VisualEffectMaterialView(material: material(for: materialName), blendingMode: .behindWindow)
             )
+        }
+
+        // Gradient: "gradient:#FF6B6B,#4ECDC4" or "gradient:#A,#B,#C" or with direction "gradient:#A,#B,to_right"
+        if background.hasPrefix("gradient:") {
+            let parts = background.replacingOccurrences(of: "gradient:", with: "")
+                .split(separator: ",").map(String.init)
+            let directionPart = parts.last?.trimmingCharacters(in: .whitespaces) ?? ""
+            let (start, end): (UnitPoint, UnitPoint) = {
+                switch directionPart {
+                case "to_right": return (.leading, .trailing)
+                case "to_left": return (.trailing, .leading)
+                case "to_top": return (.bottom, .top)
+                case "to_bottom_right": return (.topLeading, .bottomTrailing)
+                case "to_top_right": return (.bottomLeading, .topTrailing)
+                default: return (.top, .bottom)
+                }
+            }()
+            let hasDirection = ["to_right", "to_left", "to_top", "to_bottom", "to_bottom_right", "to_top_right"].contains(directionPart)
+            let colorStrings = hasDirection ? Array(parts.dropLast()) : parts
+            let colors = colorStrings.map { s -> Color in
+                let trimmed = s.trimmingCharacters(in: .whitespaces)
+                return trimmed.hasPrefix("#") ? Color(hex: trimmed) : ThemeResolver.color(for: trimmed, theme: config.theme)
+            }
+            if colors.count >= 2 {
+                return AnyView(LinearGradient(colors: colors, startPoint: start, endPoint: end))
+            } else if let first = colors.first {
+                return AnyView(first)
+            }
         }
 
         if background.hasPrefix("#") {

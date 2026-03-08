@@ -10,8 +10,12 @@
       "width": 200,
       "height": 90
     },
-    "theme": "obsidian",
-    "cornerRadius": 14,
+    "theme": "neon",
+    "background": {
+      "type": "gradient",
+      "colors": ["#0A0A0A", "#0D1117", "#0A0A0A"]
+    },
+    "cornerRadius": 16,
     "padding": {
       "top": 8,
       "bottom": 8,
@@ -25,11 +29,24 @@
       "spacing": 4,
       "children": [
         {
-          "type": "text",
-          "content": "System",
-          "size": 11,
-          "weight": "semibold",
-          "color": "primary"
+          "type": "hstack",
+          "alignment": "center",
+          "spacing": 4,
+          "children": [
+            {
+              "type": "icon",
+              "name": "cpu",
+              "size": 11,
+              "color": "accent"
+            },
+            {
+              "type": "text",
+              "content": "System",
+              "size": 11,
+              "weight": "bold",
+              "color": "primary"
+            }
+          ]
         },
         {
           "type": "system_stats",

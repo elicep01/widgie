@@ -7,52 +7,98 @@
     "name": "Crypto Tracker",
     "description": "BTC + ETH live tracker",
     "size": {
-      "width": 220,
-      "height": 50
+      "width": 240,
+      "height": 110
     },
-    "theme": "obsidian",
-    "cornerRadius": 12,
+    "theme": "midnight",
+    "background": {
+      "type": "gradient",
+      "colors": ["#0F0C29", "#302B63", "#24243E"]
+    },
+    "cornerRadius": 16,
     "padding": {
-      "top": 8,
-      "bottom": 8,
-      "leading": 10,
-      "trailing": 10
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
     },
     "refreshInterval": 60,
     "content": {
-      "type": "hstack",
-      "alignment": "center",
-      "spacing": 8,
+      "type": "vstack",
+      "spacing": 6,
       "children": [
         {
-          "type": "crypto",
-          "symbol": "BTC",
-          "currency": "USD",
-          "showChange": true,
-          "showChart": false,
-          "size": 12,
-          "color": "primary"
+          "type": "hstack",
+          "alignment": "center",
+          "spacing": 6,
+          "children": [
+            {
+              "type": "icon",
+              "name": "bitcoinsign.circle.fill",
+              "size": 14,
+              "color": "#F7931A"
+            },
+            {
+              "type": "text",
+              "content": "Crypto",
+              "size": 12,
+              "weight": "bold",
+              "color": "primary"
+            }
+          ]
         },
         {
-          "type": "divider",
-          "color": "muted",
-          "thickness": 0.5,
-          "direction": "vertical"
-        },
-        {
-          "type": "crypto",
-          "symbol": "ETH",
-          "currency": "USD",
-          "showChange": true,
-          "showChart": false,
-          "size": 12,
-          "color": "primary"
+          "type": "hstack",
+          "alignment": "top",
+          "spacing": 10,
+          "children": [
+            {
+              "type": "container",
+              "background": "gradient:#F7931A,#E8890C",
+              "cornerRadius": 10,
+              "padding": {
+                "top": 8,
+                "bottom": 8,
+                "leading": 10,
+                "trailing": 10
+              },
+              "child": {
+                "type": "crypto",
+                "symbol": "BTC",
+                "currency": "USD",
+                "showChange": true,
+                "showChart": false,
+                "size": 12,
+                "color": "primary"
+              }
+            },
+            {
+              "type": "container",
+              "background": "gradient:#627EEA,#4A6CC9",
+              "cornerRadius": 10,
+              "padding": {
+                "top": 8,
+                "bottom": 8,
+                "leading": 10,
+                "trailing": 10
+              },
+              "child": {
+                "type": "crypto",
+                "symbol": "ETH",
+                "currency": "USD",
+                "showChange": true,
+                "showChart": false,
+                "size": 12,
+                "color": "primary"
+              }
+            }
+          ]
         }
       ]
     },
     "maxSize": {
-      "width": 280,
-      "height": 70
+      "width": 320,
+      "height": 140
     }
   }
 }
