@@ -281,14 +281,19 @@ struct PromptClarifier {
         - General news → `news_headlines` (RSS feeds ONLY — must use known valid URLs, CANNOT filter by topic)
         - GitHub repos → `github_repo_stats` (needs owner/repo format)
 
-        ### INTERACTIVE (user can click/type/toggle/drag):
-        - To-do lists → `checklist` with `interactive: true`
-        - Notes/journaling → `note` with `editable: true`
-        - Habit/mood tracking → `habit_tracker` (daily check-off)
+        ### INTERACTIVE / EDITABLE (user can click/type/toggle/drag):
+        - To-do lists → `checklist` with `interactive: true` (add/remove/check items)
+        - Notes/journaling → `note` with `editable: true` (free-form text input, auto-saves)
+        - Habit/mood tracking → `habit_tracker` (daily check-off with streaks)
         - App launcher → `shortcut_launcher` (opens apps/URLs/shortcuts via open:bundleID)
         - Bookmarks → `link_bookmarks` (clickable URL grid or list)
         - File drop zone → `file_clipboard` (drag-and-drop files in/out, persistent, shows file icons)
-        - Music player → `music_now_playing` with showControls:true (play/pause/skip, auto-detects Spotify/Apple Music/YouTube Music)
+        - Music player → `music_now_playing` with showControls:true (play/pause/skip/seek, auto-detects Spotify/Apple Music/YouTube Music)
+        - **ANY "editable" request**: If user says "editable", "I can type in it", "fillable", "customizable" — make content editable:
+          - List content → `checklist` with `interactive: true`
+          - Free text → `note` with `editable: true`
+          - Daily tracking → `habit_tracker`
+          - Mixed → compose checklist + note in a layout
 
         ### STATIC DISPLAY (informational, decorative):
         - Countdown to date → `countdown` (target date)

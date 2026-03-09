@@ -148,6 +148,16 @@ final class WidgetPositionManager {
         )
     }
 
+    /// Grid step for placement — all auto-placed widgets land on multiples of this
+    /// value relative to screen edges, producing clean, uniform positions.
+    private static let gridStep: CGFloat = 40
+
+    /// Snap a coordinate to the nearest grid line relative to a screen-edge anchor.
+    private func snapToGrid(_ value: CGFloat, anchor: CGFloat) -> CGFloat {
+        let offset = value - anchor
+        return anchor + (offset / Self.gridStep).rounded() * Self.gridStep
+    }
+
     func firstAvailableOrigin(
         for size: CGSize,
         in frame: CGRect,
@@ -155,19 +165,21 @@ final class WidgetPositionManager {
         margin: CGFloat = 28,
         scanStep: CGFloat = 24
     ) -> CGPoint? {
-        let minX = frame.minX + margin
+        let step = Self.gridStep
+        // Snap margins to grid so all placements align cleanly.
+        let minX = snapToGrid(frame.minX + margin, anchor: frame.minX)
         let maxX = frame.maxX - margin - size.width
-        let minY = frame.minY + margin
+        let minY = snapToGrid(frame.minY + margin, anchor: frame.minY)
         let maxY = frame.maxY - margin - size.height
 
         guard maxX >= minX, maxY >= minY else {
             return nil
         }
 
-        // Scan from top-left corner outward. Widgets are desktop furniture — they
-        // belong near edges, not blocking the center of the screen.
-        let targetX = minX
-        let targetY = maxY
+        // Scan from top-right corner inward. Widgets placed near the right edge
+        // look intentional and leave the desktop center open.
+        let targetX = snapToGrid(maxX, anchor: frame.minX)
+        let targetY = snapToGrid(maxY, anchor: frame.minY)
 
         struct Candidate {
             let point: CGPoint
@@ -175,16 +187,16 @@ final class WidgetPositionManager {
         }
 
         var candidates: [Candidate] = []
-        var y = minY
+        var y = snapToGrid(minY, anchor: frame.minY)
         while y <= maxY {
             var x = minX
             while x <= maxX {
                 let dx = x - targetX
                 let dy = y - targetY
                 candidates.append(Candidate(point: CGPoint(x: x, y: y), distSq: dx * dx + dy * dy))
-                x += scanStep
+                x += step
             }
-            y += scanStep
+            y += step
         }
 
         candidates.sort { $0.distSq < $1.distSq }
@@ -206,16 +218,17 @@ final class WidgetPositionManager {
         margin: CGFloat = 28,
         scanStep: CGFloat = 28
     ) -> CGPoint {
-        let clampedDefault = clampedOrigin(
-            CGPoint(x: frame.minX + margin, y: frame.maxY - margin - size.height),
-            size: size,
-            in: frame,
-            margin: margin
+        let step = Self.gridStep
+        let snappedDefault = CGPoint(
+            x: snapToGrid(frame.maxX - margin - size.width, anchor: frame.minX),
+            y: snapToGrid(frame.maxY - margin - size.height, anchor: frame.minY)
         )
-        let minX = frame.minX + margin
+        let clampedDefault = clampedOrigin(snappedDefault, size: size, in: frame, margin: margin)
+
+        let minX = snapToGrid(frame.minX + margin, anchor: frame.minX)
         let maxX = frame.maxX - margin - size.width
-        let minY = frame.minY + margin
-        let startY = frame.maxY - margin - size.height
+        let minY = snapToGrid(frame.minY + margin, anchor: frame.minY)
+        let startY = snapToGrid(frame.maxY - margin - size.height, anchor: frame.minY)
         guard maxX >= minX, startY >= minY else {
             return clampedDefault
         }
@@ -225,23 +238,23 @@ final class WidgetPositionManager {
 
         var y = startY
         while y >= minY {
-            var x = minX
-            while x <= maxX {
+            var x = snapToGrid(maxX, anchor: frame.minX)
+            while x >= minX {
                 let candidate = CGRect(origin: CGPoint(x: x, y: y), size: size)
                 let overlapArea = occupied.reduce(CGFloat(0)) { partial, obstacle in
                     partial + candidate.intersection(obstacle).area
                 }
-                // Prefer top-left region — widgets are desktop furniture, not center-screen popups.
-                let edgeXBias = candidate.origin.x * 0.05
+                // Prefer top-right region — widgets near screen edges look clean and intentional.
+                let edgeXBias = (frame.maxX - candidate.maxX) * 0.05
                 let edgeYBias = (frame.maxY - candidate.maxY) * 0.05
                 let score = overlapArea + edgeXBias + edgeYBias
                 if score < bestScore {
                     bestScore = score
                     bestOrigin = candidate.origin
                 }
-                x += scanStep
+                x -= step
             }
-            y -= scanStep
+            y -= step
         }
 
         return bestOrigin

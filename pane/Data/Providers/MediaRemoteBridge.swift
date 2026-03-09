@@ -109,6 +109,18 @@ enum MediaRemoteBridge {
         _ = fn(command.rawValue, nil)
     }
 
+    // MARK: - Seek
+
+    static func setElapsedTime(_ time: TimeInterval) {
+        guard let bundle = frameworkBundle,
+              let ptr = CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteSetElapsedTime" as CFString) else {
+            return
+        }
+        typealias Fn = @convention(c) (Double) -> Void
+        let fn = unsafeBitCast(ptr, to: Fn.self)
+        fn(time)
+    }
+
     // MARK: - Availability
 
     static var isAvailable: Bool { frameworkBundle != nil }

@@ -440,9 +440,13 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         if let position = config.position {
             targetOrigin = NSPoint(x: position.x.cgFloat, y: position.y.cgFloat)
         } else {
+            // Default: top-right area, snapped to 40pt grid for clean alignment.
+            let gridStep: CGFloat = 40
+            let rawX = screenFrame.maxX - config.size.width.cgFloat - 40
+            let rawY = screenFrame.maxY - config.size.height.cgFloat - 40
             targetOrigin = NSPoint(
-                x: screenFrame.minX + 48,
-                y: screenFrame.maxY - config.size.height.cgFloat - 48
+                x: screenFrame.minX + ((rawX - screenFrame.minX) / gridStep).rounded() * gridStep,
+                y: screenFrame.minY + ((rawY - screenFrame.minY) / gridStep).rounded() * gridStep
             )
         }
 
@@ -1017,8 +1021,16 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             let lineHeight = max(12, fontSize * 1.22)
             let height = (CGFloat(lineCount) * lineHeight) + 8
             return CGSize(width: CGFloat(width), height: height)
-        case .checklist, .calendarNext, .reminders, .newsHeadlines, .habitTracker:
-            return CGSize(width: 270, height: 170)
+        case .checklist:
+            let itemCount = max(1, min(component.items?.count ?? 3, component.maxItems ?? 6))
+            return CGSize(width: 160, height: CGFloat(28 + itemCount * 22))
+        case .calendarNext, .reminders, .newsHeadlines, .habitTracker:
+            let itemCount = max(1, min(component.maxItems ?? 4, 6))
+            return CGSize(width: 200, height: CGFloat(28 + itemCount * 24))
+        case .quote:
+            return CGSize(width: 160, height: 60)
+        case .virtualPet:
+            return CGSize(width: 280, height: 320)
         case .countdown, .date, .stock, .crypto, .dayProgress, .yearProgress, .systemStats:
             return CGSize(width: 185, height: 82)
         default:

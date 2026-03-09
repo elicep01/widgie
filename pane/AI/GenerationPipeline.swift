@@ -65,6 +65,8 @@ struct GenerationPipeline {
         }
 
         applyPromptPreferences(to: &config, prompt: prompt)
+        ensureMinimumPadding(&config)
+        ensureSizeFitsContent(&config)
 
         return config
     }
@@ -635,6 +637,42 @@ struct GenerationPipeline {
             }
         }
         return items
+    }
+
+    /// Ensure no widget goes out with tiny padding — minimum 12px on all sides.
+    private func ensureMinimumPadding(_ config: inout WidgetConfig) {
+        let minPad: Double = 12
+        config.padding.top = max(config.padding.top, minPad)
+        config.padding.bottom = max(config.padding.bottom, minPad)
+        config.padding.leading = max(config.padding.leading, minPad)
+        config.padding.trailing = max(config.padding.trailing, minPad)
+    }
+
+    /// If the widget has many leaf components but a small size class, bump it up
+    /// so content isn't cramped or clipped.
+    private func ensureSizeFitsContent(_ config: inout WidgetConfig) {
+        let leafCount = countLeafComponents(config.content)
+        let w = config.size.width
+        let h = config.size.height
+
+        // 5+ leaf components in a Medium (320x180) → bump to Large
+        if leafCount >= 5, w <= 320, h <= 180 {
+            config.size = WidgetSize(width: 320, height: 360)
+        }
+        // 8+ leaf components in a Large → bump to Dashboard
+        else if leafCount >= 8, w <= 320, h <= 360 {
+            config.size = WidgetSize(width: 480, height: 360)
+        }
+    }
+
+    private func countLeafComponents(_ component: ComponentConfig) -> Int {
+        let isLayout = component.type == .vstack || component.type == .hstack
+            || component.type == .container
+            || component.type == .spacer || component.type == .divider
+        let selfCount = isLayout ? 0 : 1
+        let childCount = (component.child.map { countLeafComponents($0) } ?? 0)
+        let childrenCount = (component.children ?? []).reduce(0) { $0 + countLeafComponents($1) }
+        return selfCount + childCount + childrenCount
     }
 
     private func applyPromptPreferences(to config: inout WidgetConfig, prompt: String) {

@@ -23,20 +23,23 @@ struct WidgetRenderer: View {
 
     /// Responsive scale driven by both width and height so content grows/shrinks
     /// proportionally during freeform resize drags.
+    /// Reference: 300x170 (medium widget baseline). Scale 1.0 = comfortable medium.
     private var scaleFactor: Double {
-        let widthScale = config.size.width / 220.0
-        let heightScale = config.size.height / 120.0
-        return max(0.72, min(1.8, min(widthScale, heightScale)))
+        let widthScale = config.size.width / 300.0
+        let heightScale = config.size.height / 170.0
+        return max(0.65, min(2.0, min(widthScale, heightScale)))
     }
 
     private var scaledPadding: EdgeInsets {
         let s = scaleFactor
         let p = config.padding
+        // Ensure proportional padding at every size — never less than 8px so content
+        // doesn't touch edges, never more than 48px so space isn't wasted.
         return EdgeInsets(
-            top: ((p.top * s).cgFloat).clamped(6, 40),
-            leading: ((p.leading * s).cgFloat).clamped(6, 44),
-            bottom: ((p.bottom * s).cgFloat).clamped(6, 40),
-            trailing: ((p.trailing * s).cgFloat).clamped(6, 44)
+            top: ((p.top * s).cgFloat).clamped(8, 48),
+            leading: ((p.leading * s).cgFloat).clamped(8, 48),
+            bottom: ((p.bottom * s).cgFloat).clamped(8, 48),
+            trailing: ((p.trailing * s).cgFloat).clamped(8, 48)
         )
     }
 
@@ -89,7 +92,7 @@ struct WidgetRenderer: View {
                     .foregroundStyle(ThemeResolver.color(for: component.color, theme: config.theme))
                     .multilineTextAlignment(textAlignment(for: component.alignment))
                     .lineLimit(component.maxLines)
-                    .minimumScaleFactor(0.82)
+                    .minimumScaleFactor(0.7)
                     .allowsTightening(true)
                     .opacity(component.opacity ?? 1)
                     .frame(maxWidth: .infinity, alignment: frameAlignment(for: component.alignment))
@@ -241,22 +244,26 @@ struct WidgetRenderer: View {
         case .breathingExercise:
             return AnyView(BreathingExerciseComponentView(component: component, theme: config.theme))
 
+        case .virtualPet:
+            return AnyView(VirtualPetComponentView(widgetID: config.id, component: component, theme: config.theme))
+
         case .vstack:
             let children = component.children ?? []
             return AnyView(
                 VStack(
                     alignment: horizontalAlignment(for: component.alignment),
-                    spacing: scaledSpacing(component.spacing ?? 6, min: 3, max: 14)
+                    spacing: scaledSpacing(component.spacing ?? 6, min: 3, max: 24)
                 ) {
                     ForEach(children.indices, id: \.self) { index in
                         renderComponent(children[index])
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             )
 
         case .hstack:
             let children = component.children ?? []
-            let spacing = scaledSpacing(component.spacing ?? 7, min: 3, max: 14)
+            let spacing = scaledSpacing(component.spacing ?? 7, min: 3, max: 24)
             let meaningfulChildren = children.filter { $0.type != .divider && $0.type != .spacer }
             if shouldReflowHStack(children: children) {
                 let minColumnWidth = max(124.cgFloat, (148 * scaleFactor).cgFloat)
@@ -271,6 +278,7 @@ struct WidgetRenderer: View {
                             renderComponent(displayChildren[index])
                         }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 )
             }
             return AnyView(
@@ -279,6 +287,7 @@ struct WidgetRenderer: View {
                         renderComponent(children[index])
                     }
                 }
+                .frame(maxWidth: .infinity)
             )
 
         case .container:
@@ -509,7 +518,7 @@ struct WidgetRenderer: View {
         ((base * scaleFactor).cgFloat).clamped(min, max)
     }
 
-    private func scaledSpacing(_ base: Double, min: CGFloat = 3, max: CGFloat = 16) -> CGFloat {
+    private func scaledSpacing(_ base: Double, min: CGFloat = 3, max: CGFloat = 28) -> CGFloat {
         ((base * scaleFactor).cgFloat).clamped(min, max)
     }
 }
@@ -2340,6 +2349,8 @@ private struct MusicNowPlayingComponentView: View {
 
     @State private var snapshot: MusicSnapshot?
     @State private var isPlayToggling = false
+    @State private var isSeeking = false
+    @State private var seekProgress: Double = 0
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
@@ -2440,6 +2451,11 @@ private struct MusicNowPlayingComponentView: View {
     @ViewBuilder
     private var progressBarView: some View {
         if component.showProgress ?? true {
+            let displayProgress = isSeeking ? seekProgress : (snapshot?.progress ?? 0)
+            let displayElapsed: Double? = isSeeking
+                ? (snapshot?.duration).map { seekProgress * $0 }
+                : snapshot?.elapsedTime
+
             VStack(spacing: (2 * scale).cgFloat) {
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -2447,14 +2463,30 @@ private struct MusicNowPlayingComponentView: View {
                             .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.25))
                         Capsule()
                             .fill(ThemeResolver.color(for: "accent", theme: theme))
-                            .frame(width: max(0, geo.size.width * (snapshot?.progress ?? 0).cgFloat))
-                            .animation(.linear(duration: 1.0), value: snapshot?.progress)
+                            .frame(width: max(0, geo.size.width * displayProgress.cgFloat))
+                            .animation(isSeeking ? nil : .linear(duration: 1.0), value: displayProgress)
                     }
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                isSeeking = true
+                                seekProgress = max(0, min(1, value.location.x / geo.size.width))
+                            }
+                            .onEnded { value in
+                                let finalProgress = max(0, min(1, value.location.x / geo.size.width))
+                                if let duration = snapshot?.duration, duration > 0 {
+                                    DataServiceManager.shared.musicSeek(to: finalProgress * duration)
+                                }
+                                isSeeking = false
+                                refreshAfterDelay()
+                            }
+                    )
                 }
-                .frame(height: (3 * scale).cgFloat)
+                .frame(height: (5 * scale).cgFloat)
 
                 HStack {
-                    Text(formatTime(snapshot?.elapsedTime))
+                    Text(formatTime(displayElapsed))
                         .font(.system(size: (8 * scale).cgFloat, weight: .medium).monospacedDigit())
                         .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                     Spacer(minLength: 0)

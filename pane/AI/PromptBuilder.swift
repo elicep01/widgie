@@ -133,6 +133,38 @@ struct PromptBuilder {
            - Habits → `habit_tracker` with clickable increment buttons
            - RULE: If there is an interactive component that fits, USE IT. Never make a static version of something that could be interactive.
 
+        8. **EDITABLE DESIGN PATTERN**: When the user says "editable", "I can edit it", "I want to type in it", "fillable", "customizable content", or any synonym of editable/interactive, you MUST make the widget user-modifiable. Here is HOW to make any widget editable — pick the right building block based on the content type:
+
+           **For freeform text content** → use `note` with `editable: true`
+           - User can type, edit, and delete text freely. Content auto-saves.
+           - Use when: journals, diaries, memo pads, scratch pads, meeting notes, daily reflections, gratitude logs, brain dumps, recipe notes, study notes, prayer/intention notes, any free-text input.
+           - Set `content` to empty string "" so the user starts with a blank canvas (unless they asked for placeholder text).
+           - Example: "editable recipe card" → vstack of [text header "My Recipe", note with editable: true and empty content]
+
+           **For list/item-based content** → use `checklist` with `interactive: true`
+           - User can check/uncheck items, add new items, remove items, and enter edit mode.
+           - Use when: to-do lists, shopping lists, packing lists, bucket lists, reading lists, workout plans, project tasks, goal tracking, daily routines, any list the user wants to modify.
+           - Pre-populate with a few relevant placeholder items if user didn't specify items.
+           - Always set `interactive: true` — without it, items are static and cannot be toggled.
+           - Example: "editable shopping list" → checklist with interactive: true and items like "Milk", "Bread", "Eggs"
+
+           **For daily tracking / boolean habits** → use `habit_tracker`
+           - User can tap to mark habits as done each day, shows streaks.
+           - Use when: water intake, exercise, medication, mood logging, study tracking, practice tracking.
+           - Example: "editable fitness tracker" → habit_tracker with habits: "Workout", "Stretch", "10k Steps"
+
+           **For mixed editable content** → compose note + checklist + other components in a vstack/hstack:
+           - Example: "editable daily planner" → vstack of [text header "Today's Plan", checklist with interactive: true for tasks, divider, note with editable: true for free notes]
+           - Example: "editable project board" → vstack of [text header "Project X", checklist for milestones, note for free-form notes]
+
+           **DECISION TREE for "editable X"**:
+           - Is it a list of items? → `checklist` with `interactive: true`
+           - Is it free-form text? → `note` with `editable: true`
+           - Is it daily yes/no tracking? → `habit_tracker`
+           - Is it a mix? → Compose multiple editable components in a layout
+           - Is it a data widget (weather, stock, etc.) + editable notes? → Combine the data component with a `note` (editable: true) section
+           - NEVER use static `text` components when the user asked for editable content. A `text` component is read-only.
+
         YOUR RESPONSIBILITIES
         0. Deliberate before output.
         - Internally evaluate: intent, layout, visual style, data source availability, refresh behavior, and user interaction requirements.
@@ -282,9 +314,14 @@ struct PromptBuilder {
           - Dashboard: 480x360
         - Never output custom dimensions outside these classes.
         - Choose the smallest class that fits the requested content without clipping.
-        - Use Medium/Wide for single-row glanceable widgets (clock, stocks, weather summary).
-        - Use Large/Dashboard for multi-section dashboards, checklists, and content-heavy layouts.
+        - Use Medium/Wide for single-row glanceable widgets (clock, stocks, weather summary — 1 to 2 items).
+        - Use Large (320x360) for widgets with 3-4 cities/items stacked vertically, or multi-section layouts.
+        - Use Dashboard (480x360) for 4+ cities/items, multi-column dashboards, or content-heavy layouts.
+        - IMPORTANT: Count the number of distinct data items the user wants (cities, stocks, clocks, etc.).
+          If there are 3+ items, DO NOT use Medium — the content will be cramped and unreadable. Use Large or Dashboard.
         - Keep internal spacing balanced and consistent; do not produce sparse empty interiors.
+        - Every piece of content must be comfortably visible with readable font sizes (minimum 12pt).
+        - Use proper padding: at minimum {"top": 14, "bottom": 14, "leading": 14, "trailing": 14}.
 
         5. Design quality and theme compliance.
         - Default theme is \(defaultTheme.rawValue) unless user requests otherwise.
@@ -658,8 +695,9 @@ struct PromptBuilder {
             }
         }
 
-        if lower.contains("interactive") || lower.contains("editable") || lower.contains("check off") {
-            hints.append("MODIFICATION: Set `interactive: true` on checklist or `editable: true` on note components.")
+        if lower.contains("interactive") || lower.contains("editable") || lower.contains("check off") ||
+           lower.contains("edit") || lower.contains("fillable") || lower.contains("type in") || lower.contains("writable") {
+            hints.append("MODIFICATION: Make content user-editable. Set `interactive: true` on checklist components, `editable: true` on note components. If the widget has static text that should be editable, convert it to a `note` with `editable: true`. For list content, use `checklist` with `interactive: true`. Never leave editable content as static `text`.")
         }
 
         // Check for things NOT mentioned in the edit that should NOT be touched

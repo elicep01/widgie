@@ -474,8 +474,14 @@ final class WidgetManager {
             return CGPoint(x: 80, y: 420)
         }
 
+        // Fallback: place near top-right on a clean 40pt grid.
+        let gridStep: CGFloat = 40
+        let fallbackX = frame.maxX - size.width - 40
+        let fallbackY = frame.maxY - size.height - 40
+        let snappedX = frame.minX + ((fallbackX - frame.minX) / gridStep).rounded() * gridStep
+        let snappedY = frame.minY + ((fallbackY - frame.minY) / gridStep).rounded() * gridStep
         return positionManager.clampedOrigin(
-            CGPoint(x: frame.minX + 48, y: frame.maxY - size.height - 120),
+            CGPoint(x: snappedX, y: snappedY),
             size: size,
             in: frame,
             margin: 28

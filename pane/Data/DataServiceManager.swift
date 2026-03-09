@@ -141,6 +141,10 @@ actor DataServiceManager {
         musicProvider.previousTrack()
     }
 
+    nonisolated func musicSeek(to position: Double) {
+        musicProvider.seek(to: position)
+    }
+
     func news(feedURL: String, maxItems: Int, forceRefresh: Bool = false) async -> [NewsHeadlineSnapshot] {
         let key = "rss_\(feedURL)_\(maxItems)"
         if !forceRefresh, let cached = await cache.load([NewsHeadlineSnapshot].self, key: key) {

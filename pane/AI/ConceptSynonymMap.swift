@@ -85,13 +85,24 @@ enum ConceptSynonymMap {
         "schedule":     ["clock", "calendar", "countdown"],
         "alarm":        ["clock", "timer", "countdown"],
 
+        // Editable / interactive intent
+        "editable":     ["note", "checklist", "interactive", "edit", "input"],
+        "edit":         ["note", "checklist", "editable", "interactive"],
+        "interactive":  ["editable", "checklist", "note", "habit", "tracker"],
+        "input":        ["editable", "note", "checklist", "interactive"],
+        "customize":    ["editable", "interactive", "note", "checklist"],
+        "fillable":     ["editable", "note", "checklist", "interactive"],
+        "writable":     ["editable", "note", "journal", "text"],
+        "type":         ["note", "editable", "text", "write"],
+        "modify":       ["editable", "interactive", "edit"],
+
         // Journal / notes
-        "journal":      ["note", "diary", "memo", "text"],
-        "diary":        ["note", "journal", "memo"],
-        "memo":         ["note", "journal", "text"],
-        "writing":      ["note", "journal", "text"],
-        "write":        ["note", "journal", "text"],
-        "sticky":       ["note", "memo", "text"],
+        "journal":      ["note", "diary", "memo", "text", "editable"],
+        "diary":        ["note", "journal", "memo", "editable"],
+        "memo":         ["note", "journal", "text", "editable"],
+        "writing":      ["note", "journal", "text", "editable"],
+        "write":        ["note", "journal", "text", "editable"],
+        "sticky":       ["note", "memo", "text", "editable"],
 
         // Weather
         "forecast":     ["weather", "temperature", "rain"],

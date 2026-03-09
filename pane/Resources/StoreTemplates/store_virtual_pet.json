@@ -1,0 +1,27 @@
+{
+  "id": "virtual-pet",
+  "name": "Virtual Pet",
+  "description": "A cute Tamagotchi companion that lives on your desktop. Feed it, play with it, and keep it alive!",
+  "category": "health",
+  "config": {
+    "name": "Virtual Pet",
+    "description": "Desktop Tamagotchi — keep your pet alive!",
+    "size": {
+      "width": 320,
+      "height": 360
+    },
+    "theme": "pastel",
+    "cornerRadius": 18,
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 10,
+      "trailing": 10
+    },
+    "refreshInterval": 30,
+    "content": {
+      "type": "virtual_pet",
+      "content": "Pixel"
+    }
+  }
+}

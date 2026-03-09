@@ -39,6 +39,7 @@ enum ComponentType: String, Codable {
     case periodTracker = "period_tracker"
     case moodTracker = "mood_tracker"
     case breathingExercise = "breathing_exercise"
+    case virtualPet = "virtual_pet"
     case vstack
     case hstack
     case container
@@ -199,7 +200,7 @@ final class ComponentConfig: Codable {
             .pomodoro, .note, .stopwatch, .timer,
             .musicNowPlaying, .habitTracker, .reminders,
             .fileClipboard, .periodTracker, .moodTracker,
-            .breathingExercise
+            .breathingExercise, .virtualPet
         ]
         if interactiveTypes.contains(type) { return true }
         if child?.hasInteractiveContent == true { return true }

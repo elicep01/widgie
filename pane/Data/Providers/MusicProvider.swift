@@ -85,6 +85,18 @@ struct MusicProvider {
         }
     }
 
+    func seek(to position: Double) {
+        if isSpotifyRunning {
+            let posInt = Int(position)
+            runAppleScript("tell application \"Spotify\" to set player position to \(posInt)")
+        } else if isMusicRunning {
+            let posInt = Int(position)
+            runAppleScript("tell application \"Music\" to set player position to \(posInt)")
+        } else if MediaRemoteBridge.isAvailable {
+            MediaRemoteBridge.setElapsedTime(position)
+        }
+    }
+
     func previousTrack() {
         if isSpotifyRunning {
             runAppleScript("tell application \"Spotify\" to previous track")

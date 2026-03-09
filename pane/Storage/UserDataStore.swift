@@ -22,6 +22,18 @@ actor UserDataStore {
         var moodEntries: [String: [String: String]] = [:] // key → [yyyy-MM-dd: emoji]
         var customChecklistItems: [String: [[String: String]]] = [:] // key → [{id, text}]
         var widgetSettings: [String: [String: String]] = [:]         // key → [settingName: value]
+        var petStates: [String: PetStateData] = [:]                   // key → pet state
+    }
+
+    struct PetStateData: Codable {
+        var health: Double = 100
+        var hunger: Double = 100       // 100 = full, 0 = starving
+        var happiness: Double = 100
+        var isAlive: Bool = true
+        var birthDate: String          // ISO date
+        var lastFedAt: String          // ISO date
+        var lastPlayedAt: String       // ISO date
+        var lastDecayAt: String        // ISO date
     }
 
     private let fileManager: FileManager
@@ -207,6 +219,31 @@ actor UserDataStore {
         dates.removeAll { $0 == date }
         payload.periodDates[key] = dates
         persist()
+    }
+
+    // MARK: - Virtual Pet
+
+    func petState(for key: String) -> PetStateData? {
+        payload.petStates[key]
+    }
+
+    func createPet(for key: String) -> PetStateData {
+        let now = isoStamp()
+        let state = PetStateData(
+            birthDate: now, lastFedAt: now, lastPlayedAt: now, lastDecayAt: now
+        )
+        payload.petStates[key] = state
+        persist()
+        return state
+    }
+
+    func setPetState(_ state: PetStateData, for key: String) {
+        payload.petStates[key] = state
+        persist()
+    }
+
+    private func isoStamp(for date: Date = Date()) -> String {
+        ISO8601DateFormatter().string(from: date)
     }
 
     // MARK: - Mood Tracker

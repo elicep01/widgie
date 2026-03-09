@@ -111,13 +111,13 @@ final class WidgetTemplateStore {
     ) -> WidgetConfig {
         var config = input
 
-        // Slightly tighter card chrome for cleaner composition.
-        config.cornerRadius = max(14, min(22, config.cornerRadius.cgFloat * 0.92)).double
+        // Ensure good card chrome for medium-sized rendering.
+        config.cornerRadius = max(14, min(24, config.cornerRadius.cgFloat)).double
         var p = config.padding
-        p.top = max(8, min(18, p.top.cgFloat * 0.88)).double
-        p.bottom = max(8, min(18, p.bottom.cgFloat * 0.88)).double
-        p.leading = max(8, min(20, p.leading.cgFloat * 0.90)).double
-        p.trailing = max(8, min(20, p.trailing.cgFloat * 0.90)).double
+        p.top = max(14, min(24, p.top.cgFloat)).double
+        p.bottom = max(14, min(24, p.bottom.cgFloat)).double
+        p.leading = max(14, min(24, p.leading.cgFloat)).double
+        p.trailing = max(14, min(24, p.trailing.cgFloat)).double
         config.padding = p
 
         config.content = compactComponent(config.content, templateID: templateID)
@@ -128,12 +128,12 @@ final class WidgetTemplateStore {
         let horizontalChrome = p.leading.cgFloat + p.trailing.cgFloat + 10
         let verticalChrome = p.top.cgFloat + p.bottom.cgFloat + 10
 
-        let targetWidth = (preferredContent.width + horizontalChrome).clamped(160, 430)
-        var targetHeight = (preferredContent.height + verticalChrome).clamped(92, 260)
+        let targetWidth = (preferredContent.width + horizontalChrome).clamped(200, 460)
+        var targetHeight = (preferredContent.height + verticalChrome).clamped(130, 320)
 
-        // Prevent overly tall cards; favor compact area while keeping readability.
-        let softMaxHeight = max(110, (targetWidth * 1.08).rounded(.up))
-        targetHeight = min(targetHeight, softMaxHeight.clamped(110, 260))
+        // Prevent overly tall cards; favor readable proportions.
+        let softMaxHeight = max(140, (targetWidth * 1.2).rounded(.up))
+        targetHeight = min(targetHeight, softMaxHeight.clamped(140, 320))
 
         // For list-like widgets keep enough vertical room for multiple rows.
         if isListHeavy(config.content) {
@@ -146,7 +146,13 @@ final class WidgetTemplateStore {
             fallback: WidgetSize(width: targetWidth.double, height: targetHeight.double)
         )
         config.minSize = nil
-        config.maxSize = nil
+        // Cap maxSize relative to the chosen size so auto-fit doesn't blow the widget
+        // far past its intended gallery dimensions. Allow ~30% growth for data loading.
+        let chosenSize = config.size
+        config.maxSize = WidgetSize(
+            width: (chosenSize.width * 1.3).rounded(.up),
+            height: (chosenSize.height * 1.3).rounded(.up)
+        )
         config.refreshInterval = perTemplateRefreshInterval(id: templateID, fallback: config.refreshInterval)
         return config
     }
@@ -155,21 +161,21 @@ final class WidgetTemplateStore {
         let c = component
 
         if let size = c.size {
-            // Cap oversized template typography and tighten defaults.
-            let next = (size.cgFloat * 0.90).clamped(10, 30)
+            // Keep readable typography for medium-sized widgets.
+            let next = size.cgFloat.clamped(11, 36)
             c.size = next.double
         }
 
         if let spacing = c.spacing {
-            c.spacing = (spacing.cgFloat * 0.86).clamped(2, 14).double
+            c.spacing = spacing.cgFloat.clamped(4, 18).double
         }
 
         if let padding = c.padding {
             c.padding = EdgeInsetsConfig(
-                top: (padding.top.cgFloat * 0.86).clamped(0, 16).double,
-                bottom: (padding.bottom.cgFloat * 0.86).clamped(0, 16).double,
-                leading: (padding.leading.cgFloat * 0.90).clamped(0, 18).double,
-                trailing: (padding.trailing.cgFloat * 0.90).clamped(0, 18).double
+                top: padding.top.cgFloat.clamped(4, 20).double,
+                bottom: padding.bottom.cgFloat.clamped(4, 20).double,
+                leading: padding.leading.cgFloat.clamped(4, 22).double,
+                trailing: padding.trailing.cgFloat.clamped(4, 22).double
             )
         }
 
@@ -193,21 +199,21 @@ final class WidgetTemplateStore {
     private func applyTemplateSpecificPolish(templateID: String, component: ComponentConfig) {
         switch component.type {
         case .text:
-            component.size = (component.size ?? 13).cgFloat.clamped(12, 20).double
-            component.maxLines = min(component.maxLines ?? 4, 4)
+            component.size = (component.size ?? 15).cgFloat.clamped(13, 24).double
+            component.maxLines = min(component.maxLines ?? 6, 6)
         case .clock:
             if component.format?.isEmpty != false {
                 component.format = "h:mm a"
             }
             component.showSeconds = false
             if templateID == "clock-minimal" || templateID == "world-clocks" {
-                component.size = (component.size ?? 26).cgFloat.clamped(16, 26).double
+                component.size = (component.size ?? 32).cgFloat.clamped(22, 36).double
             } else {
-                component.size = (component.size ?? 22).cgFloat.clamped(14, 24).double
+                component.size = (component.size ?? 28).cgFloat.clamped(18, 32).double
             }
         case .analogClock:
             component.showSecondHand = false
-            component.lineWidth = (component.lineWidth ?? 2.2).cgFloat.clamped(1.6, 2.8).double
+            component.lineWidth = (component.lineWidth ?? 2.5).cgFloat.clamped(1.8, 3.5).double
             component.alignment = component.alignment ?? "center"
         case .weather:
             if component.style?.lowercased() != "forecast" {
@@ -219,61 +225,59 @@ final class WidgetTemplateStore {
             component.showCondition = true
             component.showTemperature = true
             component.showHighLow = true
-            component.forecastDays = min(component.forecastDays ?? 3, 3)
+            component.forecastDays = min(component.forecastDays ?? 5, 5)
         case .stock, .crypto:
             component.showChart = component.showChart ?? true
             component.chartType = component.chartType ?? "line"
             component.chartPeriod = component.chartPeriod ?? "1d"
             component.showChangePercent = true
-            component.size = (component.size ?? 13.5).cgFloat.clamped(12.5, 18).double
+            component.size = (component.size ?? 15).cgFloat.clamped(13, 20).double
         case .calendarNext:
-            component.maxEvents = min(component.maxEvents ?? 4, 4)
+            component.maxEvents = min(component.maxEvents ?? 5, 5)
             component.showTime = true
             component.showCalendarColor = true
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .reminders:
-            component.maxItems = min(component.maxItems ?? 5, 5)
+            component.maxItems = min(component.maxItems ?? 6, 6)
             component.showCheckbox = true
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .newsHeadlines:
-            component.maxItems = min(component.maxItems ?? 4, 4)
+            component.maxItems = min(component.maxItems ?? 5, 5)
             component.showSource = true
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .screenTime:
-            component.maxApps = min(component.maxApps ?? 4, 4)
+            component.maxApps = min(component.maxApps ?? 5, 5)
             component.timeRange = component.timeRange ?? "today"
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .checklist:
-            component.maxItems = min(component.maxItems ?? 5, 5)
+            component.maxItems = min(component.maxItems ?? 6, 6)
             component.showCheckbox = true
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .habitTracker:
-            component.maxItems = min(component.maxItems ?? 5, 5)
+            component.maxItems = min(component.maxItems ?? 6, 6)
             component.showStreak = component.showStreak ?? true
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .note:
-            component.maxLines = min(component.maxLines ?? 6, 6)
+            component.maxLines = min(component.maxLines ?? 8, 8)
             component.editable = true
-            component.size = (component.size ?? 13).cgFloat.clamped(12, 18).double
+            component.size = (component.size ?? 15).cgFloat.clamped(13, 20).double
         case .quote:
             component.showQuotationMarks = true
-            component.maxLines = min(component.maxLines ?? 4, 4)
-            component.size = (component.size ?? 13).cgFloat.clamped(12.5, 18).double
+            component.maxLines = min(component.maxLines ?? 5, 5)
+            component.size = (component.size ?? 15).cgFloat.clamped(14, 22).double
         case .githubRepoStats:
             component.showMetrics = component.showMetrics ?? ["stars", "forks", "issues", "watchers"]
-            component.size = (component.size ?? 12.5).cgFloat.clamped(12, 17).double
+            component.size = (component.size ?? 14).cgFloat.clamped(13, 20).double
         case .shortcutLauncher:
-            if let shortcuts = component.shortcuts, shortcuts.count > 6 {
-                component.shortcuts = Array(shortcuts.prefix(6))
+            if let shortcuts = component.shortcuts, shortcuts.count > 8 {
+                component.shortcuts = Array(shortcuts.prefix(8))
             }
-            component.style = "compact"
-            component.iconSize = (component.iconSize ?? 15).cgFloat.clamped(12, 18).double
+            component.iconSize = (component.iconSize ?? 18).cgFloat.clamped(14, 24).double
         case .linkBookmarks:
-            if let links = component.links, links.count > 6 {
-                component.links = Array(links.prefix(6))
+            if let links = component.links, links.count > 8 {
+                component.links = Array(links.prefix(8))
             }
             component.showFavicon = true
-            component.style = "compact"
         default:
             break
         }
@@ -298,37 +302,61 @@ final class WidgetTemplateStore {
 
     private func perTemplateTargetSize(id: String, category: String?, fallback: WidgetSize) -> WidgetSize {
         switch id {
-        case "clock-minimal": return WidgetSize(width: 168, height: 108)
-        case "analog-clock": return WidgetSize(width: 172, height: 172)
-        case "world-clocks": return WidgetSize(width: 260, height: 150)
-        case "stopwatch": return WidgetSize(width: 204, height: 124)
-        case "countdown-newyear": return WidgetSize(width: 220, height: 120)
-        case "day-progress": return WidgetSize(width: 196, height: 104)
-        case "year-progress": return WidgetSize(width: 196, height: 104)
-        case "weather-compact": return WidgetSize(width: 194, height: 112)
-        case "weather-forecast": return WidgetSize(width: 250, height: 144)
-        case "stock-ticker": return WidgetSize(width: 236, height: 114)
-        case "crypto-tracker": return WidgetSize(width: 210, height: 148)
-        case "calendar-agenda": return WidgetSize(width: 262, height: 150)
-        case "reminders-today": return WidgetSize(width: 250, height: 144)
-        case "daily-checklist": return WidgetSize(width: 244, height: 142)
-        case "habit-tracker": return WidgetSize(width: 246, height: 144)
-        case "notes-pad": return WidgetSize(width: 228, height: 132)
-        case "quote-of-the-day": return WidgetSize(width: 206, height: 112)
-        case "now-playing": return WidgetSize(width: 236, height: 128)
-        case "pomodoro-timer": return WidgetSize(width: 228, height: 140)
-        case "screen-time": return WidgetSize(width: 236, height: 132)
-        case "github-stats": return WidgetSize(width: 238, height: 118)
-        case "battery-ring": return WidgetSize(width: 140, height: 150)
-        case "system-monitor": return WidgetSize(width: 238, height: 126)
-        case "bookmarks-social": return WidgetSize(width: 228, height: 116)
-        case "quick-launch": return WidgetSize(width: 224, height: 108)
-        case "morning-dashboard": return WidgetSize(width: 296, height: 174)
-        case "productivity-daily": return WidgetSize(width: 286, height: 170)
-        case "news-headlines": return WidgetSize(width: 258, height: 148)
+        // ── Standard size: 320x180 (medium) — uniform look across all gallery widgets ──
+
+        // Time
+        case "clock-minimal":    return .medium
+        case "analog-clock":     return .medium
+        case "world-clocks":     return .medium
+        case "stopwatch":        return .medium
+        case "countdown-newyear":return .medium
+        case "day-progress":     return .medium
+        case "year-progress":    return .medium
+
+        // Weather
+        case "weather-compact":  return .medium
+        case "weather-forecast": return .medium
+
+        // Finance
+        case "stock-ticker":     return .medium
+        case "crypto-tracker":   return .medium
+
+        // Productivity
+        case "calendar-agenda":  return .medium
+        case "reminders-today":  return .medium
+        case "daily-checklist":  return .medium
+        case "habit-tracker":    return .medium
+        case "notes-pad":        return .medium
+
+        // Inspiration
+        case "quote-of-the-day": return .medium
+
+        // Media
+        case "now-playing":      return .medium
+
+        // Health
+        case "pomodoro-timer":   return .medium
+        case "meditation":       return .medium
+        case "mood-tracker":     return .medium
+        case "period-tracker":   return .medium
+        case "virtual-pet":      return .large
+
+        // System
+        case "screen-time":      return .medium
+        case "github-stats":     return .medium
+        case "battery-ring":     return .medium
+        case "system-monitor":   return .medium
+        case "bookmarks-social": return .medium
+        case "quick-launch":     return .medium
+        case "news-headlines":   return .medium
+
+        // ── Dashboards: wider because they have multiple sections side-by-side ──
+        case "morning-dashboard":  return .wide
+        case "productivity-daily": return .medium
+
         default:
             if category == "dashboard" {
-                return WidgetSize(width: 286, height: 172)
+                return .wide
             }
             return fallback
         }
@@ -398,35 +426,43 @@ final class WidgetTemplateStore {
     private func inferredPreferredSizeForLeaf(_ component: ComponentConfig) -> CGSize {
         switch component.type {
         case .analogClock:
-            return CGSize(width: 116, height: 116)
+            return CGSize(width: 160, height: 160)
         case .timer:
-            return component.style?.lowercased() == "ring" ? CGSize(width: 124, height: 124) : CGSize(width: 162, height: 70)
+            return component.style?.lowercased() == "ring" ? CGSize(width: 160, height: 160) : CGSize(width: 220, height: 100)
         case .progressRing, .pomodoro:
-            return CGSize(width: 120, height: 120)
+            return CGSize(width: 160, height: 160)
         case .battery:
-            return component.style?.lowercased() == "ring" ? CGSize(width: 116, height: 116) : CGSize(width: 150, height: 62)
+            return component.style?.lowercased() == "ring" ? CGSize(width: 150, height: 150) : CGSize(width: 200, height: 80)
         case .weather:
-            return component.style?.lowercased() == "compact" ? CGSize(width: 152, height: 58) : CGSize(width: 172, height: 82)
+            return component.style?.lowercased() == "compact" ? CGSize(width: 200, height: 80) : CGSize(width: 260, height: 140)
         case .clock:
-            return CGSize(width: 148, height: 52)
+            return CGSize(width: 200, height: 60)
         case .worldClocks:
             let count = max(1, component.clocks?.count ?? 1)
-            return CGSize(width: 216, height: CGFloat(36 + (count * 22)))
-        case .checklist, .calendarNext, .reminders, .newsHeadlines, .habitTracker:
-            return CGSize(width: 220, height: 132)
+            return CGSize(width: 260, height: CGFloat(44 + (count * 28)))
+        case .checklist:
+            let itemCount = max(1, min(component.items?.count ?? 3, component.maxItems ?? 6))
+            return CGSize(width: 160, height: CGFloat(28 + itemCount * 22))
+        case .calendarNext, .reminders, .newsHeadlines, .habitTracker:
+            let itemCount = max(1, min(component.maxItems ?? 4, 6))
+            return CGSize(width: 200, height: CGFloat(28 + itemCount * 24))
+        case .quote:
+            return CGSize(width: 160, height: 60)
         case .countdown, .date, .stock, .crypto, .dayProgress, .yearProgress, .systemStats:
-            return CGSize(width: 162, height: 68)
+            return CGSize(width: 210, height: 90)
         case .text:
             let text = component.content ?? ""
             let chars = max(1, text.count)
-            let width = min(280, max(90, 56 + (chars * 3)))
-            let lines = max(1, min(4, Int(ceil(Double(chars) / 26.0))))
-            let fontSize = CGFloat(component.size ?? 13)
-            let lineHeight = max(11, fontSize * 1.2)
-            let height = (CGFloat(lines) * lineHeight) + 6
+            let width = min(320, max(120, 70 + (chars * 4)))
+            let lines = max(1, min(6, Int(ceil(Double(chars) / 26.0))))
+            let fontSize = CGFloat(component.size ?? 15)
+            let lineHeight = max(14, fontSize * 1.3)
+            let height = (CGFloat(lines) * lineHeight) + 10
             return CGSize(width: CGFloat(width), height: height)
+        case .virtualPet:
+            return CGSize(width: 280, height: 320)
         default:
-            return CGSize(width: 138, height: 72)
+            return CGSize(width: 180, height: 100)
         }
     }
 

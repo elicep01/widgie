@@ -22,7 +22,17 @@ struct ChatDetailView: View {
                                     .transition(.opacity.combined(with: .move(edge: .bottom)))
                             }
 
-                            if viewModel.isProcessing {
+                            // Clickable option chips for clarification questions
+                        if let pending = viewModel.pendingClarification, !viewModel.isProcessing {
+                            ClarificationOptionsView(
+                                questions: pending.questions,
+                                viewModel: viewModel
+                            )
+                            .id("clarification-options")
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+
+                        if viewModel.isProcessing {
                                 thinkingRow
                                     .id("processing")
                                     .transition(.opacity)
@@ -260,6 +270,112 @@ private struct MessageRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, 3)
+        }
+    }
+}
+
+// MARK: - Clarification Options
+
+private struct ClarificationOptionsView: View {
+    let questions: [ClarificationQuestion]
+    @ObservedObject var viewModel: ChatViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(questions) { question in
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(question.question)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    FlowLayout(spacing: 6) {
+                        ForEach(question.options, id: \.self) { option in
+                            let isSelected = viewModel.isOptionSelected(questionID: question.id, option: option)
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    viewModel.toggleOption(
+                                        questionID: question.id,
+                                        option: option,
+                                        allowsMultiple: question.allowsMultiple
+                                    )
+                                }
+                            } label: {
+                                Text(option)
+                                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                                    .foregroundStyle(isSelected ? Color.white : Color.primary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(isSelected ? Color.accentColor : Color.primary.opacity(0.06))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .stroke(isSelected ? Color.clear : Color.primary.opacity(0.1), lineWidth: 0.5)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if question.allowsMultiple {
+                        Text("Select multiple")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.quaternary)
+                    }
+                }
+            }
+
+            // Custom text hint
+            Text("Or type your own answer below")
+                .font(.system(size: 11))
+                .foregroundStyle(.quaternary)
+                .padding(.top, 2)
+        }
+        .padding(.horizontal, 64) // align with message content (28 + 26 avatar + 10 spacing)
+        .padding(.vertical, 8)
+    }
+}
+
+/// Simple flow layout that wraps chips to the next line when they exceed available width.
+private struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth, x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX, x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }

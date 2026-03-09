@@ -17,7 +17,9 @@ final class ChatViewModel: ObservableObject {
     @Published var sidebarTab: ChatSidebarTab = .myWidgets
     @Published var traceLines: [String] = []
     @Published var pendingClarification: PendingClarification?
+    @Published var clarificationSelections: [String: Set<String>] = [:]  // question ID → selected options
     @Published var activeWidgetCounts: [String: Int] = [:]  // template name → count on desktop
+    @Published var activeWidgetIDs: Set<UUID> = []            // widget IDs currently on desktop
 
     let conversationStore: ConversationStore
 
@@ -40,7 +42,14 @@ final class ChatViewModel: ObservableObject {
     }
 
     func refreshConversations() {
-        conversations = conversationStore.all()
+        let all = conversationStore.all()
+        // Only show conversations whose widget is currently on the desktop,
+        // plus the actively selected conversation (may not have a widget yet).
+        conversations = all.filter { conv in
+            if conv.id == activeConversationID { return true }
+            guard let wid = conv.widgetID else { return false }
+            return activeWidgetIDs.contains(wid)
+        }
         // Refresh active messages if viewing a conversation
         if let id = activeConversationID,
            let conv = conversationStore.conversation(for: id) {
@@ -63,12 +72,47 @@ final class ChatViewModel: ObservableObject {
         traceLines = []
     }
 
+    // MARK: - Clarification Option Selection
+
+    func toggleOption(questionID: String, option: String, allowsMultiple: Bool) {
+        var selected = clarificationSelections[questionID] ?? []
+        if selected.contains(option) {
+            selected.remove(option)
+        } else {
+            if !allowsMultiple {
+                selected = [option]
+            } else {
+                selected.insert(option)
+            }
+        }
+        clarificationSelections[questionID] = selected
+
+        // Auto-compose the answer text from selections
+        inputText = composeClarificationAnswer()
+    }
+
+    func isOptionSelected(questionID: String, option: String) -> Bool {
+        clarificationSelections[questionID]?.contains(option) == true
+    }
+
+    private func composeClarificationAnswer() -> String {
+        guard let pending = pendingClarification else { return "" }
+        var parts: [String] = []
+        for question in pending.questions {
+            if let selected = clarificationSelections[question.id], !selected.isEmpty {
+                parts.append(selected.sorted().joined(separator: ", "))
+            }
+        }
+        return parts.joined(separator: "; ")
+    }
+
     func submit() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isProcessing else { return }
 
         inputText = ""
         traceLines = []
+        clarificationSelections = [:]
 
         // Append user message
         if let id = activeConversationID {

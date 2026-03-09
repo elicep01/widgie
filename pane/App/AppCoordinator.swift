@@ -185,6 +185,7 @@ final class AppCoordinator {
 
         widgetManager.onEditRequested = { [weak self] config in
             guard let self else { return }
+            self.ensureConversationHasContext(for: config)
             self.mainAppWindow.openConversationForWidget(config.id, widgetName: config.name)
         }
 
@@ -199,6 +200,8 @@ final class AppCoordinator {
                 counts[s.name, default: 0] += 1
             }
             self.chatViewModel.activeWidgetCounts = counts
+            self.chatViewModel.activeWidgetIDs = Set(summaries.map(\.id))
+            self.chatViewModel.refreshConversations()
         }
     }
 
@@ -384,9 +387,10 @@ final class AppCoordinator {
 
                     switch decision {
                     case .needsClarification(let plan, let questions, let conversation):
-                        // Show clarification questions in chat
+                        // Show clarification questions in chat with clickable option chips
                         let questionText = formatClarificationQuestions(questions)
                         chatViewModel.appendAssistantMessage(questionText)
+                        chatViewModel.clarificationSelections = [:]
                         chatViewModel.pendingClarification = ChatViewModel.PendingClarification(
                             plan: plan,
                             questions: questions,
@@ -423,12 +427,20 @@ final class AppCoordinator {
         chatViewModel.setProcessing(true, status: "Building your widget...")
         chatViewModel.clearTrace()
 
+        // Capture structured selections before they get cleared
+        let selections = chatViewModel.clarificationSelections
+
         Task {
             do {
-                // Build answers map from the user's free-text response
+                // Build answers map — use structured selections when available,
+                // fall back to the raw text answer for questions without selections.
                 var answers: [String: [String]] = [:]
                 for question in questions {
-                    answers[question.id] = [answer]
+                    if let selected = selections[question.id], !selected.isEmpty {
+                        answers[question.id] = selected.sorted()
+                    } else {
+                        answers[question.id] = [answer]
+                    }
                 }
 
                 let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
@@ -507,15 +519,11 @@ final class AppCoordinator {
     }
 
     private func formatClarificationQuestions(_ questions: [ClarificationQuestion]) -> String {
-        var text = "Before I build this, a few quick questions:\n\n"
+        // Keep the text message concise — clickable option chips are rendered below
+        var text = "Before I build this, a few quick questions:"
         for (i, q) in questions.enumerated() {
-            text += "\(i + 1). \(q.question)"
-            if !q.options.isEmpty {
-                text += "\n   Options: \(q.options.joined(separator: ", "))"
-            }
-            text += "\n"
+            text += "\n\(i + 1). \(q.question)"
         }
-        text += "\nJust reply with your preferences and I'll build it!"
         return text
     }
 
@@ -817,7 +825,97 @@ final class AppCoordinator {
         // Create a conversation entry for gallery widgets so they appear in "My Widgets"
         let conv = conversationStore.create(title: config.name, widgetID: config.id)
         var updated = conv
-        updated.appendSystem("Added from Widget Gallery")
+        updated.appendAssistant(widgetSummaryMessage(for: config))
+        conversationStore.update(updated)
+        chatViewModel.refreshConversations()
+    }
+
+    /// Build a concise, human-readable summary of a widget config so the chat
+    /// shows context about what the widget contains. Used for gallery widgets and
+    /// when opening edit on a widget with no prior chat history.
+    private func widgetSummaryMessage(for config: WidgetConfig) -> String {
+        var parts: [String] = []
+        parts.append("**\(config.name)** — added from Widget Gallery.")
+        if !config.description.isEmpty {
+            parts.append(config.description)
+        }
+        let components = flatComponentTypes(config.content)
+        if !components.isEmpty {
+            parts.append("Components: \(components.joined(separator: ", ")).")
+        }
+        parts.append("You can ask me to change anything — colors, units, layout, content, or size.")
+        return parts.joined(separator: "\n")
+    }
+
+    /// Recursively collect human-readable component type names from a widget tree.
+    private func flatComponentTypes(_ component: ComponentConfig) -> [String] {
+        var types: [String] = []
+        let label = componentLabel(component)
+        if let label { types.append(label) }
+        if let child = component.child {
+            types.append(contentsOf: flatComponentTypes(child))
+        }
+        if let children = component.children {
+            for c in children {
+                types.append(contentsOf: flatComponentTypes(c))
+            }
+        }
+        return types
+    }
+
+    private func componentLabel(_ c: ComponentConfig) -> String? {
+        switch c.type {
+        case .text:       return nil // generic, skip
+        case .clock:      return "clock"
+        case .analogClock: return "analog clock"
+        case .date:       return "date"
+        case .weather:    return c.style?.lowercased() == "forecast" ? "weather forecast" : "weather"
+        case .stock:      return "stock ticker (\(c.symbol ?? ""))"
+        case .crypto:     return "crypto (\(c.symbol ?? ""))"
+        case .checklist:  return "checklist"
+        case .quote:      return "quote"
+        case .dayProgress: return "day progress"
+        case .yearProgress: return "year progress"
+        case .countdown:  return "countdown"
+        case .battery:    return "battery"
+        case .systemStats: return "system stats"
+        case .calendarNext: return "calendar"
+        case .reminders:  return "reminders"
+        case .newsHeadlines: return "news headlines"
+        case .musicNowPlaying: return "now playing"
+        case .pomodoro:   return "pomodoro timer"
+        case .timer:      return "timer"
+        case .note:       return "note"
+        case .habitTracker: return "habit tracker"
+        case .worldClocks: return "world clocks"
+        case .breathingExercise: return "breathing exercise"
+        case .moodTracker: return "mood tracker"
+        case .periodTracker: return "period tracker"
+        case .progressRing: return "progress ring"
+        case .screenTime: return "screen time"
+        case .githubRepoStats: return "GitHub stats"
+        case .shortcutLauncher: return "shortcuts"
+        case .linkBookmarks: return "bookmarks"
+        case .stopwatch:  return "stopwatch"
+        case .virtualPet: return "virtual pet (Tamagotchi)"
+        default:          return nil
+        }
+    }
+
+    /// Ensure the conversation for a widget has at least one assistant message
+    /// describing what the widget contains. This way, when the user clicks "Edit",
+    /// they see context about the widget before typing their change request.
+    private func ensureConversationHasContext(for config: WidgetConfig) {
+        guard let conv = conversationStore.conversationForWidget(config.id) else { return }
+        // If the conversation already has a real assistant message (not just a system tag), skip.
+        let hasAssistantMessage = conv.messages.contains { $0.role == .assistant }
+        guard !hasAssistantMessage else { return }
+
+        // Replace stale system-only conversations with a descriptive assistant message.
+        var updated = conv
+        // Remove old "Added from Widget Gallery" system messages
+        updated.messages.removeAll { $0.role == .system && $0.content.contains("Added from Widget Gallery") }
+        updated.appendAssistant(widgetSummaryMessage(for: config))
         conversationStore.update(updated)
         chatViewModel.refreshConversations()
     }
