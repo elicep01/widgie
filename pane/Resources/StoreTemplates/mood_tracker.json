@@ -1,12 +1,12 @@
 {
   "id": "mood-tracker",
   "name": "Mood Tracker",
-  "description": "Log your daily mood with emojis, see your week at a glance.",
+  "description": "Log daily mood with emojis, 2-week chart, and wellness tips.",
   "category": "health",
   "config": {
     "name": "Mood Tracker",
     "description": "Daily mood journal with emoji tracking",
-    "size": { "width": 230, "height": 130 },
+    "size": { "width": 260, "height": 180 },
     "theme": "obsidian",
     "cornerRadius": 18,
     "padding": { "top": 12, "bottom": 10, "leading": 12, "trailing": 12 },
@@ -16,6 +16,6 @@
       "color": "accent",
       "alignment": "center"
     },
-    "maxSize": { "width": 300, "height": 180 }
+    "maxSize": { "width": 380, "height": 260 }
   }
 }

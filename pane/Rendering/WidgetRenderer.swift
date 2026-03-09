@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 // MARK: - Widget Scale Environment
@@ -4401,9 +4402,15 @@ private struct MoodTrackerComponentView: View {
         componentStorageKey(widgetID: widgetID, component: component, fallback: "mood-tracker")
     }
 
-    private var availableMoods: [(String, String)] {
-        [("😊", "Happy"), ("😌", "Calm"), ("😔", "Sad"), ("😤", "Angry"), ("😴", "Tired"), ("🥰", "Loved"), ("😰", "Anxious")]
-    }
+    private static let moodList: [(emoji: String, label: String, valence: Double)] = [
+        ("🥰", "Loved", 1.0),
+        ("😊", "Happy", 0.85),
+        ("😌", "Calm", 0.7),
+        ("😴", "Tired", 0.4),
+        ("😔", "Sad", 0.25),
+        ("😰", "Anxious", 0.15),
+        ("😤", "Angry", 0.05),
+    ]
 
     private var todayKey: String {
         let f = DateFormatter()
@@ -4411,35 +4418,45 @@ private struct MoodTrackerComponentView: View {
         return f.string(from: time.now)
     }
 
-    private var todayMood: String? {
-        moodEntries[todayKey]
+    private var todayMood: String? { moodEntries[todayKey] }
+
+    // MARK: - Chart data (past 14 days)
+
+    private struct ChartDay: Identifiable {
+        let id: String        // yyyy-MM-dd
+        let label: String     // day label
+        let emoji: String?
+        let valence: Double?  // 0-1
     }
 
-    /// Last 7 days mood data.
-    private var weekMoods: [(day: String, emoji: String?)] {
+    private var chartDays: [ChartDay] {
         let cal = Calendar.current
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         let dayF = DateFormatter()
-        dayF.dateFormat = "EEE"
-        return (0..<7).reversed().map { offset in
+        dayF.dateFormat = "d"
+        return (0..<14).reversed().map { offset in
             let date = cal.date(byAdding: .day, value: -offset, to: time.now)!
             let key = f.string(from: date)
-            let day = offset == 0 ? "Today" : dayF.string(from: date)
-            return (day, moodEntries[key])
+            let emoji = moodEntries[key]
+            let valence = emoji.flatMap { e in Self.moodList.first(where: { $0.emoji == e })?.valence }
+            let label = offset == 0 ? "Today" : dayF.string(from: date)
+            return ChartDay(id: key, label: label, emoji: emoji, valence: valence)
         }
     }
 
-    /// Most frequent mood.
-    private var topMood: String? {
-        let recent = moodEntries.values
+    /// Most frequent mood in the last 14 days.
+    private var topMood: (emoji: String, label: String)? {
+        let recent = chartDays.compactMap(\.emoji)
         guard !recent.isEmpty else { return nil }
         var freq: [String: Int] = [:]
         for m in recent { freq[m, default: 0] += 1 }
-        return freq.max(by: { $0.value < $1.value })?.key
+        guard let top = freq.max(by: { $0.value < $1.value })?.key else { return nil }
+        let label = Self.moodList.first(where: { $0.emoji == top })?.label ?? ""
+        return (top, label)
     }
 
-    /// Brief suggestion based on today's mood.
+    /// Suggestion based on today's mood.
     private var suggestion: String? {
         guard let mood = todayMood else { return nil }
         switch mood {
@@ -4454,52 +4471,34 @@ private struct MoodTrackerComponentView: View {
         }
     }
 
+    // MARK: - Body
+
     var body: some View {
         VStack(spacing: (5 * scale).cgFloat) {
             if !hasLoaded {
                 LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else {
-                // Mood selector row
-                if todayMood == nil {
-                    Text("How are you today?")
-                        .font(.system(size: (9 * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                }
-
-                HStack(spacing: (4 * scale).cgFloat) {
-                    ForEach(availableMoods, id: \.0) { emoji, _ in
-                        let isSelected = todayMood == emoji
-                        Button {
-                            Task {
-                                await UserDataStore.shared.setMood(emoji, on: todayKey, for: storageKey)
-                                await loadData()
-                            }
-                        } label: {
-                            let emojiSize: Double = isSelected ? 18.0 : 14.0
-                            Text(emoji)
-                                .font(.system(size: (emojiSize * scale).cgFloat))
-                                .scaleEffect(isSelected ? 1.15 : 1.0)
-                                .opacity(todayMood == nil || isSelected ? 1.0 : 0.4)
-                                .animation(.spring(response: 0.3), value: isSelected)
-                        }
-                        .buttonStyle(.plain)
+                // Chart header
+                HStack {
+                    Text("Past 2 Weeks")
+                        .font(.system(size: (8 * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    Spacer()
+                    if let top = topMood {
+                        Text("Most: \(top.emoji) \(top.label)")
+                            .font(.system(size: (7 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                     }
                 }
 
-                // Week history
-                HStack(spacing: (3 * scale).cgFloat) {
-                    ForEach(weekMoods, id: \.day) { day, emoji in
-                        VStack(spacing: (1 * scale).cgFloat) {
-                            Text(emoji ?? "·")
-                                .font(.system(size: (10 * scale).cgFloat))
-                                .frame(height: (14 * scale).cgFloat)
-                            Text(day)
-                                .font(.system(size: (7 * scale).cgFloat))
-                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
+                // Mood chart — bars with emoji on top
+                moodChart
+
+                Divider()
+                    .opacity(0.3)
+
+                // Today's mood selector
+                todaySelector
 
                 // Suggestion
                 if let suggestion {
@@ -4514,12 +4513,197 @@ private struct MoodTrackerComponentView: View {
         .task { await loadData() }
     }
 
+    // MARK: - Mood chart
+
+    private var moodChart: some View {
+        let maxBarH = (30.0 * scale).cgFloat
+        let accentColor = ThemeResolver.color(for: "accent", theme: theme)
+        let mutedColor = ThemeResolver.color(for: "muted", theme: theme)
+
+        return HStack(alignment: .bottom, spacing: (2 * scale).cgFloat) {
+            ForEach(chartDays) { day in
+                VStack(spacing: (1 * scale).cgFloat) {
+                    // Emoji on top
+                    if let emoji = day.emoji {
+                        Text(emoji)
+                            .font(.system(size: (8 * scale).cgFloat))
+                    } else {
+                        Text("")
+                            .font(.system(size: (8 * scale).cgFloat))
+                    }
+
+                    // Bar
+                    let barH = day.valence.map { CGFloat($0) * maxBarH } ?? (2 * scale).cgFloat
+                    RoundedRectangle(cornerRadius: (2 * scale).cgFloat)
+                        .fill(day.valence != nil ? accentColor.opacity(0.5 + (day.valence! * 0.5)) : mutedColor.opacity(0.15))
+                        .frame(height: max((2 * scale).cgFloat, barH))
+                        .animation(.easeInOut(duration: 0.3), value: day.valence)
+
+                    // Day label
+                    Text(day.label)
+                        .font(.system(size: (6 * scale).cgFloat))
+                        .foregroundStyle(mutedColor)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(height: (maxBarH + (22 * scale).cgFloat))
+    }
+
+    // MARK: - Today selector
+
+    private var todaySelector: some View {
+        VStack(spacing: (3 * scale).cgFloat) {
+            if todayMood == nil {
+                Text("How are you today?")
+                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+            } else {
+                Text("Today's mood")
+                    .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+            }
+
+            HStack(spacing: (4 * scale).cgFloat) {
+                ForEach(Self.moodList, id: \.emoji) { mood in
+                    let isSelected = todayMood == mood.emoji
+                    Button {
+                        Task {
+                            await UserDataStore.shared.setMood(mood.emoji, on: todayKey, for: storageKey)
+                            await loadData()
+                        }
+                    } label: {
+                        VStack(spacing: (1 * scale).cgFloat) {
+                            let emojiSize: Double = isSelected ? 16.0 : 13.0
+                            Text(mood.emoji)
+                                .font(.system(size: (emojiSize * scale).cgFloat))
+                                .scaleEffect(isSelected ? 1.15 : 1.0)
+                                .opacity(todayMood == nil || isSelected ? 1.0 : 0.4)
+                                .animation(.spring(response: 0.3), value: isSelected)
+                            if isSelected {
+                                Text(mood.label)
+                                    .font(.system(size: (6 * scale).cgFloat, weight: .medium))
+                                    .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                                    .transition(.opacity.combined(with: .scale))
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     private func loadData() async {
         let entries = await UserDataStore.shared.moodEntries(for: storageKey)
         await MainActor.run {
             moodEntries = entries
             hasLoaded = true
         }
+    }
+}
+
+// MARK: - Ambient Rain Sound
+
+/// Generates soft rain-like ambient noise using AVAudioEngine with pink noise filtering.
+private final class AmbientRainSound {
+    static let shared = AmbientRainSound()
+
+    private var engine: AVAudioEngine?
+    private var noiseNode: AVAudioSourceNode?
+    private var activeCount = 0
+    private let lock = NSLock()
+
+    // Pink noise state (Voss-McCartney algorithm)
+    private var pinkRows: [Double] = Array(repeating: 0, count: 16)
+    private var pinkRunningSum: Double = 0
+    private var pinkIndex: UInt32 = 0
+
+    func start() {
+        lock.lock()
+        activeCount += 1
+        if activeCount == 1 {
+            startEngine()
+        }
+        lock.unlock()
+    }
+
+    func stop() {
+        lock.lock()
+        activeCount = max(0, activeCount - 1)
+        if activeCount == 0 {
+            stopEngine()
+        }
+        lock.unlock()
+    }
+
+    private func startEngine() {
+        let engine = AVAudioEngine()
+        let mainMixer = engine.mainMixerNode
+        let outputFormat = mainMixer.outputFormat(forBus: 0)
+        let sampleRate = outputFormat.sampleRate
+        guard sampleRate > 0 else { return }
+
+        // Reset pink noise state
+        pinkRows = Array(repeating: 0, count: 16)
+        pinkRunningSum = 0
+        pinkIndex = 0
+
+        let sourceNode = AVAudioSourceNode(format: outputFormat) { [weak self] _, _, frameCount, bufferList -> OSStatus in
+            guard let self else { return noErr }
+            let ablPointer = UnsafeMutableAudioBufferListPointer(bufferList)
+            for frame in 0..<Int(frameCount) {
+                let sample = Float(self.nextPinkSample() * 0.08) // very soft
+                for buffer in ablPointer {
+                    let buf = buffer.mData?.assumingMemoryBound(to: Float.self)
+                    buf?[frame] = sample
+                }
+            }
+            return noErr
+        }
+
+        engine.attach(sourceNode)
+        engine.connect(sourceNode, to: mainMixer, format: outputFormat)
+        mainMixer.outputVolume = 0.5
+
+        do {
+            try engine.start()
+            self.engine = engine
+            self.noiseNode = sourceNode
+        } catch {
+            print("[AmbientRain] Failed to start: \(error)")
+        }
+    }
+
+    private func stopEngine() {
+        engine?.stop()
+        if let node = noiseNode {
+            engine?.detach(node)
+        }
+        engine = nil
+        noiseNode = nil
+    }
+
+    /// Voss-McCartney pink noise: each octave contributes equally.
+    private func nextPinkSample() -> Double {
+        let prev = pinkIndex
+        pinkIndex &+= 1
+        let changed = pinkIndex ^ prev
+
+        // Find which rows to update (trailing zeros of changed bits)
+        for i in 0..<pinkRows.count {
+            if changed & (1 << i) != 0 {
+                pinkRunningSum -= pinkRows[i]
+                let newRandom = Double.random(in: -1...1)
+                pinkRows[i] = newRandom
+                pinkRunningSum += newRandom
+            }
+        }
+
+        // Add fresh white noise for high frequencies
+        let whiteNoise = Double.random(in: -1...1)
+        return (pinkRunningSum + whiteNoise) / Double(pinkRows.count + 1)
     }
 }
 
@@ -4629,6 +4813,8 @@ private struct BreathingExerciseComponentView: View {
         elapsed = 0
         phase = .breatheIn
 
+        AmbientRainSound.shared.start()
+
         withAnimation(.easeInOut(duration: breatheIn)) {
             circleScale = 1.0
         }
@@ -4653,6 +4839,7 @@ private struct BreathingExerciseComponentView: View {
         timer?.invalidate()
         timer = nil
         isActive = false
+        AmbientRainSound.shared.stop()
         if phase != .done {
             withAnimation(.easeInOut(duration: 0.5)) {
                 phase = .idle
@@ -4693,7 +4880,7 @@ private struct BreathingExerciseComponentView: View {
             default:
                 break
             }
-            // Play subtle system sound on phase change
+            // Soft chime on phase transition (blends with ambient rain)
             NSSound(named: "Tink")?.play()
         }
     }
