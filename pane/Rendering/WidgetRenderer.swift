@@ -170,7 +170,7 @@ struct WidgetRenderer: View {
             return AnyView(PomodoroComponentView(component: component, theme: config.theme))
 
         case .dayProgress:
-            return AnyView(DayProgressComponentView(component: component, theme: config.theme))
+            return AnyView(DayProgressComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .yearProgress:
             return AnyView(YearProgressComponentView(component: component, theme: config.theme))
@@ -203,7 +203,7 @@ struct WidgetRenderer: View {
             return AnyView(MusicNowPlayingComponentView(component: component, theme: config.theme))
 
         case .newsHeadlines:
-            return AnyView(NewsHeadlinesComponentView(component: component, theme: config.theme))
+            return AnyView(NewsHeadlinesComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .screenTime:
             return AnyView(ScreenTimeComponentView(component: component, theme: config.theme))
@@ -215,7 +215,7 @@ struct WidgetRenderer: View {
             return AnyView(HabitTrackerComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .quote:
-            return AnyView(QuoteComponentView(component: component, theme: config.theme))
+            return AnyView(QuoteComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .note:
             return AnyView(NoteComponentView(widgetID: config.id, component: component, theme: config.theme))
@@ -658,7 +658,7 @@ private struct DateComponentView: View {
 
     var body: some View {
         Text(formatter.string(from: time.now))
-            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
+            .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .medium))
             .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
             .frame(maxWidth: .infinity, alignment: alignment)
     }
@@ -1024,13 +1024,13 @@ private struct WorldClocksComponentView: View {
                 HStack(spacing: (10 * scale).cgFloat) {
                     VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
                         Text(entry.label ?? shortTimezoneName(entry.timezone))
-                            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
+                            .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                             .lineLimit(1)
                             .minimumScaleFactor(0.82)
                         if component.showDate ?? false {
                             Text(dateString(for: entry.timezone))
-                                .font(.system(size: (((component.size ?? 13) - 2) * scale).cgFloat, weight: .regular))
+                                .font(.system(size: (((component.size ?? 14) - 2) * scale).cgFloat, weight: .regular))
                                 .foregroundStyle(ThemeResolver.color(for: component.labelColor ?? "muted", theme: theme))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.82)
@@ -1038,7 +1038,7 @@ private struct WorldClocksComponentView: View {
                     }
                     Spacer(minLength: 4)
                     Text(timeString(for: entry.timezone))
-                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .semibold, design: .monospaced))
                         .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
@@ -1311,73 +1311,198 @@ private enum PomodoroPhase {
 }
 
 private struct DayProgressComponentView: View {
+    let widgetID: UUID
     let component: ComponentConfig
     let theme: WidgetTheme
 
     @ObservedObject private var time = TimePublisher.shared
+    @State private var showSettings = false
+    @State private var customStartHour: Int = 8
+    @State private var customEndHour: Int = 23
+    @State private var settingsLoaded = false
     @Environment(\.widgetScaleFactor) private var scale
+
+    private var storageKey: String {
+        componentStorageKey(widgetID: widgetID, component: component, fallback: "day-progress")
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
-            if let label = component.label, !label.isEmpty {
-                Text(label)
-                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-            }
-
-            Group {
-                switch (component.style ?? "bar").lowercased() {
-                case "ring":
-                    let dayRingSize = (72 * scale).cgFloat
-                    ZStack {
-                        Circle()
-                            .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
-                        Circle()
-                            .trim(from: 0, to: progress.cgFloat)
-                            .stroke(
-                                ThemeResolver.color(for: component.color ?? "accent", theme: theme),
-                                style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                            )
-                            .rotationEffect(.degrees(-90))
+            if showSettings {
+                dayProgressSettings
+            } else {
+                // Header with edit button
+                HStack {
+                    if let label = component.label, !label.isEmpty {
+                        Text(label)
+                            .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
                     }
-                    .frame(width: dayRingSize, height: dayRingSize)
-                case "text":
-                    EmptyView()
-                default:
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.3))
-                            Capsule()
-                                .fill(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
-                                .frame(width: geometry.size.width * progress.cgFloat)
-                        }
+                    Spacer(minLength: 0)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { showSettings = true }
+                    } label: {
+                        Image(systemName: "pencil.circle")
+                            .font(.system(size: (9 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                     }
-                    .frame(height: (7 * scale).cgFloat)
+                    .buttonStyle(.plain)
                 }
-            }
 
-            if component.showPercentage ?? true {
-                Text("\(Int((progress * 100).rounded()))%")
-                    .font(.system(size: (13 * scale).cgFloat, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
-            }
+                Group {
+                    switch (component.style ?? "bar").lowercased() {
+                    case "ring":
+                        let dayRingSize = (72 * scale).cgFloat
+                        ZStack {
+                            Circle()
+                                .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
+                            Circle()
+                                .trim(from: 0, to: progress.cgFloat)
+                                .stroke(
+                                    ThemeResolver.color(for: component.color ?? "accent", theme: theme),
+                                    style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                                )
+                                .rotationEffect(.degrees(-90))
+                        }
+                        .frame(width: dayRingSize, height: dayRingSize)
+                    case "text":
+                        EmptyView()
+                    default:
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(ThemeResolver.color(for: "muted", theme: theme).opacity(0.3))
+                                Capsule()
+                                    .fill(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
+                                    .frame(width: geometry.size.width * progress.cgFloat)
+                            }
+                        }
+                        .frame(height: (7 * scale).cgFloat)
+                    }
+                }
 
-            if component.showTimeRemaining ?? true {
-                Text(timeRemainingText)
-                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                if component.showPercentage ?? true {
+                    Text("\(Int((progress * 100).rounded()))%")
+                        .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
+                }
+
+                if component.showTimeRemaining ?? true {
+                    HStack(spacing: (4 * scale).cgFloat) {
+                        Text(timeRemainingText)
+                            .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                        Spacer(minLength: 0)
+                        Text("\(formatHour(startHour))–\(formatHour(endHour))")
+                            .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
+        .onAppear { loadSettings() }
+    }
+
+    // MARK: - Settings
+
+    private var dayProgressSettings: some View {
+        let accentColor = ThemeResolver.color(for: "accent", theme: theme)
+        let primaryColor = ThemeResolver.color(for: "primary", theme: theme)
+        let mutedColor = ThemeResolver.color(for: "muted", theme: theme)
+
+        return VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
+            HStack {
+                Text("Day Hours")
+                    .font(.system(size: (10 * scale).cgFloat, weight: .semibold))
+                    .foregroundStyle(primaryColor)
+                Spacer()
+                Button {
+                    saveSettings()
+                    withAnimation(.easeInOut(duration: 0.2)) { showSettings = false }
+                } label: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .foregroundStyle(accentColor)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack {
+                Text("Start")
+                    .font(.system(size: (9 * scale).cgFloat))
+                    .foregroundStyle(mutedColor)
+                Spacer()
+                HStack(spacing: (4 * scale).cgFloat) {
+                    Button { if customStartHour > 0 { customStartHour -= 1 } } label: {
+                        Image(systemName: "minus.circle").font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                    Text(formatHour(customStartHour))
+                        .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(primaryColor)
+                        .frame(width: (36 * scale).cgFloat)
+                    Button { if customStartHour < customEndHour - 1 { customStartHour += 1 } } label: {
+                        Image(systemName: "plus.circle").font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                }
+                .foregroundStyle(accentColor)
+            }
+
+            HStack {
+                Text("End")
+                    .font(.system(size: (9 * scale).cgFloat))
+                    .foregroundStyle(mutedColor)
+                Spacer()
+                HStack(spacing: (4 * scale).cgFloat) {
+                    Button { if customEndHour > customStartHour + 1 { customEndHour -= 1 } } label: {
+                        Image(systemName: "minus.circle").font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                    Text(formatHour(customEndHour))
+                        .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(primaryColor)
+                        .frame(width: (36 * scale).cgFloat)
+                    Button { if customEndHour < 24 { customEndHour += 1 } } label: {
+                        Image(systemName: "plus.circle").font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                }
+                .foregroundStyle(accentColor)
+            }
+        }
+    }
+
+    private func formatHour(_ h: Int) -> String {
+        let h12 = h % 12 == 0 ? 12 : h % 12
+        let suffix = h < 12 || h == 24 ? "AM" : "PM"
+        return "\(h12)\(suffix)"
+    }
+
+    private func loadSettings() {
+        guard !settingsLoaded else { return }
+        settingsLoaded = true
+        customStartHour = component.startHour ?? 8
+        customEndHour = component.endHour ?? 23
+        Task {
+            let s = await UserDataStore.shared.widgetSettings(for: storageKey)
+            await MainActor.run {
+                if let v = s["startHour"], let n = Int(v) { customStartHour = n }
+                if let v = s["endHour"], let n = Int(v) { customEndHour = n }
+            }
+        }
+    }
+
+    private func saveSettings() {
+        Task {
+            await UserDataStore.shared.setWidgetSetting("\(customStartHour)", forKey: "startHour", widgetKey: storageKey)
+            await UserDataStore.shared.setWidgetSetting("\(customEndHour)", forKey: "endHour", widgetKey: storageKey)
+        }
     }
 
     private var startHour: Int {
-        min(max(component.startHour ?? 8, 0), 23)
+        min(max(customStartHour, 0), 23)
     }
 
     private var endHour: Int {
-        min(max(component.endHour ?? 23, 1), 24)
+        min(max(customEndHour, 1), 24)
     }
 
     private var dayRange: (start: Date, end: Date) {
@@ -2448,15 +2573,18 @@ private struct MusicNowPlayingComponentView: View {
 }
 
 private struct NewsHeadlinesComponentView: View {
+    let widgetID: UUID
     let component: ComponentConfig
     let theme: WidgetTheme
 
-    /// All fetched headlines (larger pool to cycle through).
     @State private var allHeadlines: [NewsHeadlineSnapshot] = []
-    /// Current display page index.
     @State private var currentPage = 0
     @State private var hasLoaded = false
     @State private var cycleTimer: Timer?
+    @State private var showSettings = false
+    @State private var settingsLoaded = false
+    @State private var customDisplayCount = 3
+    @State private var customCycleSeconds = 8
     @Environment(\.widgetScaleFactor) private var scale
 
     private static let defaultFeeds: [String] = [
@@ -2468,10 +2596,28 @@ private struct NewsHeadlinesComponentView: View {
         "https://feeds.reuters.com/reuters/topNews",
     ]
 
-    private var displayCount: Int { max(1, component.maxItems ?? 3) }
-    private var cycleInterval: TimeInterval { TimeInterval(component.rotateInterval ?? 8) }
+    private static let topicFeeds: [(label: String, url: String)] = [
+        ("BBC World", "https://feeds.bbci.co.uk/news/rss.xml"),
+        ("NY Times", "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml"),
+        ("NPR", "https://feeds.npr.org/1001/rss.xml"),
+        ("CNN", "http://rss.cnn.com/rss/edition.rss"),
+        ("Guardian", "https://www.theguardian.com/world/rss"),
+        ("Reuters", "https://feeds.reuters.com/reuters/topNews"),
+        ("BBC Tech", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
+        ("BBC Science", "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"),
+        ("BBC Business", "https://feeds.bbci.co.uk/news/business/rss.xml"),
+        ("ESPN Sports", "https://www.espn.com/espn/rss/news"),
+        ("NYT Tech", "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"),
+        ("NYT Science", "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"),
+    ]
 
-    /// Headlines visible on current page.
+    private var storageKey: String {
+        componentStorageKey(widgetID: widgetID, component: component, fallback: "news")
+    }
+
+    private var displayCount: Int { customDisplayCount }
+    private var cycleInterval: TimeInterval { TimeInterval(customCycleSeconds) }
+
     private var visibleHeadlines: [NewsHeadlineSnapshot] {
         guard !allHeadlines.isEmpty else { return [] }
         let start = (currentPage * displayCount) % allHeadlines.count
@@ -2484,23 +2630,41 @@ private struct NewsHeadlinesComponentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
-            if !hasLoaded {
+        VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
+            if showSettings {
+                settingsPanel
+            } else if !hasLoaded {
                 LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
             } else if allHeadlines.isEmpty {
                 Text("No headlines")
-                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             } else {
+                // Header with settings button
+                HStack {
+                    Text("Headlines")
+                        .font(.system(size: (8 * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    Spacer(minLength: 0)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) { showSettings = true }
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: (9 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 ForEach(visibleHeadlines) { headline in
                     VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
                         Text(headline.title)
-                            .font(.system(size: ((component.size ?? 12) * scale).cgFloat, weight: .medium))
+                            .font(.system(size: (11 * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                             .lineLimit(2)
                         if component.showSource ?? true, let source = headline.source {
                             Text(source)
-                                .font(.system(size: (((component.size ?? 12) - 2) * scale).cgFloat, weight: .medium))
+                                .font(.system(size: (9 * scale).cgFloat, weight: .medium))
                                 .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                                 .lineLimit(1)
                         }
@@ -2514,26 +2678,170 @@ private struct NewsHeadlinesComponentView: View {
         }
         .frame(maxWidth: .infinity, alignment: alignment)
         .animation(.easeInOut(duration: 0.5), value: currentPage)
-        .onAppear { startCycleTimer() }
+        .onAppear {
+            loadSettings()
+            startCycleTimer()
+        }
         .onDisappear { cycleTimer?.invalidate() }
         .polling(every: 5 * 60) {
-            let feeds = component.feedUrls ?? Self.defaultFeeds
-            let value: [NewsHeadlineSnapshot]
-            if feeds.count > 1 {
-                value = await DataServiceManager.shared.newsMultiFeed(
-                    feedURLs: feeds,
-                    maxPerFeed: 5,
-                    totalMax: 20,
-                    forceRefresh: true
-                )
-            } else {
-                let feed = feeds.first ?? Self.defaultFeeds[0]
-                value = await DataServiceManager.shared.news(feedURL: feed, maxItems: 15, forceRefresh: true)
+            await fetchHeadlines()
+        }
+    }
+
+    // MARK: - Settings panel
+
+    private var settingsPanel: some View {
+        let mutedColor = ThemeResolver.color(for: "muted", theme: theme)
+        let primaryColor = ThemeResolver.color(for: "primary", theme: theme)
+        let accentColor = ThemeResolver.color(for: "accent", theme: theme)
+
+        return VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+            HStack {
+                Text("Settings")
+                    .font(.system(size: (10 * scale).cgFloat, weight: .semibold))
+                    .foregroundStyle(primaryColor)
+                Spacer()
+                Button {
+                    saveSettings()
+                    withAnimation(.easeInOut(duration: 0.2)) { showSettings = false }
+                } label: {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .foregroundStyle(accentColor)
+                }
+                .buttonStyle(.plain)
             }
+
+            // Display count
+            HStack {
+                Text("Headlines shown")
+                    .font(.system(size: (9 * scale).cgFloat))
+                    .foregroundStyle(mutedColor)
+                Spacer()
+                HStack(spacing: (4 * scale).cgFloat) {
+                    Button { if customDisplayCount > 1 { customDisplayCount -= 1 } } label: {
+                        Image(systemName: "minus.circle")
+                            .font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                    Text("\(customDisplayCount)")
+                        .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(primaryColor)
+                        .frame(width: (16 * scale).cgFloat)
+                    Button { if customDisplayCount < 8 { customDisplayCount += 1 } } label: {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                }
+                .foregroundStyle(accentColor)
+            }
+
+            // Cycle speed
+            HStack {
+                Text("Cycle every")
+                    .font(.system(size: (9 * scale).cgFloat))
+                    .foregroundStyle(mutedColor)
+                Spacer()
+                HStack(spacing: (4 * scale).cgFloat) {
+                    Button { if customCycleSeconds > 3 { customCycleSeconds -= 1 } } label: {
+                        Image(systemName: "minus.circle")
+                            .font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                    Text("\(customCycleSeconds)s")
+                        .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(primaryColor)
+                        .frame(width: (22 * scale).cgFloat)
+                    Button { if customCycleSeconds < 30 { customCycleSeconds += 1 } } label: {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: (10 * scale).cgFloat))
+                    }.buttonStyle(.plain)
+                }
+                .foregroundStyle(accentColor)
+            }
+
+            // Sources
+            Text("Sources")
+                .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                .foregroundStyle(mutedColor)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: (3 * scale).cgFloat) {
+                    ForEach(Self.topicFeeds, id: \.url) { feed in
+                        let isOn = activeFeedURLs.contains(feed.url)
+                        Button {
+                            toggleFeed(feed.url)
+                        } label: {
+                            HStack(spacing: (5 * scale).cgFloat) {
+                                Image(systemName: isOn ? "checkmark.square.fill" : "square")
+                                    .font(.system(size: (10 * scale).cgFloat))
+                                    .foregroundStyle(isOn ? accentColor : mutedColor)
+                                Text(feed.label)
+                                    .font(.system(size: (9 * scale).cgFloat))
+                                    .foregroundStyle(primaryColor)
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    @State private var activeFeedURLs: Set<String> = Set(defaultFeeds)
+
+    private func toggleFeed(_ url: String) {
+        if activeFeedURLs.contains(url) {
+            if activeFeedURLs.count > 1 { activeFeedURLs.remove(url) }
+        } else {
+            activeFeedURLs.insert(url)
+        }
+    }
+
+    private func loadSettings() {
+        guard !settingsLoaded else { return }
+        settingsLoaded = true
+        customDisplayCount = component.maxItems ?? 3
+        customCycleSeconds = component.rotateInterval ?? 8
+        activeFeedURLs = Set(component.feedUrls ?? Self.defaultFeeds)
+        Task {
+            let settings = await UserDataStore.shared.widgetSettings(for: storageKey)
             await MainActor.run {
-                allHeadlines = value
-                hasLoaded = true
+                if let c = settings["displayCount"], let n = Int(c) { customDisplayCount = n }
+                if let c = settings["cycleSeconds"], let n = Int(c) { customCycleSeconds = n }
+                if let f = settings["feeds"], !f.isEmpty {
+                    activeFeedURLs = Set(f.components(separatedBy: "|"))
+                }
             }
+        }
+    }
+
+    private func saveSettings() {
+        startCycleTimer()
+        Task {
+            await UserDataStore.shared.setWidgetSetting("\(customDisplayCount)", forKey: "displayCount", widgetKey: storageKey)
+            await UserDataStore.shared.setWidgetSetting("\(customCycleSeconds)", forKey: "cycleSeconds", widgetKey: storageKey)
+            await UserDataStore.shared.setWidgetSetting(activeFeedURLs.joined(separator: "|"), forKey: "feeds", widgetKey: storageKey)
+            await fetchHeadlines()
+        }
+    }
+
+    private func fetchHeadlines() async {
+        let feeds = Array(activeFeedURLs)
+        let value: [NewsHeadlineSnapshot]
+        if feeds.count > 1 {
+            value = await DataServiceManager.shared.newsMultiFeed(
+                feedURLs: feeds,
+                maxPerFeed: 5,
+                totalMax: 20,
+                forceRefresh: true
+            )
+        } else {
+            let feed = feeds.first ?? Self.defaultFeeds[0]
+            value = await DataServiceManager.shared.news(feedURL: feed, maxItems: 15, forceRefresh: true)
+        }
+        await MainActor.run {
+            allHeadlines = value
+            hasLoaded = true
         }
     }
 
@@ -2686,45 +2994,84 @@ private struct ChecklistComponentView: View {
 
     @State private var items: [ChecklistRuntimeItem] = []
     @State private var hasLoaded = false
+    @State private var isEditing = false
+    @State private var newItemText = ""
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
-            if let title = component.title, !title.isEmpty {
-                Text(title)
-                    .font(.system(size: (13 * scale).cgFloat, weight: .semibold))
-                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+            // Header with edit button
+            HStack {
+                if let title = component.title, !title.isEmpty {
+                    Text(title)
+                        .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                }
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { isEditing.toggle() }
+                } label: {
+                    Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle")
+                        .font(.system(size: (10 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: isEditing ? "positive" : "muted", theme: theme))
+                }
+                .buttonStyle(.plain)
             }
 
             ForEach(items) { item in
-                Button {
-                    guard component.interactive ?? true else { return }
-                    toggle(itemID: item.id)
-                } label: {
-                    HStack(spacing: (8 * scale).cgFloat) {
-                        Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: (14 * scale).cgFloat))
-                            .foregroundStyle(
-                                ThemeResolver.color(
-                                    for: item.checked
-                                        ? (component.checkedColor ?? "positive")
-                                        : (component.uncheckedColor ?? "muted"),
-                                    theme: theme
-                                )
-                            )
-
-                        Text(item.text)
-                            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
-                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                            .lineLimit(1)
-                            .strikethrough((component.strikethrough ?? true) && item.checked)
-
-                        Spacer(minLength: 0)
+                HStack(spacing: (5 * scale).cgFloat) {
+                    if isEditing {
+                        Button { removeItem(itemID: item.id) } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: (10 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "negative", theme: theme).opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.scale.combined(with: .opacity))
                     }
-                    .contentShape(Rectangle())
+
+                    Button {
+                        guard !isEditing, component.interactive ?? true else { return }
+                        toggle(itemID: item.id)
+                    } label: {
+                        HStack(spacing: (6 * scale).cgFloat) {
+                            Image(systemName: item.checked ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: (12 * scale).cgFloat))
+                                .foregroundStyle(
+                                    ThemeResolver.color(
+                                        for: item.checked
+                                            ? (component.checkedColor ?? "positive")
+                                            : (component.uncheckedColor ?? "muted"),
+                                        theme: theme
+                                    )
+                                )
+                            Text(item.text)
+                                .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                                .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                                .lineLimit(1)
+                                .strikethrough((component.strikethrough ?? true) && item.checked)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isEditing || !(component.interactive ?? true))
                 }
-                .buttonStyle(.plain)
-                .disabled(!(component.interactive ?? true))
+            }
+
+            // Add new item field
+            if isEditing {
+                HStack(spacing: (5 * scale).cgFloat) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: (10 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                    TextField("New task", text: $newItemText)
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .textFieldStyle(.plain)
+                        .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                        .onSubmit { addItem() }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
             if component.showProgress ?? true {
@@ -2738,7 +3085,7 @@ private struct ChecklistComponentView: View {
                                 .frame(width: geo.size.width * progress.cgFloat)
                         }
                     }
-                    .frame(height: (6 * scale).cgFloat)
+                    .frame(height: (5 * scale).cgFloat)
 
                     Text("\(Int((progress * 100).rounded()))%")
                         .font(.system(size: (10 * scale).cgFloat, weight: .semibold, design: .monospaced))
@@ -2777,6 +3124,13 @@ private struct ChecklistComponentView: View {
         guard !hasLoaded else { return }
         hasLoaded = true
 
+        if let custom = await UserDataStore.shared.customChecklistItems(for: componentKey) {
+            let persisted = await UserDataStore.shared.checklistState(for: componentKey, resetsDaily: component.resetsDaily ?? false)
+            let merged = custom.map { ChecklistRuntimeItem(id: $0.id, text: $0.text, checked: persisted[$0.id] ?? false) }
+            await MainActor.run { items = merged }
+            return
+        }
+
         let defaults = (component.items ?? []).map {
             ChecklistRuntimeItem(id: $0.id, text: $0.text, checked: $0.checked)
         }
@@ -2795,9 +3149,7 @@ private struct ChecklistComponentView: View {
             ChecklistRuntimeItem(id: $0.id, text: $0.text, checked: persisted[$0.id] ?? $0.checked)
         }
 
-        await MainActor.run {
-            items = merged
-        }
+        await MainActor.run { items = merged }
     }
 
     private func toggle(itemID: String) {
@@ -2811,6 +3163,31 @@ private struct ChecklistComponentView: View {
                 checked: checked,
                 resetsDaily: component.resetsDaily ?? false
             )
+        }
+    }
+
+    private func addItem() {
+        let text = newItemText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        let id = "custom-\(UUID().uuidString.prefix(8))"
+        withAnimation(.easeInOut(duration: 0.2)) {
+            items.append(ChecklistRuntimeItem(id: id, text: text, checked: false))
+            newItemText = ""
+        }
+        persistCustomItems()
+    }
+
+    private func removeItem(itemID: String) {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            items.removeAll { $0.id == itemID }
+        }
+        persistCustomItems()
+    }
+
+    private func persistCustomItems() {
+        let snapshot = items.map { (id: $0.id, text: $0.text) }
+        Task {
+            await UserDataStore.shared.setCustomChecklistItems(snapshot, for: componentKey)
         }
     }
 }
@@ -2959,7 +3336,7 @@ private struct NoteComponentView: View {
             if component.editable ?? true {
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $text)
-                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                        .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .regular))
                         .foregroundColor(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                         .withoutWritingTools()
                         .scrollContentBackground(.hidden)
@@ -2971,7 +3348,7 @@ private struct NoteComponentView: View {
 
                     if text.isEmpty {
                         Text(component.content ?? "Type here...")
-                            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                            .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .regular))
                             .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme).opacity(0.6))
                             .padding(.top, 8)
                             .padding(.leading, 5)
@@ -2981,7 +3358,7 @@ private struct NoteComponentView: View {
                 .frame(minHeight: (60 * scale).cgFloat)
             } else {
                 Text(text)
-                    .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                    .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .regular))
                     .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -3018,24 +3395,40 @@ private struct NoteComponentView: View {
 }
 
 private struct QuoteComponentView: View {
+    let widgetID: UUID
     let component: ComponentConfig
     let theme: WidgetTheme
 
     @State private var quoteText: String = ""
     @State private var authorText: String?
+    @State private var refreshTrigger = 0
     @Environment(\.widgetScaleFactor) private var scale
 
     var body: some View {
-        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+        VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
             Text(displayedQuote)
-                .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular, design: .serif))
+                .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .regular, design: .serif))
                 .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let authorText, !authorText.isEmpty {
-                Text(authorText)
-                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                    .foregroundStyle(ThemeResolver.color(for: component.authorColor ?? "muted", theme: theme))
+            HStack {
+                if let authorText, !authorText.isEmpty {
+                    Text(authorText)
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: component.authorColor ?? "muted", theme: theme))
+                }
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        refreshTrigger += 1
+                        refreshQuote()
+                    }
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: (8 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                }
+                .buttonStyle(.plain)
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)

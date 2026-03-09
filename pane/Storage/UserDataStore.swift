@@ -20,6 +20,8 @@ actor UserDataStore {
         var fileClipboards: [String: [[String: String]]] = [:]
         var periodDates: [String: [String]] = [:]        // key → [yyyy-MM-dd]
         var moodEntries: [String: [String: String]] = [:] // key → [yyyy-MM-dd: emoji]
+        var customChecklistItems: [String: [[String: String]]] = [:] // key → [{id, text}]
+        var widgetSettings: [String: [String: String]] = [:]         // key → [settingName: value]
     }
 
     private let fileManager: FileManager
@@ -153,6 +155,34 @@ actor UserDataStore {
 
     func setFileClipboardItems(_ items: [FileClipboardEntry], for key: String) {
         payload.fileClipboards[key] = items.map { ["id": $0.id, "name": $0.name, "path": $0.path] }
+        persist()
+    }
+
+    // MARK: - Custom Checklist Items
+
+    func customChecklistItems(for key: String) -> [(id: String, text: String)]? {
+        guard let raw = payload.customChecklistItems[key] else { return nil }
+        return raw.compactMap { dict in
+            guard let id = dict["id"], let text = dict["text"] else { return nil }
+            return (id: id, text: text)
+        }
+    }
+
+    func setCustomChecklistItems(_ items: [(id: String, text: String)], for key: String) {
+        payload.customChecklistItems[key] = items.map { ["id": $0.id, "text": $0.text] }
+        persist()
+    }
+
+    // MARK: - Widget Settings
+
+    func widgetSettings(for key: String) -> [String: String] {
+        payload.widgetSettings[key] ?? [:]
+    }
+
+    func setWidgetSetting(_ value: String, forKey settingKey: String, widgetKey: String) {
+        var settings = payload.widgetSettings[widgetKey] ?? [:]
+        settings[settingKey] = value
+        payload.widgetSettings[widgetKey] = settings
         persist()
     }
 

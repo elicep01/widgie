@@ -29,7 +29,7 @@
           "symbol": "AAPL",
           "showChange": true,
           "showChart": false,
-          "size": 12,
+          "size": 14,
           "color": "primary"
         },
         {
@@ -43,7 +43,7 @@
           "symbol": "GOOGL",
           "showChange": true,
           "showChart": false,
-          "size": 12,
+          "size": 14,
           "color": "primary"
         },
         {
@@ -57,7 +57,7 @@
           "symbol": "MSFT",
           "showChange": true,
           "showChart": false,
-          "size": 12,
+          "size": 14,
           "color": "primary"
         }
       ]

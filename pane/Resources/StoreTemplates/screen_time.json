@@ -6,10 +6,18 @@
   "config": {
     "name": "Screen Time",
     "description": "Daily screen time",
-    "size": { "width": 220, "height": 140 },
+    "size": {
+      "width": 220,
+      "height": 155
+    },
     "theme": "obsidian",
     "cornerRadius": 16,
-    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "refreshInterval": 60,
     "content": {
       "type": "screen_time",
@@ -17,10 +25,13 @@
       "showDailyGoal": true,
       "showCategories": true,
       "goalHours": 4,
-      "size": 11,
+      "size": 14,
       "color": "accent",
       "overColor": "negative"
     },
-    "maxSize": { "width": 280, "height": 180 }
+    "maxSize": {
+      "width": 280,
+      "height": 200
+    }
   }
 }

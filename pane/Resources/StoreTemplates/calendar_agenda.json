@@ -6,10 +6,18 @@
   "config": {
     "name": "Today's Agenda",
     "description": "Next calendar events",
-    "size": { "width": 210, "height": 110 },
+    "size": {
+      "width": 210,
+      "height": 110
+    },
     "theme": "obsidian",
     "cornerRadius": 14,
-    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "content": {
       "type": "vstack",
       "alignment": "leading",
@@ -18,7 +26,7 @@
         {
           "type": "text",
           "content": "Agenda",
-          "size": 11,
+          "size": 14,
           "weight": "semibold",
           "color": "primary"
         },
@@ -31,11 +39,14 @@
           "timeRange": "today",
           "emptyText": "No events today",
           "font": "sf-pro",
-          "size": 11,
+          "size": 14,
           "color": "primary"
         }
       ]
     },
-    "maxSize": { "width": 280, "height": 150 }
+    "maxSize": {
+      "width": 280,
+      "height": 150
+    }
   }
 }

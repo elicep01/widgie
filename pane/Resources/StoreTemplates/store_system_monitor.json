@@ -32,13 +32,13 @@
             {
               "type": "icon",
               "name": "cpu",
-              "size": 11,
+              "size": 14,
               "color": "accent"
             },
             {
               "type": "text",
               "content": "System",
-              "size": 11,
+              "size": 14,
               "weight": "bold",
               "color": "primary"
             }
@@ -52,7 +52,7 @@
           "showStorage": true,
           "barColor": "accent",
           "labelColor": "muted",
-          "size": 10
+          "size": 14
         }
       ]
     },

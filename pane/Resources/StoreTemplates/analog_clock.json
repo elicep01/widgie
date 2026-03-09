@@ -6,10 +6,18 @@
   "config": {
     "name": "Analog Clock",
     "description": "Classic analog clock",
-    "size": { "width": 120, "height": 120 },
+    "size": {
+      "width": 130,
+      "height": 130
+    },
     "theme": "obsidian",
     "cornerRadius": 14,
-    "padding": { "top": 10, "bottom": 10, "leading": 10, "trailing": 10 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 10,
+      "trailing": 10
+    },
     "content": {
       "type": "analog_clock",
       "timezone": "local",
@@ -19,6 +27,9 @@
       "tickColor": "muted",
       "secondHandColor": "accent"
     },
-    "maxSize": { "width": 170, "height": 170 }
+    "maxSize": {
+      "width": 180,
+      "height": 180
+    }
   }
 }

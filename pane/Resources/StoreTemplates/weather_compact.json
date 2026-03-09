@@ -6,10 +6,18 @@
   "config": {
     "name": "Weather",
     "description": "Compact weather widget",
-    "size": { "width": 175, "height": 70 },
+    "size": {
+      "width": 175,
+      "height": 70
+    },
     "theme": "obsidian",
     "cornerRadius": 16,
-    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "content": {
       "type": "weather",
       "location": "New York",
@@ -21,6 +29,9 @@
       "temperatureUnit": "fahrenheit",
       "color": "primary"
     },
-    "maxSize": { "width": 230, "height": 95 }
+    "maxSize": {
+      "width": 230,
+      "height": 95
+    }
   }
 }

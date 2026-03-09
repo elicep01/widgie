@@ -7,8 +7,8 @@
     "name": "Habit Tracker",
     "description": "3-habit daily tracker",
     "size": {
-      "width": 230,
-      "height": 100
+      "width": 240,
+      "height": 120
     },
     "theme": "obsidian",
     "cornerRadius": 14,
@@ -45,12 +45,12 @@
         }
       ],
       "showStreak": true,
-      "size": 11,
+      "size": 14,
       "color": "primary"
     },
     "maxSize": {
-      "width": 290,
-      "height": 140
+      "width": 300,
+      "height": 160
     }
   }
 }

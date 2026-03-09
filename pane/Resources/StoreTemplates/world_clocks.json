@@ -43,6 +43,9 @@
       "format": "h:mm a",
       "alignment": "leading"
     },
-    "maxSize": { "width": 320, "height": 140 }
+    "maxSize": {
+      "width": 320,
+      "height": 140
+    }
   }
 }

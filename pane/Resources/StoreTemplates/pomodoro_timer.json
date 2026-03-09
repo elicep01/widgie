@@ -6,10 +6,18 @@
   "config": {
     "name": "Pomodoro Timer",
     "description": "Pomodoro focus timer",
-    "size": { "width": 150, "height": 125 },
+    "size": {
+      "width": 160,
+      "height": 150
+    },
     "theme": "obsidian",
     "cornerRadius": 16,
-    "padding": { "top": 10, "bottom": 8, "leading": 10, "trailing": 10 },
+    "padding": {
+      "top": 10,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
+    },
     "content": {
       "type": "pomodoro",
       "workDuration": 1500,
@@ -23,6 +31,9 @@
       "showControls": true,
       "alignment": "center"
     },
-    "maxSize": { "width": 200, "height": 175 }
+    "maxSize": {
+      "width": 210,
+      "height": 190
+    }
   }
 }

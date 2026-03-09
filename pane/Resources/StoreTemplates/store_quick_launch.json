@@ -6,24 +6,51 @@
   "config": {
     "name": "Quick Launch",
     "description": "App launcher shortcuts",
-    "size": { "width": 190, "height": 55 },
+    "size": {
+      "width": 190,
+      "height": 55
+    },
     "theme": "obsidian",
     "cornerRadius": 12,
-    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "content": {
       "type": "shortcut_launcher",
       "style": "icons",
       "shortcuts": [
-        { "name": "Safari", "icon": "safari", "action": "open:com.apple.Safari" },
-        { "name": "Mail", "icon": "envelope.fill", "action": "open:com.apple.mail" },
-        { "name": "Notes", "icon": "note.text", "action": "open:com.apple.Notes" },
-        { "name": "Terminal", "icon": "terminal.fill", "action": "open:com.apple.Terminal" }
+        {
+          "name": "Safari",
+          "icon": "safari",
+          "action": "open:com.apple.Safari"
+        },
+        {
+          "name": "Mail",
+          "icon": "envelope.fill",
+          "action": "open:com.apple.mail"
+        },
+        {
+          "name": "Notes",
+          "icon": "note.text",
+          "action": "open:com.apple.Notes"
+        },
+        {
+          "name": "Terminal",
+          "icon": "terminal.fill",
+          "action": "open:com.apple.Terminal"
+        }
       ],
       "iconSize": 20,
       "spacing": 12,
       "color": "primary",
       "labelColor": "muted"
     },
-    "maxSize": { "width": 250, "height": 75 }
+    "maxSize": {
+      "width": 250,
+      "height": 75
+    }
   }
 }

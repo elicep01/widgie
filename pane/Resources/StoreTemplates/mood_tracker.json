@@ -6,16 +6,27 @@
   "config": {
     "name": "Mood Tracker",
     "description": "Daily mood journal with emoji tracking",
-    "size": { "width": 260, "height": 180 },
+    "size": {
+      "width": 280,
+      "height": 220
+    },
     "theme": "obsidian",
     "cornerRadius": 18,
-    "padding": { "top": 12, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 12,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "refreshInterval": 3600,
     "content": {
       "type": "mood_tracker",
       "color": "accent",
       "alignment": "center"
     },
-    "maxSize": { "width": 380, "height": 260 }
+    "maxSize": {
+      "width": 380,
+      "height": 300
+    }
   }
 }

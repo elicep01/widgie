@@ -42,7 +42,7 @@
               "type": "date",
               "format": "EEE, MMM d",
               "font": "sf-pro",
-              "size": 11,
+              "size": 14,
               "weight": "regular",
               "color": "muted"
             },
@@ -89,7 +89,7 @@
               "timeRange": "today",
               "emptyText": "No events",
               "font": "sf-pro",
-              "size": 11,
+              "size": 14,
               "color": "primary"
             },
             {
@@ -125,7 +125,7 @@
               "uncheckedColor": "muted",
               "strikethrough": true,
               "font": "sf-pro",
-              "size": 11,
+              "size": 14,
               "color": "primary"
             }
           ]

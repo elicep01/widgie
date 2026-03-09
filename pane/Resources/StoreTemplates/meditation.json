@@ -6,10 +6,18 @@
   "config": {
     "name": "Breathing Exercise",
     "description": "Animated breathe in/out meditation",
-    "size": { "width": 150, "height": 160 },
+    "size": {
+      "width": 170,
+      "height": 180
+    },
     "theme": "obsidian",
     "cornerRadius": 20,
-    "padding": { "top": 12, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 12,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "refreshInterval": 0,
     "content": {
       "type": "breathing_exercise",
@@ -20,6 +28,9 @@
       "color": "accent",
       "alignment": "center"
     },
-    "maxSize": { "width": 200, "height": 200 }
+    "maxSize": {
+      "width": 220,
+      "height": 220
+    }
   }
 }

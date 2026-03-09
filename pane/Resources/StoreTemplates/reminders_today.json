@@ -6,10 +6,18 @@
   "config": {
     "name": "Reminders",
     "description": "Today's reminders",
-    "size": { "width": 200, "height": 110 },
+    "size": {
+      "width": 200,
+      "height": 110
+    },
     "theme": "obsidian",
     "cornerRadius": 14,
-    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
+    },
     "content": {
       "type": "reminders",
       "list": "all",
@@ -18,10 +26,13 @@
       "showPriority": true,
       "interactive": true,
       "font": "sf-pro",
-      "size": 11,
+      "size": 14,
       "color": "primary",
       "dueColor": "warning"
     },
-    "maxSize": { "width": 260, "height": 150 }
+    "maxSize": {
+      "width": 260,
+      "height": 150
+    }
   }
 }

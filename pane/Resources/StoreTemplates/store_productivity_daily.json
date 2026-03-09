@@ -7,8 +7,8 @@
     "name": "Daily Focus",
     "description": "Day progress + goals + quote",
     "size": {
-      "width": 290,
-      "height": 120
+      "width": 260,
+      "height": 150
     },
     "theme": "obsidian",
     "cornerRadius": 14,
@@ -31,7 +31,7 @@
             {
               "type": "text",
               "content": "Today",
-              "size": 11,
+              "size": 14,
               "weight": "semibold",
               "color": "primary"
             },
@@ -50,7 +50,7 @@
               "category": "motivation",
               "refreshInterval": "daily",
               "font": "new-york",
-              "size": 10,
+              "size": 14,
               "weight": "regular",
               "color": "muted",
               "authorColor": "muted",
@@ -72,7 +72,7 @@
             {
               "type": "text",
               "content": "Goals",
-              "size": 10,
+              "size": 14,
               "weight": "semibold",
               "color": "secondary"
             },
@@ -102,7 +102,7 @@
               "uncheckedColor": "muted",
               "strikethrough": true,
               "font": "sf-pro",
-              "size": 11,
+              "size": 14,
               "color": "primary"
             }
           ]
@@ -110,8 +110,8 @@
       ]
     },
     "maxSize": {
-      "width": 360,
-      "height": 160
+      "width": 340,
+      "height": 200
     }
   }
 }

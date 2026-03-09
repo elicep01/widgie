@@ -6,10 +6,18 @@
   "config": {
     "name": "Period Tracker",
     "description": "Menstrual cycle tracker with phase prediction",
-    "size": { "width": 220, "height": 200 },
+    "size": {
+      "width": 260,
+      "height": 260
+    },
     "theme": "obsidian",
     "cornerRadius": 18,
-    "padding": { "top": 12, "bottom": 12, "leading": 12, "trailing": 12 },
+    "padding": {
+      "top": 12,
+      "bottom": 12,
+      "leading": 12,
+      "trailing": 12
+    },
     "refreshInterval": 3600,
     "content": {
       "type": "period_tracker",
@@ -17,6 +25,9 @@
       "color": "accent",
       "alignment": "center"
     },
-    "maxSize": { "width": 300, "height": 320 }
+    "maxSize": {
+      "width": 340,
+      "height": 360
+    }
   }
 }

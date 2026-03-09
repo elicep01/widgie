@@ -352,11 +352,16 @@ final class AppCoordinator {
         Task {
             do {
                 var config: WidgetConfig
+                var isEdit = false
                 if let existingWidgetID, let existing = widgetManager.widgetConfig(for: existingWidgetID) {
                     // Edit existing widget
+                    isEdit = true
                     chatViewModel.setProcessing(true, status: "Updating widget...")
                     chatViewModel.appendTrace("Editing existing widget...")
                     config = try await aiService.editWidget(existingConfig: existing, editPrompt: prompt)
+                    // Ensure position/size are preserved from the on-screen widget
+                    if config.position == nil { config.position = existing.position }
+                    config.size = existing.size
                 } else {
                     // New widget — use agentic pipeline with web research
                     chatViewModel.setProcessing(true, status: "Researching...")
@@ -406,7 +411,7 @@ final class AppCoordinator {
                     config.background = BackgroundConfig.default(for: theme)
                 }
 
-                finalizeChatWidget(config: config, prompt: prompt)
+                finalizeChatWidget(config: config, prompt: prompt, isEdit: isEdit)
             } catch {
                 chatViewModel.setProcessing(false)
                 chatViewModel.appendAssistantMessage("Something went wrong: \(userFacingErrorMessage(for: error))\n\nTry describing what you want differently.")
@@ -478,9 +483,9 @@ final class AppCoordinator {
         return outcome.config
     }
 
-    private func finalizeChatWidget(config: WidgetConfig, prompt: String) {
-        // Create/update the widget
-        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
+    private func finalizeChatWidget(config: WidgetConfig, prompt: String, isEdit: Bool = false) {
+        // Create/update the widget — skip auto-fit on edits to preserve user's size
+        widgetManager.createOrUpdateWidget(config, forceAutoFit: !isEdit)
         refreshMenuState()
 
         // Link widget to conversation
@@ -494,7 +499,11 @@ final class AppCoordinator {
         }
 
         chatViewModel.setProcessing(false)
-        chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" created! You can continue chatting to make changes.")
+        if isEdit {
+            chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" updated! You can continue chatting to make more changes.")
+        } else {
+            chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" created! You can continue chatting to make changes.")
+        }
     }
 
     private func formatClarificationQuestions(_ questions: [ClarificationQuestion]) -> String {
@@ -663,6 +672,9 @@ final class AppCoordinator {
                 if let editingWidgetID,
                    let existing = widgetManager.widgetConfig(for: editingWidgetID) {
                     config = try await aiService.editWidget(existingConfig: existing, editPrompt: prompt)
+                    // Preserve position/size from the on-screen widget
+                    if config.position == nil { config.position = existing.position }
+                    config.size = existing.size
                     commandBarWindow.completeChecklistItem(id: "build")
                     commandBarWindow.completeChecklistItem(id: "verify")
                 } else {

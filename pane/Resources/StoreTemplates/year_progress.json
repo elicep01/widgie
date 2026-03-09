@@ -6,10 +6,18 @@
   "config": {
     "name": "Year Progress",
     "description": "Year completion ring",
-    "size": { "width": 120, "height": 110 },
+    "size": {
+      "width": 130,
+      "height": 125
+    },
     "theme": "obsidian",
     "cornerRadius": 14,
-    "padding": { "top": 10, "bottom": 10, "leading": 10, "trailing": 10 },
+    "padding": {
+      "top": 10,
+      "bottom": 10,
+      "leading": 10,
+      "trailing": 10
+    },
     "content": {
       "type": "year_progress",
       "style": "ring",
@@ -17,6 +25,9 @@
       "color": "accent",
       "alignment": "center"
     },
-    "maxSize": { "width": 160, "height": 150 }
+    "maxSize": {
+      "width": 170,
+      "height": 165
+    }
   }
 }

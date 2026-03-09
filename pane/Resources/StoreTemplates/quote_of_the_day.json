@@ -8,7 +8,7 @@
     "description": "Daily motivational quote",
     "size": {
       "width": 230,
-      "height": 75
+      "height": 90
     },
     "theme": "obsidian",
     "cornerRadius": 16,
@@ -24,7 +24,7 @@
       "category": "motivation",
       "refreshInterval": "daily",
       "font": "new-york",
-      "size": 12,
+      "size": 14,
       "weight": "regular",
       "color": "primary",
       "authorColor": "accent",
@@ -32,7 +32,7 @@
     },
     "maxSize": {
       "width": 280,
-      "height": 95
+      "height": 120
     }
   }
 }
