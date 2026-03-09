@@ -4509,6 +4509,7 @@ private struct MoodTrackerComponentView: View {
                 }
             }
         }
+        .padding((8 * scale).cgFloat)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .task { await loadData() }
     }
