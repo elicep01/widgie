@@ -18,6 +18,8 @@ actor UserDataStore {
         var habitLastLogDay: [String: String] = [:]
         var notes: [String: String] = [:]
         var fileClipboards: [String: [[String: String]]] = [:]
+        var periodDates: [String: [String]] = [:]        // key → [yyyy-MM-dd]
+        var moodEntries: [String: [String: String]] = [:] // key → [yyyy-MM-dd: emoji]
     }
 
     private let fileManager: FileManager
@@ -151,6 +153,42 @@ actor UserDataStore {
 
     func setFileClipboardItems(_ items: [FileClipboardEntry], for key: String) {
         payload.fileClipboards[key] = items.map { ["id": $0.id, "name": $0.name, "path": $0.path] }
+        persist()
+    }
+
+    // MARK: - Period Tracker
+
+    func periodDates(for key: String) -> [String] {
+        payload.periodDates[key] ?? []
+    }
+
+    func addPeriodDate(_ date: String, for key: String) {
+        var dates = payload.periodDates[key] ?? []
+        if !dates.contains(date) {
+            dates.append(date)
+            dates.sort()
+            payload.periodDates[key] = dates
+            persist()
+        }
+    }
+
+    func removePeriodDate(_ date: String, for key: String) {
+        var dates = payload.periodDates[key] ?? []
+        dates.removeAll { $0 == date }
+        payload.periodDates[key] = dates
+        persist()
+    }
+
+    // MARK: - Mood Tracker
+
+    func moodEntries(for key: String) -> [String: String] {
+        payload.moodEntries[key] ?? [:]
+    }
+
+    func setMood(_ emoji: String, on date: String, for key: String) {
+        var entries = payload.moodEntries[key] ?? [:]
+        entries[date] = emoji
+        payload.moodEntries[key] = entries
         persist()
     }
 

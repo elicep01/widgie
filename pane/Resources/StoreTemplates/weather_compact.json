@@ -12,7 +12,7 @@
     "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
     "content": {
       "type": "weather",
-      "location": "auto",
+      "location": "New York",
       "style": "compact",
       "showIcon": true,
       "showTemperature": true,

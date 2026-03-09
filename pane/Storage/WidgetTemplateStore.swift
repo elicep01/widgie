@@ -173,8 +173,8 @@ final class WidgetTemplateStore {
             )
         }
 
-        // Favor compact presentation styles in gallery templates.
-        if c.type == .weather {
+        // Favor compact presentation styles in gallery templates (preserve forecast).
+        if c.type == .weather, c.style?.lowercased() != "forecast" {
             c.style = "compact"
         }
 

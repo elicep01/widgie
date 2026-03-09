@@ -36,6 +36,9 @@ enum ComponentType: String, Codable {
     case linkBookmarks = "link_bookmarks"
     case fileClipboard = "file_clipboard"
     case githubRepoStats = "github_repo_stats"
+    case periodTracker = "period_tracker"
+    case moodTracker = "mood_tracker"
+    case breathingExercise = "breathing_exercise"
     case vstack
     case hstack
     case container
@@ -169,6 +172,12 @@ final class ComponentConfig: Codable {
     var lowThreshold: Double?
     var showMetrics: [String]?
     var maxFiles: Int?
+    var cycleLength: Int?
+    var breatheInDuration: Double?
+    var breatheOutDuration: Double?
+    var holdDuration: Double?
+    var sessionDuration: Int?
+    var moods: [String]?
 
     var direction: String?
     var thickness: Double?
@@ -189,7 +198,8 @@ final class ComponentConfig: Codable {
             .shortcutLauncher, .linkBookmarks, .checklist,
             .pomodoro, .note, .stopwatch, .timer,
             .musicNowPlaying, .habitTracker, .reminders,
-            .fileClipboard
+            .fileClipboard, .periodTracker, .moodTracker,
+            .breathingExercise
         ]
         if interactiveTypes.contains(type) { return true }
         if child?.hasInteractiveContent == true { return true }

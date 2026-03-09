@@ -1,0 +1,25 @@
+{
+  "id": "meditation",
+  "name": "Breathing Exercise",
+  "description": "Guided 1-minute breathing with calming animation and gentle sounds.",
+  "category": "health",
+  "config": {
+    "name": "Breathing Exercise",
+    "description": "Animated breathe in/out meditation",
+    "size": { "width": 150, "height": 160 },
+    "theme": "obsidian",
+    "cornerRadius": 20,
+    "padding": { "top": 12, "bottom": 10, "leading": 12, "trailing": 12 },
+    "refreshInterval": 0,
+    "content": {
+      "type": "breathing_exercise",
+      "breatheInDuration": 4,
+      "breatheOutDuration": 6,
+      "holdDuration": 5,
+      "sessionDuration": 60,
+      "color": "accent",
+      "alignment": "center"
+    },
+    "maxSize": { "width": 200, "height": 200 }
+  }
+}

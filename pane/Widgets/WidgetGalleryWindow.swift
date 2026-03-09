@@ -26,8 +26,8 @@ final class WidgetGalleryWindow {
         let win = NSPanel(contentViewController: hostingController)
         win.title = "Widget Gallery"
         win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        win.setFrame(NSRect(x: 0, y: 0, width: 780, height: 620), display: false)
-        win.minSize = NSSize(width: 600, height: 480)
+        win.setFrame(NSRect(x: 0, y: 0, width: 860, height: 620), display: false)
+        win.minSize = NSSize(width: 700, height: 480)
         win.center()
         win.isReleasedWhenClosed = false
         win.isFloatingPanel = false
@@ -56,31 +56,107 @@ private struct GalleryRootView: View {
     @State private var selectedCategory: String = "all"
     @State private var hoveredItem: String?
     @State private var justAdded: String?
+    @State private var scrollTarget: String?
+    @State private var hoveredSidebarItem: String?
+
+    private var allItems: [StoreTemplateItem] {
+        templateStore.storeItems()
+    }
 
     private var categories: [String] {
         templateStore.storeCategories()
     }
 
     private var items: [StoreTemplateItem] {
-        let all = templateStore.storeItems()
-        if selectedCategory == "all" { return all }
-        return all.filter { $0.category == selectedCategory }
+        if selectedCategory == "all" { return allItems }
+        return allItems.filter { $0.category == selectedCategory }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            ScrollView {
-                galleryGrid
-                    .padding(20)
+            HStack(spacing: 0) {
+                // Sidebar: widget name list
+                sidebar
+                Divider()
+                // Main grid
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        galleryGrid
+                            .padding(20)
+                    }
+                    .onChange(of: scrollTarget) { target in
+                        guard let target else { return }
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            proxy.scrollTo(target, anchor: .top)
+                        }
+                        // Clear after scrolling so the same item can be tapped again
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                            scrollTarget = nil
+                        }
+                    }
+                }
             }
         }
-        .frame(minWidth: 600, minHeight: 480)
+        .frame(minWidth: 700, minHeight: 480)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear {
             selectedTheme = settingsStore.defaultTheme
         }
+    }
+
+    // MARK: - Sidebar
+
+    private var sidebar: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(allItems) { item in
+                    let isHovered = hoveredSidebarItem == item.id
+                    let counts = activeWidgetCountsProvider()
+                    let count = counts[item.name] ?? 0
+
+                    Button {
+                        // Switch category to "all" or the item's category so it's visible
+                        if selectedCategory != "all" && item.category != selectedCategory {
+                            selectedCategory = "all"
+                        }
+                        scrollTarget = item.id
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(item.name)
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundStyle(isHovered ? .primary : .secondary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(minWidth: 14, minHeight: 14)
+                                    .background(
+                                        Capsule()
+                                            .fill(ThemeResolver.palette(for: selectedTheme).accent)
+                                    )
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(isHovered ? Color.primary.opacity(0.06) : Color.clear)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        hoveredSidebarItem = hovering ? item.id : nil
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 6)
+        }
+        .frame(width: 150)
     }
 
     // MARK: - Header
@@ -166,6 +242,7 @@ private struct GalleryRootView: View {
         LazyVGrid(columns: gridColumns, spacing: 16) {
             ForEach(items) { item in
                 galleryCard(item)
+                    .id(item.id)
             }
         }
     }

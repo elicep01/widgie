@@ -27,7 +27,7 @@
         },
         {
           "type": "weather",
-          "location": "auto",
+          "location": "New York",
           "style": "forecast",
           "forecastDays": 3,
           "showIcon": true,

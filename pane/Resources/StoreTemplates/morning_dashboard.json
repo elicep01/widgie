@@ -48,7 +48,7 @@
             },
             {
               "type": "weather",
-              "location": "auto",
+              "location": "New York",
               "style": "compact",
               "showIcon": true,
               "showTemperature": true,

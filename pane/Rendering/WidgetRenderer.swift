@@ -39,13 +39,27 @@ struct WidgetRenderer: View {
         )
     }
 
+    /// Determine outer alignment from the root content component.
+    /// Single components with alignment "center" should be centered in the widget frame.
+    private var contentAlignment: Alignment {
+        let align = config.content.alignment?.lowercased()
+        switch align {
+        case "center":
+            return .center
+        case "trailing":
+            return .trailing
+        default:
+            return .topLeading
+        }
+    }
+
     var body: some View {
         ZStack {
             renderWidgetBackground(config.background)
 
             renderComponent(config.content)
                 .padding(scaledPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: contentAlignment)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous))
@@ -216,6 +230,15 @@ struct WidgetRenderer: View {
 
         case .githubRepoStats:
             return AnyView(GitHubStatsComponentView(component: component, theme: config.theme))
+
+        case .periodTracker:
+            return AnyView(PeriodTrackerComponentView(widgetID: config.id, component: component, theme: config.theme))
+
+        case .moodTracker:
+            return AnyView(MoodTrackerComponentView(widgetID: config.id, component: component, theme: config.theme))
+
+        case .breathingExercise:
+            return AnyView(BreathingExerciseComponentView(component: component, theme: config.theme))
 
         case .vstack:
             let children = component.children ?? []
@@ -1600,7 +1623,8 @@ private struct WeatherComponentView: View {
                     loadState = .loading
                 }
             }
-            let location = component.location ?? "Madison, WI"
+            let raw = component.location ?? "New York"
+            let location = (raw.lowercased() == "auto") ? "New York" : raw
             let fahrenheit = prefersFahrenheit(unitToken: component.temperatureUnit)
             let value = await DataServiceManager.shared.weather(location: location, fahrenheit: fahrenheit)
             await MainActor.run {
@@ -3952,4 +3976,725 @@ private func reminderDueText(_ dueDate: Date) -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "MMM d"
     return formatter.string(from: dueDate)
+}
+
+// MARK: - Period Tracker
+
+private struct PeriodTrackerComponentView: View {
+    let widgetID: UUID
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @ObservedObject private var time = TimePublisher.shared
+    @State private var periodDates: [String] = []
+    @State private var hasLoaded = false
+    @State private var showDatePicker = false
+    @State private var pickerDate = Date()
+    @State private var showHistory = false
+    @Environment(\.widgetScaleFactor) private var scale
+
+    private var storageKey: String {
+        componentStorageKey(widgetID: widgetID, component: component, fallback: "period-tracker")
+    }
+
+    private var dateFmt: DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }
+
+    private var displayFmt: DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }
+
+    // MARK: - Cycle calculation
+
+    /// Average cycle length computed from logged dates, fallback to config.
+    private var avgCycleLength: Int {
+        let gaps = cycleGaps
+        guard !gaps.isEmpty else { return component.cycleLength ?? 28 }
+        return max(21, min(45, gaps.reduce(0, +) / gaps.count))
+    }
+
+    /// Gaps in days between consecutive period start dates.
+    private var cycleGaps: [Int] {
+        let dates = periodDates.compactMap { dateFmt.date(from: $0) }.sorted()
+        guard dates.count >= 2 else { return [] }
+        var gaps: [Int] = []
+        for i in 1..<dates.count {
+            let gap = Calendar.current.dateComponents([.day], from: dates[i - 1], to: dates[i]).day ?? 0
+            if gap >= 15 && gap <= 60 { gaps.append(gap) } // filter noise
+        }
+        return gaps
+    }
+
+    private struct CycleInfo {
+        let phase: String
+        let phaseEmoji: String
+        let phaseColor: String
+        let dayOfCycle: Int
+        let cycleLen: Int
+        let nextPeriod: String
+        let daysUntil: Int
+        let moodHint: String
+        let selfCare: String
+    }
+
+    private var cycleInfo: CycleInfo? {
+        guard let lastDateStr = periodDates.last,
+              let lastDate = dateFmt.date(from: lastDateStr) else { return nil }
+
+        let today = time.now
+        let daysSince = Calendar.current.dateComponents([.day], from: lastDate, to: today).day ?? 0
+        let len = avgCycleLength
+        let dayOfCycle = (daysSince % len) + 1
+
+        let ovulationDay = len - 14 // typically 14 days before next period
+
+        let phase: String
+        let phaseEmoji: String
+        let phaseColor: String
+        let moodHint: String
+        let selfCare: String
+
+        switch dayOfCycle {
+        case 1...5:
+            phase = "Menstrual"
+            phaseEmoji = "🩸"
+            phaseColor = "negative"
+            moodHint = "You may feel tired, moody, or crave comfort food"
+            selfCare = "Rest, warm drinks, gentle stretching"
+        case 6...(ovulationDay - 2):
+            phase = "Follicular"
+            phaseEmoji = "🌱"
+            phaseColor = "accent"
+            moodHint = "Energy is rising — you'll feel more creative and social"
+            selfCare = "Great time for new projects and workouts"
+        case (ovulationDay - 1)...(ovulationDay + 1):
+            phase = "Ovulation"
+            phaseEmoji = "✨"
+            phaseColor = "warning"
+            moodHint = "Peak energy and confidence — you may feel extra outgoing"
+            selfCare = "Channel the energy into things you love"
+        default:
+            phase = "Luteal"
+            phaseEmoji = "🍂"
+            phaseColor = "positive"
+            moodHint = "You might feel irritable, anxious, or have cravings"
+            selfCare = "Be gentle with yourself, journaling helps"
+        }
+
+        let daysUntil = len - dayOfCycle + 1
+        let nextDate = Calendar.current.date(byAdding: .day, value: daysUntil, to: today) ?? today
+        let nextPeriod = displayFmt.string(from: nextDate)
+
+        return CycleInfo(
+            phase: phase, phaseEmoji: phaseEmoji, phaseColor: phaseColor,
+            dayOfCycle: dayOfCycle, cycleLen: len,
+            nextPeriod: nextPeriod, daysUntil: daysUntil,
+            moodHint: moodHint, selfCare: selfCare
+        )
+    }
+
+    // MARK: - Body
+
+    var body: some View {
+        VStack(spacing: (5 * scale).cgFloat) {
+            if !hasLoaded {
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
+            } else if let info = cycleInfo {
+                cycleView(info)
+            } else {
+                onboardingView
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .task { await loadData() }
+    }
+
+    // MARK: - Cycle View (has data)
+
+    @ViewBuilder
+    private func cycleView(_ info: CycleInfo) -> some View {
+        // Phase ring + info
+        HStack(spacing: (8 * scale).cgFloat) {
+            // Ring
+            ZStack {
+                Circle()
+                    .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.15), lineWidth: (4 * scale).cgFloat)
+                Circle()
+                    .trim(from: 0, to: CGFloat(info.dayOfCycle) / CGFloat(info.cycleLen))
+                    .stroke(
+                        ThemeResolver.color(for: info.phaseColor, theme: theme),
+                        style: StrokeStyle(lineWidth: (4 * scale).cgFloat, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 0.6), value: info.dayOfCycle)
+                VStack(spacing: 0) {
+                    Text(info.phaseEmoji)
+                        .font(.system(size: (12 * scale).cgFloat))
+                    Text("Day \(info.dayOfCycle)")
+                        .font(.system(size: (9 * scale).cgFloat, weight: .bold, design: .rounded))
+                        .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                }
+            }
+            .frame(width: (50 * scale).cgFloat, height: (50 * scale).cgFloat)
+
+            // Phase details
+            VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                Text(info.phase)
+                    .font(.system(size: (11 * scale).cgFloat, weight: .bold))
+                    .foregroundStyle(ThemeResolver.color(for: info.phaseColor, theme: theme))
+                Text("Next period: \(info.nextPeriod)")
+                    .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                Text("(\(info.daysUntil) days away)")
+                    .font(.system(size: (7 * scale).cgFloat))
+                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                if cycleGaps.count >= 2 {
+                    Text("Avg cycle: \(avgCycleLength) days")
+                        .font(.system(size: (7 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+
+        // Mood prediction
+        HStack(spacing: (3 * scale).cgFloat) {
+            Image(systemName: "brain.head.profile")
+                .font(.system(size: (7 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: info.phaseColor, theme: theme))
+            Text(info.moodHint)
+                .font(.system(size: (7.5 * scale).cgFloat, weight: .medium))
+                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        // Self-care tip
+        HStack(spacing: (3 * scale).cgFloat) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: (7 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+            Text(info.selfCare)
+                .font(.system(size: (7.5 * scale).cgFloat, weight: .medium))
+                .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                .lineLimit(2)
+        }
+
+        // Action buttons
+        HStack(spacing: (4 * scale).cgFloat) {
+            // Log today
+            Button {
+                logDate(time.now)
+            } label: {
+                HStack(spacing: (2 * scale).cgFloat) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: (8 * scale).cgFloat))
+                    Text("Log Today")
+                        .font(.system(size: (8 * scale).cgFloat, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, (6 * scale).cgFloat)
+                .padding(.vertical, (3 * scale).cgFloat)
+                .background(Capsule().fill(ThemeResolver.color(for: "accent", theme: theme)))
+            }
+            .buttonStyle(.plain)
+
+            // Pick date
+            Button {
+                showDatePicker.toggle()
+            } label: {
+                HStack(spacing: (2 * scale).cgFloat) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: (8 * scale).cgFloat))
+                    Text("Add Past")
+                        .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                }
+                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                .padding(.horizontal, (6 * scale).cgFloat)
+                .padding(.vertical, (3 * scale).cgFloat)
+                .background(
+                    Capsule()
+                        .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.3), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 0)
+
+            // History toggle
+            if periodDates.count > 1 {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showHistory.toggle() }
+                } label: {
+                    Image(systemName: showHistory ? "chevron.up" : "list.bullet")
+                        .font(.system(size: (8 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+
+        // Date picker
+        if showDatePicker {
+            HStack(spacing: (4 * scale).cgFloat) {
+                DatePicker("", selection: $pickerDate, in: ...Date(), displayedComponents: .date)
+                    .datePickerStyle(.field)
+                    .labelsHidden()
+                    .frame(width: (90 * scale).cgFloat)
+                Button("Add") {
+                    logDate(pickerDate)
+                    showDatePicker = false
+                }
+                .font(.system(size: (9 * scale).cgFloat, weight: .semibold))
+                .buttonStyle(.plain)
+                .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+
+        // History list
+        if showHistory {
+            let recent = periodDates.suffix(5).reversed()
+            VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                ForEach(Array(recent), id: \.self) { dateStr in
+                    HStack {
+                        let d = dateFmt.date(from: dateStr)
+                        Text(d.map { displayFmt.string(from: $0) } ?? dateStr)
+                            .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                        Spacer()
+                        Button {
+                            Task {
+                                await UserDataStore.shared.removePeriodDate(dateStr, for: storageKey)
+                                await loadData()
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle")
+                                .font(.system(size: (8 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    // MARK: - Onboarding (no data yet)
+
+    private var onboardingView: some View {
+        VStack(spacing: (6 * scale).cgFloat) {
+            Image(systemName: "heart.circle")
+                .font(.system(size: (22 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+
+            Text("Track Your Cycle")
+                .font(.system(size: (10 * scale).cgFloat, weight: .semibold))
+                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+
+            Text("Log period start dates to see predictions, mood insights, and self-care tips.")
+                .font(.system(size: (8 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+
+            Text("Add as many past dates as you remember for better accuracy!")
+                .font(.system(size: (7 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+
+            HStack(spacing: (6 * scale).cgFloat) {
+                Button {
+                    logDate(time.now)
+                } label: {
+                    HStack(spacing: (2 * scale).cgFloat) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: (8 * scale).cgFloat))
+                        Text("Log Today")
+                            .font(.system(size: (9 * scale).cgFloat, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, (8 * scale).cgFloat)
+                    .padding(.vertical, (4 * scale).cgFloat)
+                    .background(Capsule().fill(ThemeResolver.color(for: "accent", theme: theme)))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    showDatePicker.toggle()
+                } label: {
+                    HStack(spacing: (2 * scale).cgFloat) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: (8 * scale).cgFloat))
+                        Text("Pick Date")
+                            .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                    }
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                    .padding(.horizontal, (8 * scale).cgFloat)
+                    .padding(.vertical, (4 * scale).cgFloat)
+                    .background(
+                        Capsule()
+                            .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.3), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+
+            if showDatePicker {
+                HStack(spacing: (4 * scale).cgFloat) {
+                    DatePicker("", selection: $pickerDate, in: ...Date(), displayedComponents: .date)
+                        .datePickerStyle(.field)
+                        .labelsHidden()
+                        .frame(width: (90 * scale).cgFloat)
+                    Button("Add") {
+                        logDate(pickerDate)
+                        showDatePicker = false
+                    }
+                    .font(.system(size: (9 * scale).cgFloat, weight: .semibold))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                }
+                .transition(.opacity)
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func logDate(_ date: Date) {
+        let dateStr = dateFmt.string(from: date)
+        Task {
+            await UserDataStore.shared.addPeriodDate(dateStr, for: storageKey)
+            await loadData()
+        }
+    }
+
+    private func loadData() async {
+        let dates = await UserDataStore.shared.periodDates(for: storageKey)
+        await MainActor.run {
+            periodDates = dates
+            hasLoaded = true
+        }
+    }
+}
+
+// MARK: - Mood Tracker
+
+private struct MoodTrackerComponentView: View {
+    let widgetID: UUID
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @ObservedObject private var time = TimePublisher.shared
+    @State private var moodEntries: [String: String] = [:]
+    @State private var hasLoaded = false
+    @Environment(\.widgetScaleFactor) private var scale
+
+    private var storageKey: String {
+        componentStorageKey(widgetID: widgetID, component: component, fallback: "mood-tracker")
+    }
+
+    private var availableMoods: [(String, String)] {
+        [("😊", "Happy"), ("😌", "Calm"), ("😔", "Sad"), ("😤", "Angry"), ("😴", "Tired"), ("🥰", "Loved"), ("😰", "Anxious")]
+    }
+
+    private var todayKey: String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: time.now)
+    }
+
+    private var todayMood: String? {
+        moodEntries[todayKey]
+    }
+
+    /// Last 7 days mood data.
+    private var weekMoods: [(day: String, emoji: String?)] {
+        let cal = Calendar.current
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        let dayF = DateFormatter()
+        dayF.dateFormat = "EEE"
+        return (0..<7).reversed().map { offset in
+            let date = cal.date(byAdding: .day, value: -offset, to: time.now)!
+            let key = f.string(from: date)
+            let day = offset == 0 ? "Today" : dayF.string(from: date)
+            return (day, moodEntries[key])
+        }
+    }
+
+    /// Most frequent mood.
+    private var topMood: String? {
+        let recent = moodEntries.values
+        guard !recent.isEmpty else { return nil }
+        var freq: [String: Int] = [:]
+        for m in recent { freq[m, default: 0] += 1 }
+        return freq.max(by: { $0.value < $1.value })?.key
+    }
+
+    /// Brief suggestion based on today's mood.
+    private var suggestion: String? {
+        guard let mood = todayMood else { return nil }
+        switch mood {
+        case "😊": return "Keep spreading the joy!"
+        case "😌": return "Great day for mindfulness"
+        case "😔": return "Try a short walk outside"
+        case "😤": return "Deep breaths, you've got this"
+        case "😴": return "Rest well tonight"
+        case "🥰": return "Share the love with someone"
+        case "😰": return "Try the breathing widget"
+        default: return nil
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: (5 * scale).cgFloat) {
+            if !hasLoaded {
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
+            } else {
+                // Mood selector row
+                if todayMood == nil {
+                    Text("How are you today?")
+                        .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                }
+
+                HStack(spacing: (4 * scale).cgFloat) {
+                    ForEach(availableMoods, id: \.0) { emoji, _ in
+                        let isSelected = todayMood == emoji
+                        Button {
+                            Task {
+                                await UserDataStore.shared.setMood(emoji, on: todayKey, for: storageKey)
+                                await loadData()
+                            }
+                        } label: {
+                            let emojiSize: Double = isSelected ? 18.0 : 14.0
+                            Text(emoji)
+                                .font(.system(size: (emojiSize * scale).cgFloat))
+                                .scaleEffect(isSelected ? 1.15 : 1.0)
+                                .opacity(todayMood == nil || isSelected ? 1.0 : 0.4)
+                                .animation(.spring(response: 0.3), value: isSelected)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                // Week history
+                HStack(spacing: (3 * scale).cgFloat) {
+                    ForEach(weekMoods, id: \.day) { day, emoji in
+                        VStack(spacing: (1 * scale).cgFloat) {
+                            Text(emoji ?? "·")
+                                .font(.system(size: (10 * scale).cgFloat))
+                                .frame(height: (14 * scale).cgFloat)
+                            Text(day)
+                                .font(.system(size: (7 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+
+                // Suggestion
+                if let suggestion {
+                    Text(suggestion)
+                        .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: "accent", theme: theme))
+                        .transition(.opacity)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .task { await loadData() }
+    }
+
+    private func loadData() async {
+        let entries = await UserDataStore.shared.moodEntries(for: storageKey)
+        await MainActor.run {
+            moodEntries = entries
+            hasLoaded = true
+        }
+    }
+}
+
+// MARK: - Breathing Exercise
+
+private struct BreathingExerciseComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var isActive = false
+    @State private var phase: BreathPhase = .idle
+    @State private var elapsed: TimeInterval = 0
+    @State private var circleScale: CGFloat = 0.5
+    @State private var timer: Timer?
+    @Environment(\.widgetScaleFactor) private var scale
+
+    private enum BreathPhase: Equatable {
+        case idle, breatheIn, holdIn, breatheOut, holdOut, done
+    }
+
+    private var breatheIn: Double { component.breatheInDuration ?? 4.0 }
+    private var holdIn: Double { component.holdDuration ?? 5.0 }
+    private var breatheOut: Double { component.breatheOutDuration ?? 6.0 }
+    private var holdOut: Double { 2.0 }
+    private var cycleDuration: Double { breatheIn + holdIn + breatheOut + holdOut }
+    private var sessionLength: TimeInterval { TimeInterval(component.sessionDuration ?? 60) }
+
+    private var phaseText: String {
+        switch phase {
+        case .idle: return "Tap to begin"
+        case .breatheIn: return "Breathe in"
+        case .holdIn, .holdOut: return "Hold"
+        case .breatheOut: return "Breathe out"
+        case .done: return "Namaste"
+        }
+    }
+
+    private var phaseColor: String {
+        switch phase {
+        case .idle, .done: return "accent"
+        case .breatheIn: return "positive"
+        case .holdIn, .holdOut: return "warning"
+        case .breatheOut: return "accent"
+        }
+    }
+
+    var body: some View {
+        let accentColor = ThemeResolver.color(for: phaseColor, theme: theme)
+        let primaryColor = ThemeResolver.color(for: "primary", theme: theme)
+        let mutedColor = ThemeResolver.color(for: "muted", theme: theme)
+
+        VStack(spacing: (6 * scale).cgFloat) {
+            // Breathing circle
+            ZStack {
+                // Outer glow
+                Circle()
+                    .fill(accentColor.opacity(0.08))
+                    .frame(width: (64 * scale).cgFloat, height: (64 * scale).cgFloat)
+
+                // Animated breathing circle
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [accentColor.opacity(0.6), accentColor.opacity(0.15)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: (30 * scale).cgFloat
+                        )
+                    )
+                    .frame(width: (54 * scale).cgFloat, height: (54 * scale).cgFloat)
+                    .scaleEffect(circleScale)
+
+                // Inner dot
+                Circle()
+                    .fill(accentColor)
+                    .frame(width: (8 * scale).cgFloat, height: (8 * scale).cgFloat)
+                    .scaleEffect(circleScale * 0.8 + 0.2)
+            }
+            .onTapGesture {
+                if phase == .idle || phase == .done {
+                    startSession()
+                } else {
+                    stopSession()
+                }
+            }
+
+            // Phase text
+            Text(phaseText)
+                .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                .foregroundStyle(phase == .idle ? mutedColor : primaryColor)
+                .animation(.easeInOut(duration: 0.3), value: phaseText)
+
+            // Timer
+            if isActive {
+                let remaining = max(0, Int(sessionLength - elapsed))
+                Text("\(remaining)s")
+                    .font(.system(size: (9 * scale).cgFloat, weight: .medium, design: .monospaced))
+                    .foregroundStyle(mutedColor)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .onDisappear { stopSession() }
+    }
+
+    private func startSession() {
+        isActive = true
+        elapsed = 0
+        phase = .breatheIn
+
+        withAnimation(.easeInOut(duration: breatheIn)) {
+            circleScale = 1.0
+        }
+
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            elapsed += 0.1
+            if elapsed >= sessionLength {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    phase = .done
+                    circleScale = 0.5
+                }
+                stopSession()
+                phase = .done
+                return
+            }
+            updatePhase()
+        }
+    }
+
+    private func stopSession() {
+        timer?.invalidate()
+        timer = nil
+        isActive = false
+        if phase != .done {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                phase = .idle
+                circleScale = 0.5
+            }
+        }
+    }
+
+    private func updatePhase() {
+        let cyclePos = elapsed.truncatingRemainder(dividingBy: cycleDuration)
+
+        let newPhase: BreathPhase
+        if cyclePos < breatheIn {
+            newPhase = .breatheIn
+        } else if cyclePos < breatheIn + holdIn {
+            newPhase = .holdIn
+        } else if cyclePos < breatheIn + holdIn + breatheOut {
+            newPhase = .breatheOut
+        } else {
+            newPhase = .holdOut
+        }
+
+        if newPhase != phase {
+            phase = newPhase
+            switch newPhase {
+            case .breatheIn:
+                withAnimation(.easeInOut(duration: breatheIn)) {
+                    circleScale = 1.0
+                }
+            case .holdIn:
+                break // Stay expanded
+            case .breatheOut:
+                withAnimation(.easeInOut(duration: breatheOut)) {
+                    circleScale = 0.5
+                }
+            case .holdOut:
+                break // Stay contracted
+            default:
+                break
+            }
+            // Play subtle system sound on phase change
+            NSSound(named: "Tink")?.play()
+        }
+    }
 }

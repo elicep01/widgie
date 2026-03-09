@@ -1827,6 +1827,9 @@ struct SchemaValidator {
                 throw AIWidgetServiceError.schemaValidationFailed("github_repo_stats.source (owner/repo) is required at \(path).")
             }
 
+        case .periodTracker, .moodTracker, .breathingExercise:
+            break
+
         case .divider, .spacer:
             break
         }
