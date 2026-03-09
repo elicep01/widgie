@@ -20,22 +20,22 @@ struct WidgetRenderer: View {
     let config: WidgetConfig
     private var surfaceStyle: ThemeSurfaceStyle { ThemeResolver.surface(for: config.theme) }
 
-    /// Responsive scale driven by both width and height so content remains readable
-    /// during freeform resize drags.
+    /// Responsive scale driven by both width and height so content grows/shrinks
+    /// proportionally during freeform resize drags.
     private var scaleFactor: Double {
-        let widthScale = config.size.width / 320.0
-        let heightScale = config.size.height / 180.0
-        return max(0.90, min(1.16, min(widthScale, heightScale)))
+        let widthScale = config.size.width / 220.0
+        let heightScale = config.size.height / 120.0
+        return max(0.72, min(1.8, min(widthScale, heightScale)))
     }
 
     private var scaledPadding: EdgeInsets {
         let s = scaleFactor
         let p = config.padding
         return EdgeInsets(
-            top: ((p.top * s).cgFloat).clamped(7, 28),
-            leading: ((p.leading * s).cgFloat).clamped(7, 30),
-            bottom: ((p.bottom * s).cgFloat).clamped(7, 28),
-            trailing: ((p.trailing * s).cgFloat).clamped(7, 30)
+            top: ((p.top * s).cgFloat).clamped(6, 40),
+            leading: ((p.leading * s).cgFloat).clamped(6, 44),
+            bottom: ((p.bottom * s).cgFloat).clamped(6, 40),
+            trailing: ((p.trailing * s).cgFloat).clamped(6, 44)
         )
     }
 
@@ -998,11 +998,20 @@ private struct WorldClocksComponentView: View {
             ForEach(entries.indices, id: \.self) { index in
                 let entry = entries[index]
                 HStack(spacing: (10 * scale).cgFloat) {
-                    Text(entry.label ?? shortTimezoneName(entry.timezone))
-                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.82)
+                    VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                        Text(entry.label ?? shortTimezoneName(entry.timezone))
+                            .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                        if component.showDate ?? false {
+                            Text(dateString(for: entry.timezone))
+                                .font(.system(size: (((component.size ?? 13) - 2) * scale).cgFloat, weight: .regular))
+                                .foregroundStyle(ThemeResolver.color(for: component.labelColor ?? "muted", theme: theme))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                        }
+                    }
                     Spacer(minLength: 4)
                     Text(timeString(for: entry.timezone))
                         .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .semibold, design: .monospaced))
@@ -1039,6 +1048,14 @@ private struct WorldClocksComponentView: View {
     private func timeString(for timezone: String) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = component.format ?? "HH:mm"
+        formatter.timeZone = resolvedTimezone(timezone)
+        return formatter.string(from: time.now)
+    }
+
+    private func dateString(for timezone: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
         formatter.timeZone = resolvedTimezone(timezone)
         return formatter.string(from: time.now)
     }
@@ -1550,63 +1567,25 @@ private struct WeatherComponentView: View {
     @State private var loadState: DataLoadState = .loading
     @Environment(\.widgetScaleFactor) private var scale
 
+    private var isForecastStyle: Bool {
+        component.style?.lowercased() == "forecast"
+    }
+
+    private var forecastDayCount: Int {
+        component.forecastDays ?? 3
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+        Group {
             if loadState == .loading && snapshot == nil {
-                LoadingShimmerView(theme: theme, lines: 4, lineHeight: (11 * scale).cgFloat)
+                LoadingShimmerView(theme: theme, lines: isForecastStyle ? 2 : 4, lineHeight: (11 * scale).cgFloat)
             } else if loadState == .failed && snapshot == nil {
                 DataErrorFallbackView(message: "Couldn't load weather", theme: theme)
             } else if let snapshot {
-                HStack(spacing: (8 * scale).cgFloat) {
-                    if component.showIcon ?? true {
-                        Image(systemName: snapshot.conditionSymbol)
-                            .font(.system(size: (18 * scale).cgFloat))
-                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
-                    }
-
-                    if component.showTemperature ?? true {
-                        Text(snapshot.temperature.map { "\($0.roundedInt)\(snapshot.unitSymbol)" } ?? "--")
-                            .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.25)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-
-                if component.showCondition ?? true {
-                    Text(snapshot.condition)
-                        .font(.system(size: (12 * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.25)
-                }
-
-                if component.showHighLow ?? true {
-                    Text("H \(snapshot.high?.roundedInt ?? 0) • L \(snapshot.low?.roundedInt ?? 0)")
-                        .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
-                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.25)
-                }
-
-                if component.showHumidity == true, let humidity = snapshot.humidity {
-                    Text("Humidity \(humidity.roundedInt)%")
-                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                }
-
-                if component.showWind == true, let wind = snapshot.windSpeed {
-                    Text("Wind \(wind.roundedInt) mph")
-                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
-                }
-
-                if component.showFeelsLike == true, let feelsLike = snapshot.feelsLike {
-                    Text("Feels like \(feelsLike.roundedInt)\(snapshot.unitSymbol)")
-                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
-                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                if isForecastStyle {
+                    forecastView(snapshot: snapshot)
+                } else {
+                    currentWeatherView(snapshot: snapshot)
                 }
             } else {
                 Text("--")
@@ -1627,6 +1606,102 @@ private struct WeatherComponentView: View {
             await MainActor.run {
                 snapshot = value
                 loadState = value == nil ? .failed : .ready
+            }
+        }
+    }
+
+    // MARK: - Current Weather (default style)
+
+    @ViewBuilder
+    private func currentWeatherView(snapshot: WeatherSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+            HStack(spacing: (8 * scale).cgFloat) {
+                if component.showIcon ?? true {
+                    Image(systemName: snapshot.conditionSymbol)
+                        .font(.system(size: (18 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
+                }
+
+                if component.showTemperature ?? true {
+                    Text(snapshot.temperature.map { "\($0.roundedInt)\(snapshot.unitSymbol)" } ?? "--")
+                        .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.25)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            if component.showCondition ?? true {
+                Text(snapshot.condition)
+                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.25)
+            }
+
+            if component.showHighLow ?? true {
+                Text("H \(snapshot.high?.roundedInt ?? 0) • L \(snapshot.low?.roundedInt ?? 0)")
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium, design: .monospaced))
+                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.25)
+            }
+
+            if component.showHumidity == true, let humidity = snapshot.humidity {
+                Text("Humidity \(humidity.roundedInt)%")
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+            }
+
+            if component.showWind == true, let wind = snapshot.windSpeed {
+                Text("Wind \(wind.roundedInt) mph")
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+            }
+
+            if component.showFeelsLike == true, let feelsLike = snapshot.feelsLike {
+                Text("Feels like \(feelsLike.roundedInt)\(snapshot.unitSymbol)")
+                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+            }
+        }
+    }
+
+    // MARK: - Forecast Style
+
+    @ViewBuilder
+    private func forecastView(snapshot: WeatherSnapshot) -> some View {
+        let days = Array((snapshot.forecast ?? []).prefix(forecastDayCount))
+        if days.isEmpty {
+            Text("No forecast data")
+                .font(.system(size: (11 * scale).cgFloat))
+                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+        } else {
+            HStack(spacing: 0) {
+                ForEach(Array(days.enumerated()), id: \.offset) { index, day in
+                    VStack(spacing: (4 * scale).cgFloat) {
+                        Text(day.dayName)
+                            .font(.system(size: (10 * scale).cgFloat, weight: .semibold))
+                            .foregroundStyle(ThemeResolver.color(for: index == 0 ? "primary" : "secondary", theme: theme))
+
+                        Image(systemName: day.conditionSymbol)
+                            .font(.system(size: (16 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "accent", theme: theme))
+                            .frame(height: (20 * scale).cgFloat)
+
+                        VStack(spacing: (1 * scale).cgFloat) {
+                            Text("\(day.high.roundedInt)°")
+                                .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .rounded))
+                                .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                            Text("\(day.low.roundedInt)°")
+                                .font(.system(size: (10 * scale).cgFloat, weight: .medium, design: .rounded))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
             }
         }
     }
@@ -1957,7 +2032,14 @@ private struct BatteryComponentView: View {
             switch (component.style ?? "ring").lowercased() {
             case "bar":
                 VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
-                    batteryText
+                    HStack(spacing: (4 * scale).cgFloat) {
+                        batteryText
+                        if snapshot?.isCharging == true {
+                            Image(systemName: "bolt.fill")
+                                .font(.system(size: (10 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "warning", theme: theme))
+                        }
+                    }
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule()
@@ -1965,6 +2047,7 @@ private struct BatteryComponentView: View {
                             Capsule()
                                 .fill(fillColor)
                                 .frame(width: geo.size.width * percentage.cgFloat)
+                                .animation(.easeInOut(duration: 0.8), value: percentage)
                         }
                     }
                     .frame(height: (7 * scale).cgFloat)
@@ -1973,17 +2056,32 @@ private struct BatteryComponentView: View {
                 batteryText
             default:
                 let ringSize = (74 * scale).cgFloat
-                ZStack {
-                    Circle()
-                        .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.35), lineWidth: 6)
-                    Circle()
-                        .trim(from: 0, to: percentage.cgFloat)
-                        .stroke(fillColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    batteryText
-                        .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                VStack(spacing: (6 * scale).cgFloat) {
+                    ZStack {
+                        Circle()
+                            .stroke(ThemeResolver.color(for: "muted", theme: theme).opacity(0.2), lineWidth: 6)
+                        Circle()
+                            .trim(from: 0, to: percentage.cgFloat)
+                            .stroke(fillColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                            .animation(.easeInOut(duration: 0.8), value: percentage)
+                        VStack(spacing: (1 * scale).cgFloat) {
+                            if snapshot?.isCharging == true {
+                                Image(systemName: "bolt.fill")
+                                    .font(.system(size: (9 * scale).cgFloat))
+                                    .foregroundStyle(ThemeResolver.color(for: "warning", theme: theme))
+                            }
+                            batteryText
+                                .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                        }
+                    }
+                    .frame(width: ringSize, height: ringSize)
+                    if let label = component.label, !label.isEmpty {
+                        Text(label)
+                            .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                    }
                 }
-                .frame(width: ringSize, height: ringSize)
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
@@ -2328,43 +2426,98 @@ private struct NewsHeadlinesComponentView: View {
     let component: ComponentConfig
     let theme: WidgetTheme
 
-    @State private var headlines: [NewsHeadlineSnapshot] = []
+    /// All fetched headlines (larger pool to cycle through).
+    @State private var allHeadlines: [NewsHeadlineSnapshot] = []
+    /// Current display page index.
+    @State private var currentPage = 0
     @State private var hasLoaded = false
+    @State private var cycleTimer: Timer?
     @Environment(\.widgetScaleFactor) private var scale
+
+    private static let defaultFeeds: [String] = [
+        "https://feeds.bbci.co.uk/news/rss.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "https://feeds.npr.org/1001/rss.xml",
+        "http://rss.cnn.com/rss/edition.rss",
+        "https://www.theguardian.com/world/rss",
+        "https://feeds.reuters.com/reuters/topNews",
+    ]
+
+    private var displayCount: Int { max(1, component.maxItems ?? 3) }
+    private var cycleInterval: TimeInterval { TimeInterval(component.rotateInterval ?? 8) }
+
+    /// Headlines visible on current page.
+    private var visibleHeadlines: [NewsHeadlineSnapshot] {
+        guard !allHeadlines.isEmpty else { return [] }
+        let start = (currentPage * displayCount) % allHeadlines.count
+        var slice: [NewsHeadlineSnapshot] = []
+        for i in 0..<displayCount {
+            let idx = (start + i) % allHeadlines.count
+            slice.append(allHeadlines[idx])
+        }
+        return slice
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
             if !hasLoaded {
                 LoadingShimmerView(theme: theme, lines: 3, lineHeight: (10 * scale).cgFloat)
-            } else if headlines.isEmpty {
+            } else if allHeadlines.isEmpty {
                 Text("No headlines")
                     .font(.system(size: (12 * scale).cgFloat, weight: .medium))
                     .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
             } else {
-                ForEach(headlines.prefix(max(1, component.maxItems ?? 3))) { headline in
+                ForEach(visibleHeadlines) { headline in
                     VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
                         Text(headline.title)
-                            .font(.system(size: (12 * scale).cgFloat, weight: .medium))
+                            .font(.system(size: ((component.size ?? 12) * scale).cgFloat, weight: .medium))
                             .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
                             .lineLimit(2)
                         if component.showSource ?? true, let source = headline.source {
                             Text(source)
-                                .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                                .font(.system(size: (((component.size ?? 12) - 2) * scale).cgFloat, weight: .medium))
                                 .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                                 .lineLimit(1)
                         }
                     }
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: alignment)
+        .animation(.easeInOut(duration: 0.5), value: currentPage)
+        .onAppear { startCycleTimer() }
+        .onDisappear { cycleTimer?.invalidate() }
         .polling(every: 5 * 60) {
-            let feed = component.feedUrl ?? "https://feeds.bbci.co.uk/news/rss.xml"
-            let maxItems = component.maxItems ?? 3
-            let value = await DataServiceManager.shared.news(feedURL: feed, maxItems: maxItems, forceRefresh: true)
+            let feeds = component.feedUrls ?? Self.defaultFeeds
+            let value: [NewsHeadlineSnapshot]
+            if feeds.count > 1 {
+                value = await DataServiceManager.shared.newsMultiFeed(
+                    feedURLs: feeds,
+                    maxPerFeed: 5,
+                    totalMax: 20,
+                    forceRefresh: true
+                )
+            } else {
+                let feed = feeds.first ?? Self.defaultFeeds[0]
+                value = await DataServiceManager.shared.news(feedURL: feed, maxItems: 15, forceRefresh: true)
+            }
             await MainActor.run {
-                headlines = value
+                allHeadlines = value
                 hasLoaded = true
+            }
+        }
+    }
+
+    private func startCycleTimer() {
+        cycleTimer?.invalidate()
+        cycleTimer = Timer.scheduledTimer(withTimeInterval: cycleInterval, repeats: true) { _ in
+            guard !allHeadlines.isEmpty else { return }
+            withAnimation(.easeInOut(duration: 0.5)) {
+                currentPage += 1
             }
         }
     }

@@ -30,6 +30,30 @@ final class RSSProvider: NSObject {
         throw lastError
     }
 
+    /// Fetch from multiple feeds in parallel, merge & shuffle results.
+    func fetchMultiple(feedURLs: [String], maxPerFeed: Int, totalMax: Int) async -> [NewsHeadlineSnapshot] {
+        await withTaskGroup(of: [NewsHeadlineSnapshot].self) { group in
+            for url in feedURLs {
+                group.addTask { [self] in
+                    (try? await self.fetchSingle(feedURL: url, maxItems: maxPerFeed)) ?? []
+                }
+            }
+            var all: [NewsHeadlineSnapshot] = []
+            for await batch in group {
+                all.append(contentsOf: batch)
+            }
+            // Deduplicate by title similarity
+            var seen = Set<String>()
+            all = all.filter { item in
+                let key = item.title.lowercased().prefix(60)
+                guard !seen.contains(String(key)) else { return false }
+                seen.insert(String(key))
+                return true
+            }
+            return Array(all.shuffled().prefix(totalMax))
+        }
+    }
+
     private func fetchSingle(feedURL: String, maxItems: Int) async throws -> [NewsHeadlineSnapshot] {
         guard let url = URL(string: feedURL) else {
             throw URLError(.badURL)

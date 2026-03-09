@@ -152,11 +152,15 @@ struct WidgetPosition: Codable {
 }
 
 enum WidgetTheme: String, Codable, CaseIterable {
-    case obsidian
-    case frosted
+    // Active themes (Mac-native)
+    case obsidian       // Dark mode — deep charcoal, blue accent
+    case frosted        // Light mode — white glass, system blue
+    case transparent    // Glass — vibrancy, translucent
+    case mono           // Minimal — pure black & white
+    case paper          // Warm — cream, ink, editorial
+
+    // Legacy themes (kept for backward compat, mapped to active themes)
     case neon
-    case paper
-    case transparent
     case pastel
     case sakura
     case ocean
@@ -166,8 +170,30 @@ enum WidgetTheme: String, Codable, CaseIterable {
     case cyberpunk
     case midnight
     case roseGold = "rose_gold"
-    case mono
     case custom
+
+    /// The 5 active Mac-native themes shown in UI.
+    static var activeThemes: [WidgetTheme] {
+        [.obsidian, .frosted, .transparent, .mono, .paper]
+    }
+
+    /// Maps legacy themes to their closest active equivalent.
+    var canonical: WidgetTheme {
+        switch self {
+        case .obsidian, .frosted, .transparent, .mono, .paper:
+            return self
+        case .neon, .cyberpunk, .midnight, .ocean:
+            return .obsidian      // dark themes → obsidian
+        case .pastel, .sakura, .lavender, .roseGold:
+            return .frosted       // light colorful → frosted
+        case .sunset:
+            return .obsidian      // dark warm → obsidian
+        case .retro:
+            return .paper         // warm vintage → paper
+        case .custom:
+            return .obsidian
+        }
+    }
 }
 
 struct BackgroundConfig: Codable {
@@ -180,12 +206,12 @@ struct BackgroundConfig: Codable {
     var direction: String?
 
     static func `default`(for theme: WidgetTheme) -> BackgroundConfig {
-        switch theme {
+        switch theme.canonical {
         case .obsidian:
             return BackgroundConfig(
                 type: "blur",
                 material: "hudWindow",
-                tintColor: "#0D1117",
+                tintColor: "#1C1C1E",
                 tintOpacity: 0.72
             )
         case .frosted:
@@ -195,84 +221,28 @@ struct BackgroundConfig: Codable {
                 tintColor: "#FFFFFF",
                 tintOpacity: 0.55
             )
-        case .neon:
-            return BackgroundConfig(
-                type: "solid",
-                color: "#080A12"
-            )
-        case .paper:
-            return BackgroundConfig(
-                type: "solid",
-                color: "#F4EFE6"
-            )
         case .transparent:
             return BackgroundConfig(
                 type: "blur",
                 material: "hudWindow",
                 tintColor: "#000000",
-                tintOpacity: 0.35
-            )
-        case .pastel:
-            return BackgroundConfig(
-                type: "solid",
-                color: "#F8F0FA"
-            )
-        case .sakura:
-            return BackgroundConfig(
-                type: "gradient",
-                colors: ["#FFE0EC", "#FFF0F5"],
-                direction: "to_bottom"
-            )
-        case .ocean:
-            return BackgroundConfig(
-                type: "gradient",
-                colors: ["#051525", "#0A2A40"],
-                direction: "to_bottom"
-            )
-        case .sunset:
-            return BackgroundConfig(
-                type: "gradient",
-                colors: ["#1A0A10", "#2D1020"],
-                direction: "to_bottom"
-            )
-        case .lavender:
-            return BackgroundConfig(
-                type: "gradient",
-                colors: ["#E8E0F4", "#F0E8FF"],
-                direction: "to_bottom"
-            )
-        case .retro:
-            return BackgroundConfig(
-                type: "solid",
-                color: "#F5E8CC"
-            )
-        case .cyberpunk:
-            return BackgroundConfig(
-                type: "solid",
-                color: "#050008"
-            )
-        case .midnight:
-            return BackgroundConfig(
-                type: "gradient",
-                colors: ["#080E22", "#101830"],
-                direction: "to_bottom"
-            )
-        case .roseGold:
-            return BackgroundConfig(
-                type: "gradient",
-                colors: ["#F8E8E0", "#F0D8CC"],
-                direction: "to_bottom"
+                tintOpacity: 0.25
             )
         case .mono:
             return BackgroundConfig(
                 type: "solid",
                 color: "#FFFFFF"
             )
-        case .custom:
+        case .paper:
+            return BackgroundConfig(
+                type: "solid",
+                color: "#F5F0E8"
+            )
+        default:
             return BackgroundConfig(
                 type: "blur",
                 material: "hudWindow",
-                tintColor: "#0D1117",
+                tintColor: "#1C1C1E",
                 tintOpacity: 0.72
             )
         }

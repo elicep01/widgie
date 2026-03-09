@@ -1257,13 +1257,13 @@ private struct WidgetPanelContentView: View {
                 }
 
                 Menu("Theme") {
-                    ForEach(WidgetTheme.allCases.filter { $0 != .custom }, id: \.rawValue) { theme in
+                    ForEach(WidgetTheme.activeThemes, id: \.rawValue) { theme in
                         Button {
                             onThemeChanged(theme)
                         } label: {
                             HStack {
                                 Text(theme.displayName)
-                                if theme == config.theme {
+                                if theme == config.theme.canonical {
                                     Image(systemName: "checkmark")
                                 }
                             }

@@ -91,8 +91,8 @@ final class MenuBarController: NSObject {
 
         let themeItem = NSMenuItem(title: "Apply Theme", action: nil, keyEquivalent: "")
         let themeMenu = NSMenu()
-        for theme in WidgetTheme.allCases where theme != .custom {
-            let item = NSMenuItem(title: theme.rawValue.capitalized, action: #selector(handleTheme(_:)), keyEquivalent: "")
+        for theme in WidgetTheme.activeThemes {
+            let item = NSMenuItem(title: theme.displayName, action: #selector(handleTheme(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = theme.rawValue
             themeMenu.addItem(item)

@@ -10,10 +10,36 @@ final class AppCoordinator {
     private let hotkeyListener: GlobalHotkeyListener
     private let widgetStore = WidgetStore()
     private let templateStore = WidgetTemplateStore()
+    private let conversationStore = ConversationStore()
     private var agentOrchestrator: AgentOrchestrator
 
     private lazy var widgetManager = WidgetManager(store: widgetStore, settingsStore: settingsStore)
     private lazy var commandBarWindow = CommandBarWindow()
+    private lazy var chatViewModel: ChatViewModel = {
+        let vm = ChatViewModel(conversationStore: conversationStore)
+        vm.onSubmitPrompt = { [weak self] prompt, widgetID in
+            self?.handleChatPrompt(prompt, existingWidgetID: widgetID)
+        }
+        vm.onDeleteWidget = { [weak self] widgetID in
+            self?.widgetManager.removeWidget(id: widgetID)
+            self?.refreshMenuState()
+        }
+        vm.onRemoveWidgetByName = { [weak self] name in
+            self?.widgetManager.removeWidget(named: name)
+            self?.refreshMenuState()
+        }
+        return vm
+    }()
+    private lazy var mainAppWindow: MainAppWindow = {
+        MainAppWindow(
+            viewModel: chatViewModel,
+            templateStore: templateStore,
+            settingsStore: settingsStore,
+            onAddWidget: { [weak self] id, theme in
+                self?.addWidgetFromGallery(id: id, theme: theme)
+            }
+        )
+    }()
     private lazy var settingsWindow = SettingsWindow(
         settingsStore: settingsStore,
         onApplyTheme: { [weak self] theme in
@@ -23,7 +49,7 @@ final class AppCoordinator {
     private lazy var onboardingWindow = OnboardingWindow(
         settingsStore: settingsStore,
         onOpenAISettings: { [weak self] in self?.openSettings() },
-        onStartBuilding: { [weak self] in self?.openCommandBar() },
+        onStartBuilding: { [weak self] in self?.openMainWindow() },
         onApplyTheme: { [weak self] theme in
             self?.applyTheme(theme)
         },
@@ -42,12 +68,19 @@ final class AppCoordinator {
     private lazy var galleryWindow = WidgetGalleryWindow(
         templateStore: templateStore,
         settingsStore: settingsStore,
+        activeWidgetCounts: { [weak self] in
+            self?.chatViewModel.activeWidgetCounts ?? [:]
+        },
         onAddWidget: { [weak self] id, theme in
             self?.addWidgetFromGallery(id: id, theme: theme)
+        },
+        onRemoveWidget: { [weak self] name in
+            self?.widgetManager.removeWidget(named: name)
+            self?.refreshMenuState()
         }
     )
     private lazy var menuBarController = MenuBarController(
-        onNewWidget: { [weak self] in self?.openCommandBar() },
+        onNewWidget: { [weak self] in self?.openMainWindow() },
         onCreateTemplate: { [weak self] id in self?.createWidgetFromTemplate(id: id) },
         onShowGallery: { [weak self] in self?.galleryWindow.show() },
         onImportWidgets: { [weak self] in self?.importWidgets() },
@@ -93,6 +126,7 @@ final class AppCoordinator {
         rerenderExistingStoreWidgetsIfNeeded()
         refreshTemplateState()
         refreshMenuState()
+        seedConversationsForExistingWidgets()
 
         if settingsStore.shouldShowOnboarding {
             onboardingWindow.show()
@@ -107,12 +141,24 @@ final class AppCoordinator {
 
     func stop() {
         hotkeyListener.stop()
+        mainAppWindow.hide()
         commandBarWindow.hide()
 
         if let settingsObserver {
             NotificationCenter.default.removeObserver(settingsObserver)
             self.settingsObserver = nil
         }
+    }
+
+    func openMainWindow() {
+        mainAppWindow.show()
+        if !settingsStore.hasAnyRemoteAPIKey {
+            chatViewModel.appendSystemMessage("Add an OpenAI or Claude API key in Settings > AI to generate widgets.")
+        }
+    }
+
+    private func toggleMainWindow() {
+        mainAppWindow.toggle()
     }
 
     func openCommandBar() {
@@ -134,16 +180,25 @@ final class AppCoordinator {
 
     private func wireCallbacks() {
         hotkeyListener.onTrigger = { [weak self] in
-            self?.toggleCommandBar()
+            self?.toggleMainWindow()
         }
 
         widgetManager.onEditRequested = { [weak self] config in
             guard let self else { return }
-            self.showCommandBar(prefill: config.description, editingWidgetID: config.id)
+            self.mainAppWindow.openConversationForWidget(config.id, widgetName: config.name)
         }
 
         widgetManager.onWidgetListChanged = { [weak self] names in
             self?.menuBarController.setWidgetNames(names)
+        }
+
+        widgetManager.onWidgetSummariesChanged = { [weak self] summaries in
+            guard let self else { return }
+            var counts: [String: Int] = [:]
+            for s in summaries {
+                counts[s.name, default: 0] += 1
+            }
+            self.chatViewModel.activeWidgetCounts = counts
         }
     }
 
@@ -186,6 +241,17 @@ final class AppCoordinator {
             Task { @MainActor in
                 self?.widgetManager.autoLayoutWidgets()
                 self?.refreshMenuState()
+            }
+        }
+
+        // Cmd+N → New widget conversation
+        hotkeyListener.registerExtra(
+            keyCode: UInt32(kVK_ANSI_N),
+            modifiers: UInt32(cmdKey)
+        ) { [weak self] in
+            Task { @MainActor in
+                self?.mainAppWindow.show()
+                self?.chatViewModel.startNewConversation()
             }
         }
     }
@@ -269,6 +335,179 @@ final class AppCoordinator {
         case .generate(let prompt):
             generateWidget(from: prompt)
         }
+    }
+
+    // MARK: - Chat-based generation
+
+    private func handleChatPrompt(_ prompt: String, existingWidgetID: UUID?) {
+        guard ensureRemoteAIReady(showUIFeedback: false) else {
+            chatViewModel.appendAssistantMessage("Please add an OpenAI or Claude API key in Settings > AI first.")
+            chatViewModel.setProcessing(false)
+            return
+        }
+
+        chatViewModel.setProcessing(true, status: "Thinking...")
+        chatViewModel.clearTrace()
+
+        Task {
+            do {
+                var config: WidgetConfig
+                if let existingWidgetID, let existing = widgetManager.widgetConfig(for: existingWidgetID) {
+                    // Edit existing widget
+                    chatViewModel.setProcessing(true, status: "Updating widget...")
+                    chatViewModel.appendTrace("Editing existing widget...")
+                    config = try await aiService.editWidget(existingConfig: existing, editPrompt: prompt)
+                } else {
+                    // New widget — use agentic pipeline with web research
+                    chatViewModel.setProcessing(true, status: "Researching...")
+                    chatViewModel.appendTrace("Analyzing request...")
+
+                    let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
+                    let decision = await agentOrchestrator.plan(
+                        prompt: prompt,
+                        clarificationClient: clarificationClient,
+                        onTrace: { [weak self] line in
+                            Task { @MainActor in
+                                self?.chatViewModel.appendTrace(line)
+                                // Update status with latest trace
+                                if line.hasPrefix("Searching:") || line.hasPrefix("Fetching") || line.hasPrefix("Reading:") {
+                                    self?.chatViewModel.setProcessing(true, status: line)
+                                }
+                            }
+                        }
+                    )
+
+                    switch decision {
+                    case .needsClarification(let plan, let questions, let conversation):
+                        // Show clarification questions in chat
+                        let questionText = formatClarificationQuestions(questions)
+                        chatViewModel.appendAssistantMessage(questionText)
+                        chatViewModel.pendingClarification = ChatViewModel.PendingClarification(
+                            plan: plan,
+                            questions: questions,
+                            conversation: conversation
+                        )
+                        chatViewModel.setProcessing(false)
+
+                        // Wire up the answer handler
+                        chatViewModel.onAnswerClarification = { [weak self] answer in
+                            self?.handleClarificationAnswer(answer, plan: plan, questions: questions, conversation: conversation)
+                        }
+                        return
+
+                    case .ready(let plan):
+                        chatViewModel.appendTrace("Plan ready, generating...")
+                        config = try await executeGeneration(plan: plan)
+                    }
+
+                    // Apply user's default theme
+                    let theme = settingsStore.defaultTheme
+                    config.theme = theme
+                    config.background = BackgroundConfig.default(for: theme)
+                }
+
+                finalizeChatWidget(config: config, prompt: prompt)
+            } catch {
+                chatViewModel.setProcessing(false)
+                chatViewModel.appendAssistantMessage("Something went wrong: \(userFacingErrorMessage(for: error))\n\nTry describing what you want differently.")
+            }
+        }
+    }
+
+    private func handleClarificationAnswer(_ answer: String, plan: AgentBuildPlan, questions: [ClarificationQuestion], conversation: AgentConversation) {
+        chatViewModel.setProcessing(true, status: "Building your widget...")
+        chatViewModel.clearTrace()
+
+        Task {
+            do {
+                // Build answers map from the user's free-text response
+                var answers: [String: [String]] = [:]
+                for question in questions {
+                    answers[question.id] = [answer]
+                }
+
+                let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
+                let decision = await agentOrchestrator.continueClarification(
+                    plan: plan,
+                    conversation: conversation,
+                    answeredQuestions: questions,
+                    answers: answers,
+                    clarificationClient: clarificationClient
+                )
+
+                var config: WidgetConfig
+                switch decision {
+                case .needsClarification(let updatedPlan, _, _):
+                    // Enough clarification — just build it
+                    chatViewModel.appendTrace("Building with your preferences...")
+                    config = try await executeGeneration(plan: updatedPlan)
+
+                case .ready(let updatedPlan):
+                    chatViewModel.appendTrace("Plan ready, generating...")
+                    config = try await executeGeneration(plan: updatedPlan)
+                }
+
+                // Apply user's default theme
+                let theme = settingsStore.defaultTheme
+                config.theme = theme
+                config.background = BackgroundConfig.default(for: theme)
+
+                finalizeChatWidget(config: config, prompt: plan.originalPrompt + " " + answer)
+            } catch {
+                chatViewModel.setProcessing(false)
+                chatViewModel.appendAssistantMessage("Something went wrong: \(userFacingErrorMessage(for: error))\n\nTry describing what you want differently.")
+            }
+        }
+    }
+
+    private func executeGeneration(plan: AgentBuildPlan) async throws -> WidgetConfig {
+        chatViewModel.setProcessing(true, status: "Creating your widget...")
+
+        let outcome = try await agentOrchestrator.executeCritiqueRepair(
+            plan: plan,
+            service: aiService,
+            maxIterations: 6,
+            targetConfidence: 0.95,
+            onTrace: { [weak self] line in
+                Task { @MainActor in
+                    self?.chatViewModel.appendTrace(line)
+                }
+            }
+        )
+        chatViewModel.appendTrace("Completed in \(outcome.iterations) iteration(s)")
+        return outcome.config
+    }
+
+    private func finalizeChatWidget(config: WidgetConfig, prompt: String) {
+        // Create/update the widget
+        widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
+        refreshMenuState()
+
+        // Link widget to conversation
+        chatViewModel.linkWidgetToActiveConversation(config.id)
+        chatViewModel.updateConversationTitle(config.name)
+
+        // Record learning
+        if let service = aiService as? ProviderBackedAIService {
+            service.learnedExampleStore.record(prompt: prompt, config: config)
+            service.userPreferenceStore.learn(prompt: prompt, config: config)
+        }
+
+        chatViewModel.setProcessing(false)
+        chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" created! You can continue chatting to make changes.")
+    }
+
+    private func formatClarificationQuestions(_ questions: [ClarificationQuestion]) -> String {
+        var text = "Before I build this, a few quick questions:\n\n"
+        for (i, q) in questions.enumerated() {
+            text += "\(i + 1). \(q.question)"
+            if !q.options.isEmpty {
+                text += "\n   Options: \(q.options.joined(separator: ", "))"
+            }
+            text += "\n"
+        }
+        text += "\nJust reply with your preferences and I'll build it!"
+        return text
     }
 
     private func generateWidget(from prompt: String) {
@@ -530,6 +769,24 @@ final class AppCoordinator {
         menuBarController.setWidgetNames(widgetManager.widgetNames())
     }
 
+    /// Create conversation entries for any existing widgets that don't have one yet.
+    /// This ensures pre-existing widgets show up in the "My Widgets" sidebar.
+    private func seedConversationsForExistingWidgets() {
+        for summary in widgetManager.widgetSummaries() {
+            if conversationStore.conversationForWidget(summary.id) == nil {
+                let conv = conversationStore.create(title: summary.name, widgetID: summary.id)
+                // Add original prompt as context if available
+                if let config = widgetManager.widgetConfig(for: summary.id), !config.description.isEmpty {
+                    var updated = conv
+                    updated.appendUser(config.description)
+                    updated.appendSystem("Widget created")
+                    conversationStore.update(updated)
+                }
+            }
+        }
+        chatViewModel.refreshConversations()
+    }
+
     private func refreshTemplateState() {
         let templates = templateStore.availableTemplates()
         menuBarController.setTemplateSummaries(templates)
@@ -545,6 +802,12 @@ final class AppCoordinator {
         guard let config = templateStore.instantiateTemplate(id: id, theme: theme) else { return }
         widgetManager.createOrUpdateWidget(config, forceAutoFit: true)
         refreshMenuState()
+        // Create a conversation entry for gallery widgets so they appear in "My Widgets"
+        let conv = conversationStore.create(title: config.name, widgetID: config.id)
+        var updated = conv
+        updated.appendSystem("Added from Widget Gallery")
+        conversationStore.update(updated)
+        chatViewModel.refreshConversations()
     }
 
     @discardableResult

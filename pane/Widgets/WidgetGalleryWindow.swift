@@ -9,12 +9,16 @@ final class WidgetGalleryWindow {
     init(
         templateStore: WidgetTemplateStore,
         settingsStore: SettingsStore,
-        onAddWidget: @escaping (String, WidgetTheme) -> Void
+        activeWidgetCounts: @escaping () -> [String: Int],
+        onAddWidget: @escaping (String, WidgetTheme) -> Void,
+        onRemoveWidget: @escaping (String) -> Void
     ) {
         let root = GalleryRootView(
             templateStore: templateStore,
             settingsStore: settingsStore,
-            onAddWidget: onAddWidget
+            activeWidgetCountsProvider: activeWidgetCounts,
+            onAddWidget: onAddWidget,
+            onRemoveWidget: onRemoveWidget
         )
         self.rootView = root
 
@@ -44,12 +48,14 @@ final class WidgetGalleryWindow {
 private struct GalleryRootView: View {
     let templateStore: WidgetTemplateStore
     let settingsStore: SettingsStore
+    let activeWidgetCountsProvider: () -> [String: Int]
     let onAddWidget: (String, WidgetTheme) -> Void
+    let onRemoveWidget: (String) -> Void
 
     @State private var selectedTheme: WidgetTheme = .obsidian
     @State private var selectedCategory: String = "all"
     @State private var hoveredItem: String?
-    @State private var addedItems: Set<String> = []
+    @State private var justAdded: String?
 
     private var categories: [String] {
         templateStore.storeCategories()
@@ -98,7 +104,7 @@ private struct GalleryRootView: View {
                         .fill(ThemeResolver.palette(for: selectedTheme).accent)
                         .frame(width: 10, height: 10)
                     Picker("Theme", selection: $selectedTheme) {
-                        ForEach(WidgetTheme.allCases.filter { $0 != .custom }, id: \.rawValue) { theme in
+                        ForEach(WidgetTheme.activeThemes, id: \.rawValue) { theme in
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(ThemeResolver.palette(for: theme).accent)
@@ -170,20 +176,20 @@ private struct GalleryRootView: View {
 
     private func galleryCard(_ item: StoreTemplateItem) -> some View {
         let isHovered = hoveredItem == item.id
-        let isAdded = addedItems.contains(item.id)
+        let counts = activeWidgetCountsProvider()
+        let count = counts[item.name] ?? 0
+        let isJustAdded = justAdded == item.id
         var themedConfig = item.config
         themedConfig.theme = selectedTheme
         themedConfig.background = BackgroundConfig.default(for: selectedTheme)
 
-        // Scale the widget to fit uniformly inside the preview box
         let widgetW = CGFloat(item.config.size.width)
         let widgetH = CGFloat(item.config.size.height)
         let scaleX = Self.previewWidth / widgetW
         let scaleY = Self.previewHeight / widgetH
-        let fitScale = min(scaleX, scaleY, 1.0)  // never upscale past 1×
+        let fitScale = min(scaleX, scaleY, 1.0)
 
         return VStack(spacing: 0) {
-            // Uniform preview container — centers the widget inside
             ZStack {
                 Color.clear
                 WidgetRenderer(config: themedConfig)
@@ -191,13 +197,30 @@ private struct GalleryRootView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .scaleEffect(fitScale)
                     .allowsHitTesting(false)
+
+                if count > 0 {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Text("\(count)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(minWidth: 18, minHeight: 18)
+                                .background(
+                                    Capsule()
+                                        .fill(ThemeResolver.palette(for: selectedTheme).accent)
+                                )
+                                .padding(6)
+                        }
+                        Spacer()
+                    }
+                }
             }
             .frame(width: Self.previewWidth, height: Self.previewHeight)
             .clipped()
             .scaleEffect(isHovered ? 1.03 : 1.0)
             .animation(.easeOut(duration: 0.15), value: isHovered)
 
-            // Info + Add button
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.name)
@@ -209,28 +232,44 @@ private struct GalleryRootView: View {
                         .lineLimit(1)
                 }
                 Spacer()
-                if isAdded {
-                    HStack(spacing: 3) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.green)
-                        Text("Added")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
-                } else {
-                    Button {
-                        onAddWidget(item.id, selectedTheme)
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            addedItems.insert(item.id)
+
+                HStack(spacing: 4) {
+                    if count > 0 {
+                        Button {
+                            onRemoveWidget(item.name)
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.secondary.opacity(0.7))
                         }
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundStyle(ThemeResolver.palette(for: selectedTheme).accent)
+                        .buttonStyle(.plain)
+                        .help("Remove one from desktop")
                     }
-                    .buttonStyle(.plain)
-                    .help("Add to desktop")
+
+                    if isJustAdded {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(.green)
+                            .transition(.scale.combined(with: .opacity))
+                    } else {
+                        Button {
+                            onAddWidget(item.id, selectedTheme)
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                justAdded = item.id
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    if justAdded == item.id { justAdded = nil }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(ThemeResolver.palette(for: selectedTheme).accent)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Add to desktop")
+                    }
                 }
             }
             .padding(.horizontal, 8)

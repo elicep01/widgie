@@ -16,7 +16,7 @@ struct WidgetDefaultsView: View {
         Form {
             Section {
                 LazyVGrid(columns: themeColumns, spacing: 10) {
-                    ForEach(WidgetTheme.allCases.filter { $0 != .custom }, id: \.rawValue) { theme in
+                    ForEach(WidgetTheme.activeThemes, id: \.rawValue) { theme in
                         ThemeCardView(
                             theme: theme,
                             isSelected: settingsStore.defaultTheme == theme
@@ -120,43 +120,23 @@ struct ThemeCardView: View {
 extension WidgetTheme {
     var displayName: String {
         switch self {
-        case .obsidian:    return "Obsidian"
-        case .frosted:     return "Frosted"
-        case .neon:        return "Neon"
-        case .paper:       return "Paper"
+        case .obsidian:    return "Dark"
+        case .frosted:     return "Light"
         case .transparent: return "Glass"
-        case .pastel:      return "Pastel"
-        case .sakura:      return "Sakura"
-        case .ocean:       return "Ocean"
-        case .sunset:      return "Sunset"
-        case .lavender:    return "Lavender"
-        case .retro:       return "Retro"
-        case .cyberpunk:   return "Cyberpunk"
-        case .midnight:    return "Midnight"
-        case .roseGold:    return "Rose Gold"
         case .mono:        return "Mono"
-        case .custom:      return "Custom"
+        case .paper:       return "Paper"
+        default:           return canonical.displayName
         }
     }
 
     var previewBackground: Color {
         switch self {
-        case .obsidian:    return Color(hex: "#0D1117")
-        case .frosted:     return Color(white: 0.96)
-        case .neon:        return Color(hex: "#080A12")
-        case .paper:       return Color(hex: "#F4EFE6")
-        case .transparent: return Color(hex: "#111827").opacity(0.85)
-        case .pastel:      return Color(hex: "#F8F0FA")
-        case .sakura:      return Color(hex: "#FFE0EC")
-        case .ocean:       return Color(hex: "#051525")
-        case .sunset:      return Color(hex: "#1A0A10")
-        case .lavender:    return Color(hex: "#E8E0F4")
-        case .retro:       return Color(hex: "#F5E8CC")
-        case .cyberpunk:   return Color(hex: "#050008")
-        case .midnight:    return Color(hex: "#080E22")
-        case .roseGold:    return Color(hex: "#F8E8E0")
+        case .obsidian:    return Color(hex: "#1C1C1E")
+        case .frosted:     return Color(white: 0.97)
+        case .transparent: return Color(hex: "#1C1C1E").opacity(0.75)
         case .mono:        return Color(hex: "#FFFFFF")
-        case .custom:      return Color(hex: "#0D1117")
+        case .paper:       return Color(hex: "#F5F0E8")
+        default:           return canonical.previewBackground
         }
     }
 }

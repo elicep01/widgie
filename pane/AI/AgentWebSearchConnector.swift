@@ -7,13 +7,24 @@ struct AgentWebSearchResult: Equatable {
     let snippet: String
 }
 
+struct WebFetchResult {
+    let url: String
+    let title: String
+    let textContent: String  // Cleaned text (no HTML tags)
+    let statusCode: Int
+}
+
 protocol AgentWebSearchConnector {
     func search(query: String, limit: Int) async throws -> [AgentWebSearchResult]
+    func fetchPage(url: String) async throws -> WebFetchResult
 }
 
 struct NoopAgentWebSearchConnector: AgentWebSearchConnector {
     func search(query: String, limit: Int) async throws -> [AgentWebSearchResult] {
         []
+    }
+    func fetchPage(url: String) async throws -> WebFetchResult {
+        WebFetchResult(url: url, title: "", textContent: "", statusCode: 0)
     }
 }
 
@@ -142,6 +153,69 @@ struct LiveAgentWebSearchConnector: AgentWebSearchConnector {
             )
         }
         return results
+    }
+
+    func fetchPage(url urlString: String) async throws -> WebFetchResult {
+        guard let url = URL(string: urlString) else {
+            return WebFetchResult(url: urlString, title: "", textContent: "", statusCode: 0)
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) widgie/1.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+        guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) else {
+            return WebFetchResult(url: urlString, title: "", textContent: "", statusCode: statusCode)
+        }
+
+        let title = extractTitle(from: html)
+        let text = stripHTML(html)
+        // Cap at ~3000 chars to keep context manageable
+        let trimmed = text.count > 3000 ? String(text.prefix(3000)) + "..." : text
+
+        return WebFetchResult(url: urlString, title: title, textContent: trimmed, statusCode: statusCode)
+    }
+
+    private func extractTitle(from html: String) -> String {
+        guard let start = html.range(of: "<title", options: .caseInsensitive),
+              let tagEnd = html[start.upperBound...].range(of: ">"),
+              let end = html[tagEnd.upperBound...].range(of: "</title>", options: .caseInsensitive) else {
+            return ""
+        }
+        return String(html[tagEnd.upperBound..<end.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func stripHTML(_ html: String) -> String {
+        // Remove script/style blocks first
+        var cleaned = html.replacingOccurrences(
+            of: "<(script|style|noscript)[^>]*>[\\s\\S]*?</\\1>",
+            with: " ",
+            options: .regularExpression
+        )
+        // Remove all tags
+        cleaned = cleaned.replacingOccurrences(
+            of: "<[^>]+>",
+            with: " ",
+            options: .regularExpression
+        )
+        // Decode common entities
+        cleaned = cleaned
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+        // Collapse whitespace
+        cleaned = cleaned.replacingOccurrences(
+            of: "\\s+",
+            with: " ",
+            options: .regularExpression
+        )
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func titleFromSnippet(_ text: String) -> String {

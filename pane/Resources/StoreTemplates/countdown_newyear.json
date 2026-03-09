@@ -1,24 +1,50 @@
 {
   "id": "countdown-newyear",
   "name": "New Year Countdown",
-  "description": "Days, hours, and minutes until the new year.",
+  "description": "Countdown to midnight with days, hours, minutes, and seconds.",
   "category": "time",
   "config": {
     "name": "New Year Countdown",
     "description": "Countdown to Jan 1",
-    "size": { "width": 200, "height": 70 },
+    "size": { "width": 220, "height": 100 },
     "theme": "obsidian",
-    "cornerRadius": 16,
-    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
+    "cornerRadius": 18,
+    "padding": { "top": 14, "bottom": 14, "leading": 16, "trailing": 16 },
     "content": {
-      "type": "countdown",
-      "targetDate": "2027-01-01T00:00:00Z",
-      "label": "New Year",
-      "showComponents": ["days", "hours", "minutes", "seconds"],
-      "size": 20,
-      "color": "accent",
-      "alignment": "center"
+      "type": "vstack",
+      "alignment": "center",
+      "spacing": 6,
+      "children": [
+        {
+          "type": "text",
+          "content": "New Year 2027",
+          "font": "sf-pro",
+          "size": 11,
+          "weight": "semibold",
+          "color": "muted",
+          "alignment": "center"
+        },
+        {
+          "type": "countdown",
+          "targetDate": "2027-01-01T00:00:00Z",
+          "label": "",
+          "completedText": "Happy New Year!",
+          "showComponents": ["days", "hours", "minutes", "seconds"],
+          "size": 22,
+          "color": "accent",
+          "alignment": "center"
+        },
+        {
+          "type": "text",
+          "content": "until midnight",
+          "font": "sf-pro",
+          "size": 10,
+          "weight": "regular",
+          "color": "secondary",
+          "alignment": "center"
+        }
+      ]
     },
-    "maxSize": { "width": 260, "height": 100 }
+    "maxSize": { "width": 280, "height": 130 }
   }
 }

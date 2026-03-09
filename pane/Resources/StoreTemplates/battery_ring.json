@@ -1,26 +1,27 @@
 {
   "id": "battery-ring",
   "name": "Battery",
-  "description": "Ring-style battery indicator with low-threshold color shift.",
+  "description": "Animated ring with percentage and charging indicator.",
   "category": "system",
   "config": {
     "name": "Battery",
-    "description": "Battery ring indicator",
-    "size": { "width": 110, "height": 95 },
+    "description": "Animated battery ring indicator",
+    "size": { "width": 120, "height": 115 },
     "theme": "obsidian",
-    "cornerRadius": 16,
-    "padding": { "top": 8, "bottom": 8, "leading": 8, "trailing": 8 },
+    "cornerRadius": 18,
+    "padding": { "top": 12, "bottom": 10, "leading": 12, "trailing": 12 },
     "refreshInterval": 30,
     "content": {
       "type": "battery",
       "style": "ring",
+      "label": "Battery",
       "showPercentage": true,
       "lowThreshold": 20,
       "color": "positive",
       "lowColor": "negative",
-      "size": 12,
+      "size": 14,
       "alignment": "center"
     },
-    "maxSize": { "width": 150, "height": 130 }
+    "maxSize": { "width": 160, "height": 150 }
   }
 }

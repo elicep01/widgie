@@ -157,6 +157,18 @@ actor DataServiceManager {
         }
     }
 
+    func newsMultiFeed(feedURLs: [String], maxPerFeed: Int = 5, totalMax: Int = 20, forceRefresh: Bool = false) async -> [NewsHeadlineSnapshot] {
+        let key = "rss_multi_\(feedURLs.sorted().joined(separator: "|"))_\(totalMax)"
+        if !forceRefresh, let cached = await cache.load([NewsHeadlineSnapshot].self, key: key) {
+            return cached
+        }
+        let value = await rssProvider.fetchMultiple(feedURLs: feedURLs, maxPerFeed: maxPerFeed, totalMax: totalMax)
+        if !value.isEmpty {
+            await cache.store(value, key: key, ttl: 5 * 60)
+        }
+        return value
+    }
+
     func githubRepo(repo: String, forceRefresh: Bool = false) async -> GitHubRepoSnapshot? {
         let key = "github_\(repo.lowercased())"
         if !forceRefresh, let cached = await cache.load(GitHubRepoSnapshot.self, key: key) {

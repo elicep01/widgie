@@ -210,7 +210,9 @@ final class WidgetTemplateStore {
             component.lineWidth = (component.lineWidth ?? 2.2).cgFloat.clamped(1.6, 2.8).double
             component.alignment = component.alignment ?? "center"
         case .weather:
-            component.style = "compact"
+            if component.style?.lowercased() != "forecast" {
+                component.style = "compact"
+            }
             component.showHumidity = false
             component.showWind = false
             component.showFeelsLike = false
@@ -298,15 +300,15 @@ final class WidgetTemplateStore {
         switch id {
         case "clock-minimal": return WidgetSize(width: 168, height: 108)
         case "analog-clock": return WidgetSize(width: 172, height: 172)
-        case "world-clocks": return WidgetSize(width: 250, height: 134)
-        case "stopwatch": return WidgetSize(width: 204, height: 114)
-        case "countdown-newyear": return WidgetSize(width: 212, height: 116)
+        case "world-clocks": return WidgetSize(width: 260, height: 150)
+        case "stopwatch": return WidgetSize(width: 204, height: 124)
+        case "countdown-newyear": return WidgetSize(width: 220, height: 120)
         case "day-progress": return WidgetSize(width: 196, height: 104)
         case "year-progress": return WidgetSize(width: 196, height: 104)
         case "weather-compact": return WidgetSize(width: 194, height: 112)
-        case "weather-forecast": return WidgetSize(width: 246, height: 138)
+        case "weather-forecast": return WidgetSize(width: 250, height: 144)
         case "stock-ticker": return WidgetSize(width: 236, height: 114)
-        case "crypto-tracker": return WidgetSize(width: 238, height: 118)
+        case "crypto-tracker": return WidgetSize(width: 210, height: 148)
         case "calendar-agenda": return WidgetSize(width: 262, height: 150)
         case "reminders-today": return WidgetSize(width: 250, height: 144)
         case "daily-checklist": return WidgetSize(width: 244, height: 142)
@@ -317,7 +319,7 @@ final class WidgetTemplateStore {
         case "pomodoro-timer": return WidgetSize(width: 228, height: 140)
         case "screen-time": return WidgetSize(width: 236, height: 132)
         case "github-stats": return WidgetSize(width: 238, height: 118)
-        case "battery-ring": return WidgetSize(width: 156, height: 156)
+        case "battery-ring": return WidgetSize(width: 140, height: 150)
         case "system-monitor": return WidgetSize(width: 238, height: 126)
         case "bookmarks-social": return WidgetSize(width: 228, height: 116)
         case "quick-launch": return WidgetSize(width: 224, height: 108)

@@ -9,7 +9,7 @@
     "size": { "width": 200, "height": 110 },
     "theme": "obsidian",
     "cornerRadius": 14,
-    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
     "content": {
       "type": "reminders",
       "list": "all",

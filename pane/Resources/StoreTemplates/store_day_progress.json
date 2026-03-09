@@ -13,10 +13,10 @@
     "theme": "obsidian",
     "cornerRadius": 12,
     "padding": {
-      "top": 8,
-      "bottom": 8,
-      "leading": 10,
-      "trailing": 10
+      "top": 10,
+      "bottom": 10,
+      "leading": 12,
+      "trailing": 12
     },
     "content": {
       "type": "day_progress",

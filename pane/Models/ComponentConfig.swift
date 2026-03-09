@@ -100,6 +100,7 @@ final class ComponentConfig: Codable {
     var showCalendarColor: Bool?
     var showPercentage: Bool?
     var showTimeRemaining: Bool?
+    var showDate: Bool?
     var label: String?
     var source: String?
     var targetDate: String?
@@ -136,6 +137,8 @@ final class ComponentConfig: Codable {
     var positiveColor: String?
     var negativeColor: String?
     var lowColor: String?
+    var labelColor: String?
+    var controlColor: String?
     var startHour: Int?
     var endHour: Int?
     var location: String?
@@ -144,6 +147,7 @@ final class ComponentConfig: Codable {
     var temperatureUnit: String?
     var sourceSystem: String?
     var feedUrl: String?
+    var feedUrls: [String]?
     var list: String?
     var emptyText: String?
     var timeRange: String?
@@ -264,6 +268,7 @@ final class ComponentConfig: Codable {
         temperatureUnit: String? = nil,
         sourceSystem: String? = nil,
         feedUrl: String? = nil,
+        feedUrls: [String]? = nil,
         list: String? = nil,
         emptyText: String? = nil,
         timeRange: String? = nil,
@@ -360,6 +365,7 @@ final class ComponentConfig: Codable {
         self.temperatureUnit = temperatureUnit
         self.sourceSystem = sourceSystem
         self.feedUrl = feedUrl
+        self.feedUrls = feedUrls
         self.list = list
         self.emptyText = emptyText
         self.timeRange = timeRange

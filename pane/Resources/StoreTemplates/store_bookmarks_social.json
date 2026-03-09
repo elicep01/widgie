@@ -9,7 +9,7 @@
     "size": { "width": 180, "height": 55 },
     "theme": "obsidian",
     "cornerRadius": 12,
-    "padding": { "top": 8, "bottom": 8, "leading": 10, "trailing": 10 },
+    "padding": { "top": 10, "bottom": 10, "leading": 12, "trailing": 12 },
     "content": {
       "type": "link_bookmarks",
       "style": "compact",

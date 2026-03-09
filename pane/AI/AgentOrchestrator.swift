@@ -40,6 +40,7 @@ struct AgentBuildPlan: Codable {
     var dataPlan: AgentDataPlan
     var openQuestions: [ClarificationQuestion]
     var assumptions: [String]
+    var webContext: String?  // Summarized web research context
 }
 
 struct AgentCritique {
@@ -74,7 +75,8 @@ final class AgentOrchestrator {
 
     func plan(
         prompt: String,
-        clarificationClient: AIProviderClient?
+        clarificationClient: AIProviderClient?,
+        onTrace: ((String) -> Void)? = nil
     ) async -> AgentPlanningDecision {
         let lower = prompt.lowercased()
         let interaction = inferInteractionMode(from: lower)
@@ -85,7 +87,10 @@ final class AgentOrchestrator {
             interaction: interaction,
             dataPlan: dataPlan
         )
-        let webResolution = await webLookupResolutionIfNeeded(prompt: prompt, dataPlan: dataPlan)
+
+        // Proactive web research — always research context for better widgets
+        onTrace?("Researching...")
+        let webResolution = await proactiveWebResearch(prompt: prompt, dataPlan: dataPlan, onTrace: onTrace)
 
         var plan = AgentBuildPlan(
             originalPrompt: prompt,
@@ -101,7 +106,8 @@ final class AgentOrchestrator {
                 sourceAttributions: webResolution.attributions
             ),
             openQuestions: [],
-            assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan) + webResolution.assumptions
+            assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan) + webResolution.assumptions,
+            webContext: webResolution.context
         )
 
         var conversation = AgentConversation(originalPrompt: prompt)
@@ -245,12 +251,20 @@ final class AgentOrchestrator {
             assumptionsLine = "Assumptions: " + plan.assumptions.joined(separator: " ")
         }
 
+        let webContextLine: String
+        if let webContext = plan.webContext, !webContext.isEmpty {
+            webContextLine = "Web research context (use relevant details for accuracy):\n\(webContext)"
+        } else {
+            webContextLine = ""
+        }
+
         return [
             plan.synthesizedPrompt,
             interactionLine,
             supportedLine,
             unsupportedLine,
-            assumptionsLine
+            assumptionsLine,
+            webContextLine
         ]
         .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         .joined(separator: "\n")
@@ -802,25 +816,140 @@ final class AgentOrchestrator {
         return merged
     }
 
-    private func webLookupResolutionIfNeeded(
+    /// Proactive web research: searches for context about ANY prompt, and fetches URLs mentioned in it.
+    /// Returns assumptions, attributions, and a web context summary for the execution prompt.
+    private func proactiveWebResearch(
         prompt: String,
-        dataPlan: AgentDataPlan
-    ) async -> (assumptions: [String], attributions: [AgentSourceAttribution]) {
-        guard !dataPlan.unsupportedSources.isEmpty else {
-            return ([], [])
-        }
-        do {
-            let results = try await webSearchConnector.search(query: prompt, limit: 2)
-            guard !results.isEmpty else {
-                return (["No web source resolved; use graceful fallback."], [])
+        dataPlan: AgentDataPlan,
+        onTrace: ((String) -> Void)? = nil
+    ) async -> (assumptions: [String], attributions: [AgentSourceAttribution], context: String?) {
+        var allResults: [AgentWebSearchResult] = []
+        var fetchedContent: [(title: String, url: String, snippet: String)] = []
+        var assumptions: [String] = []
+
+        // 1. If the prompt contains URLs, fetch them directly
+        let urls = extractURLs(from: prompt)
+        for url in urls.prefix(2) {
+            onTrace?("Fetching \(url)...")
+            do {
+                let page = try await webSearchConnector.fetchPage(url: url)
+                if page.statusCode >= 200, page.statusCode < 400, !page.textContent.isEmpty {
+                    fetchedContent.append((
+                        title: page.title.isEmpty ? url : page.title,
+                        url: url,
+                        snippet: String(page.textContent.prefix(1500))
+                    ))
+                    onTrace?("Fetched: \(page.title.isEmpty ? url : page.title)")
+                }
+            } catch {
+                // Silently skip failed fetches
             }
-            let attributions = results.map {
-                AgentSourceAttribution(provider: $0.provider, title: $0.title, url: $0.url)
-            }
-            return (["Web hints found; validate relevance before using."], attributions)
-        } catch {
-            return (["Web search unavailable; use provider fallback and ask user for URL if needed."], [])
         }
+
+        // 2. Build smart search queries from the prompt
+        let searchQueries = buildSearchQueries(from: prompt, dataPlan: dataPlan)
+
+        for query in searchQueries.prefix(2) {
+            onTrace?("Searching: \(query)")
+            do {
+                let results = try await webSearchConnector.search(query: query, limit: 3)
+                allResults.append(contentsOf: results)
+                for result in results.prefix(2) {
+                    onTrace?("Found: \(result.title)")
+                }
+            } catch {
+                // Continue with what we have
+            }
+        }
+
+        // 3. Optionally fetch top search result for richer context
+        if let topResult = allResults.first,
+           !topResult.url.isEmpty,
+           fetchedContent.count < 2 {
+            onTrace?("Reading: \(topResult.title)...")
+            do {
+                let page = try await webSearchConnector.fetchPage(url: topResult.url)
+                if page.statusCode >= 200, page.statusCode < 400, !page.textContent.isEmpty {
+                    fetchedContent.append((
+                        title: topResult.title,
+                        url: topResult.url,
+                        snippet: String(page.textContent.prefix(1000))
+                    ))
+                }
+            } catch {
+                // Fine — we still have search snippets
+            }
+        }
+
+        // 4. Build attributions
+        let attributions = allResults.prefix(4).map {
+            AgentSourceAttribution(provider: $0.provider, title: $0.title, url: $0.url)
+        }
+
+        // 5. Synthesize web context for the generation prompt
+        var contextParts: [String] = []
+
+        if !fetchedContent.isEmpty {
+            for page in fetchedContent {
+                contextParts.append("[\(page.title)](\(page.url)):\n\(page.snippet)")
+            }
+            assumptions.append("Web research provided; use relevant details for accuracy.")
+        }
+
+        if !allResults.isEmpty {
+            let snippets = allResults.prefix(3).map { "- \($0.title): \($0.snippet)" }
+            contextParts.append("Search results:\n" + snippets.joined(separator: "\n"))
+        }
+
+        if !dataPlan.unsupportedSources.isEmpty, allResults.isEmpty, fetchedContent.isEmpty {
+            assumptions.append("No web source resolved; use graceful fallback.")
+        }
+
+        let webContext = contextParts.isEmpty ? nil : contextParts.joined(separator: "\n\n")
+        return (assumptions, Array(attributions), webContext)
+    }
+
+    /// Extract URLs from a prompt string
+    private func extractURLs(from text: String) -> [String] {
+        let pattern = #"https?://[^\s<>\"\)}\]]+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        return matches.map { nsText.substring(with: $0.range) }
+    }
+
+    /// Build smart search queries based on the prompt topic
+    private func buildSearchQueries(from prompt: String, dataPlan: AgentDataPlan) -> [String] {
+        var queries: [String] = []
+        let lower = prompt.lowercased()
+
+        // For unsupported sources, search for alternatives/APIs
+        if !dataPlan.unsupportedSources.isEmpty {
+            queries.append(prompt)
+        }
+
+        // If it mentions specific services/tools, search for them
+        let specificTerms = ["api", "widget", "dashboard", "tracker", "monitor",
+                             "spotify", "notion", "github", "twitch", "youtube",
+                             "reddit", "twitter", "instagram", "discord"]
+        if specificTerms.contains(where: { lower.contains($0) }) {
+            queries.append(prompt + " widget desktop")
+        }
+
+        // For data-heavy requests, search for current info
+        let dataTerms = ["price", "stock", "crypto", "weather", "news", "score",
+                         "exchange rate", "currency", "market"]
+        if dataTerms.contains(where: { lower.contains($0) }) {
+            // Extract the specific entity they're asking about
+            queries.append(prompt + " latest data")
+        }
+
+        // If nothing specific triggered, do a general search for design inspiration
+        if queries.isEmpty && prompt.count > 15 {
+            queries.append(prompt + " widget design")
+        }
+
+        return queries
     }
 
     private func hasFeedUrl(in component: ComponentConfig) -> Bool {

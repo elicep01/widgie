@@ -12,7 +12,8 @@ struct WeatherProvider {
             URLQueryItem(name: "latitude", value: "\(resolvedLocation.latitude)"),
             URLQueryItem(name: "longitude", value: "\(resolvedLocation.longitude)"),
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code"),
-            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min"),
+            URLQueryItem(name: "daily", value: "temperature_2m_max,temperature_2m_min,weather_code"),
+            URLQueryItem(name: "forecast_days", value: "7"),
             URLQueryItem(name: "temperature_unit", value: unit),
             URLQueryItem(name: "timezone", value: "auto")
         ]
@@ -30,6 +31,36 @@ struct WeatherProvider {
         let condition = weatherDescription(code: decoded.current.weatherCode)
         let icon = weatherSymbol(code: decoded.current.weatherCode)
 
+        // Build forecast days from daily arrays
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        let displayFormatter = DateFormatter()
+        displayFormatter.dateFormat = "EEE"
+
+        let dayCount = min(decoded.daily.time.count,
+                           decoded.daily.temperatureMax.count,
+                           decoded.daily.temperatureMin.count,
+                           decoded.daily.weatherCode.count)
+
+        var forecastDays: [WeatherForecastDay] = []
+        for i in 0..<dayCount {
+            let date = dayFormatter.date(from: decoded.daily.time[i]) ?? Date()
+            let dayName: String
+            if i == 0 {
+                dayName = "Today"
+            } else {
+                dayName = displayFormatter.string(from: date)
+            }
+            forecastDays.append(WeatherForecastDay(
+                date: date,
+                dayName: dayName,
+                high: decoded.daily.temperatureMax[i],
+                low: decoded.daily.temperatureMin[i],
+                conditionSymbol: weatherSymbol(code: decoded.daily.weatherCode[i]),
+                condition: weatherDescription(code: decoded.daily.weatherCode[i])
+            ))
+        }
+
         return WeatherSnapshot(
             location: resolvedLocation.displayName,
             temperature: decoded.current.temperature2m,
@@ -41,7 +72,8 @@ struct WeatherProvider {
             windSpeed: decoded.current.windSpeed,
             feelsLike: decoded.current.apparentTemperature,
             unitSymbol: symbol,
-            updatedAt: Date()
+            updatedAt: Date(),
+            forecast: forecastDays
         )
     }
 
@@ -276,12 +308,16 @@ private struct OpenMeteoWeatherResponse: Decodable {
     }
 
     struct Daily: Decodable {
+        var time: [String]
         var temperatureMax: [Double]
         var temperatureMin: [Double]
+        var weatherCode: [Int]
 
         private enum CodingKeys: String, CodingKey {
+            case time
             case temperatureMax = "temperature_2m_max"
             case temperatureMin = "temperature_2m_min"
+            case weatherCode = "weather_code"
         }
     }
 

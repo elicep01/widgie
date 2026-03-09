@@ -1,5 +1,14 @@
 import Foundation
 
+struct WeatherForecastDay: Codable {
+    var date: Date
+    var dayName: String
+    var high: Double
+    var low: Double
+    var conditionSymbol: String
+    var condition: String
+}
+
 struct WeatherSnapshot: Codable {
     var location: String
     var temperature: Double?
@@ -12,6 +21,7 @@ struct WeatherSnapshot: Codable {
     var feelsLike: Double?
     var unitSymbol: String
     var updatedAt: Date
+    var forecast: [WeatherForecastDay]?
 }
 
 struct MarketSnapshot: Codable {
