@@ -4880,8 +4880,6 @@ private struct BreathingExerciseComponentView: View {
             default:
                 break
             }
-            // Soft chime on phase transition (blends with ambient rain)
-            NSSound(named: "Tink")?.play()
         }
     }
 }
