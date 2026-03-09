@@ -7,8 +7,8 @@
     "name": "Daily Focus",
     "description": "Day progress + goals + quote",
     "size": {
-      "width": 260,
-      "height": 150
+      "width": 220,
+      "height": 130
     },
     "theme": "obsidian",
     "cornerRadius": 14,
@@ -110,8 +110,8 @@
       ]
     },
     "maxSize": {
-      "width": 340,
-      "height": 200
+      "width": 300,
+      "height": 180
     }
   }
 }

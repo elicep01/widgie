@@ -1030,6 +1030,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         if component.type == .note && component.editable == true {
             return true
         }
+        if component.type == .checklist {
+            return true
+        }
         if let children = component.children, children.contains(where: { hasEditableContent($0) }) {
             return true
         }
