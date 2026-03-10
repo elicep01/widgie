@@ -1154,6 +1154,7 @@ private struct PetSceneView: NSViewRepresentable {
         private var tummyTickleCount = 0
         private var tummyTickleLevel = 0  // 0=none, 1=giggle, 2=laugh, 3=hardLaugh, 4=crying
         private var isCryingFromTickle = false
+        private var petOriginalPosition: SCNVector3?
         private var leftArmNode: SCNNode?
         private var rightArmNode: SCNNode?
         private var leftFootNode: SCNNode?
@@ -1342,6 +1343,9 @@ private struct PetSceneView: NSViewRepresentable {
 
             if !isPettingActive {
                 isPettingActive = true
+                if petOriginalPosition == nil {
+                    petOriginalPosition = petBodyNode?.position
+                }
                 let purr = SCNAction.sequence([
                     SCNAction.moveBy(x: 0.01, y: 0, z: 0, duration: 0.03),
                     SCNAction.moveBy(x: -0.02, y: 0, z: 0, duration: 0.06),
@@ -1428,6 +1432,9 @@ private struct PetSceneView: NSViewRepresentable {
 
                 if !isPettingActive {
                     isPettingActive = true
+                    if petOriginalPosition == nil {
+                        petOriginalPosition = petBodyNode?.position
+                    }
                     // Purr vibration for all zones
                     let purr = SCNAction.sequence([
                         SCNAction.moveBy(x: 0.01, y: 0, z: 0, duration: 0.03),
@@ -1536,39 +1543,49 @@ private struct PetSceneView: NSViewRepresentable {
                 applyTickleLevel(newLevel)
             }
 
-            // Ongoing tickle animations per stroke
+            // Store original position on first tickle
+            guard let body = petBodyNode else { return }
+            if petOriginalPosition == nil {
+                petOriginalPosition = body.position
+            }
+            let orig = petOriginalPosition!
+
+            // Ongoing tickle animations per stroke — use absolute positions to prevent drift
             switch tummyTickleLevel {
             case 1:  // Light giggle — gentle body bounce
                 if tummyTickleCount % 4 == 0 {
                     let bounce = SCNAction.sequence([
-                        SCNAction.moveBy(x: 0, y: 0.05, z: 0, duration: 0.06),
-                        SCNAction.moveBy(x: 0, y: -0.05, z: 0, duration: 0.06)
+                        SCNAction.move(to: SCNVector3(orig.x, orig.y + 0.05, orig.z), duration: 0.06),
+                        SCNAction.move(to: orig, duration: 0.06)
                     ])
-                    petBodyNode?.runAction(bounce, forKey: "tickleBounce")
+                    body.runAction(bounce, forKey: "tickleBounce")
                 }
             case 2:  // Laughing — bigger bounces + side wobble
                 if tummyTickleCount % 3 == 0 {
                     let wobble = SCNAction.sequence([
-                        SCNAction.moveBy(x: 0, y: 0.1, z: 0, duration: 0.05),
-                        SCNAction.rotateBy(x: 0, y: 0, z: 0.08, duration: 0.05),
-                        SCNAction.moveBy(x: 0, y: -0.1, z: 0, duration: 0.05),
-                        SCNAction.rotateBy(x: 0, y: 0, z: -0.08, duration: 0.05)
+                        SCNAction.move(to: SCNVector3(orig.x, orig.y + 0.1, orig.z), duration: 0.05),
+                        SCNAction.rotateTo(x: 0, y: 0, z: 0.08, duration: 0.05),
+                        SCNAction.move(to: orig, duration: 0.05),
+                        SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.05)
                     ])
-                    petBodyNode?.runAction(wobble, forKey: "tickleBounce")
+                    body.runAction(wobble, forKey: "tickleBounce")
                 }
             case 3:  // Hard laughing — shaking violently
                 if tummyTickleCount % 2 == 0 {
                     let shake = SCNAction.sequence([
-                        SCNAction.moveBy(x: 0.05, y: 0.12, z: 0, duration: 0.04),
-                        SCNAction.rotateBy(x: 0, y: 0, z: 0.12, duration: 0.04),
-                        SCNAction.moveBy(x: -0.1, y: -0.12, z: 0, duration: 0.04),
-                        SCNAction.rotateBy(x: 0, y: 0, z: -0.24, duration: 0.04),
-                        SCNAction.moveBy(x: 0.05, y: 0, z: 0, duration: 0.04),
-                        SCNAction.rotateBy(x: 0, y: 0, z: 0.12, duration: 0.04)
+                        SCNAction.move(to: SCNVector3(orig.x + 0.05, orig.y + 0.12, orig.z), duration: 0.04),
+                        SCNAction.rotateTo(x: 0, y: 0, z: 0.12, duration: 0.04),
+                        SCNAction.move(to: SCNVector3(orig.x - 0.05, orig.y, orig.z), duration: 0.04),
+                        SCNAction.rotateTo(x: 0, y: 0, z: -0.12, duration: 0.04),
+                        SCNAction.move(to: orig, duration: 0.04),
+                        SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.04)
                     ])
-                    petBodyNode?.runAction(shake, forKey: "tickleBounce")
+                    body.runAction(shake, forKey: "tickleBounce")
                 }
             case 4:  // Crying — spawn tears
+                // Ensure pet is at original position while crying
+                body.removeAction(forKey: "tickleBounce")
+                body.position = orig
                 if tummyTickleCount % 6 == 0, let head = headNode {
                     let worldPos = head.worldPosition
                     spawnTearParticle(at: SCNVector3(worldPos.x - 0.15, worldPos.y + 0.06, worldPos.z + 0.4))
@@ -1707,6 +1724,12 @@ private struct PetSceneView: NSViewRepresentable {
             rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) }, forKey: "petSquint")
             petBodyNode?.removeAction(forKey: "purr")
             petBodyNode?.removeAction(forKey: "tickleBounce")
+            // Snap pet back to original position and rotation
+            if let orig = petOriginalPosition {
+                petBodyNode?.runAction(SCNAction.move(to: orig, duration: 0.2))
+            }
+            petBodyNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
+            petOriginalPosition = nil
             // Reset mouth
             mouthNode?.runAction(SCNAction.run { n in
                 n.scale = SCNVector3(1, 0.5, 1)
