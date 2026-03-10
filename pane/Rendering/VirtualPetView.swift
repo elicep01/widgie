@@ -15,6 +15,7 @@ struct VirtualPetComponentView: View {
     @State private var showPlayMenu = false
     @State private var activeGame: PetGame? = nil
     @State private var feedTrigger = 0
+    @State private var petModeActive = false
 
     // Hatching / intro flow
     enum IntroPhase: Equatable {
@@ -83,9 +84,11 @@ struct VirtualPetComponentView: View {
                     theme: theme,
                     activeGame: activeGame,
                     feedTrigger: feedTrigger,
+                    petModeActive: petModeActive,
                     onTap: { handleSceneTap() },
                     onPet: { positive in interact(positive ? .pet : .overPet) },
-                    onPlay: { interact(.play) }
+                    onPlay: { interact(.play) },
+                    onPetModeEnd: { petModeActive = false }
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
@@ -129,8 +132,8 @@ struct VirtualPetComponentView: View {
                         actionCircle(icon: "fork.knife", size: geo.size.width) {
                             interact(.feed)
                         }
-                        actionCircle(icon: "hand.wave.fill", size: geo.size.width) {
-                            interact(.pet)
+                        actionCircle(icon: petModeActive ? "hand.raised.fill" : "hand.wave.fill", size: geo.size.width) {
+                            petModeActive.toggle()
                         }
                         actionCircle(
                             icon: activeGame != nil ? "stop.fill" : "gamecontroller.fill",
@@ -213,9 +216,11 @@ struct VirtualPetComponentView: View {
                         theme: theme,
                         activeGame: nil,
                         feedTrigger: 0,
+                        petModeActive: false,
                         onTap: {},
                         onPet: { _ in },
-                        onPlay: {}
+                        onPlay: {},
+                        onPetModeEnd: {}
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     .frame(maxWidth: .infinity)
@@ -261,8 +266,8 @@ struct VirtualPetComponentView: View {
             case .askOwnerName:
                 ZStack {
                     PetSceneView(
-                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0,
-                        onTap: {}, onPet: { _ in }, onPlay: {}
+                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0, petModeActive: false,
+                        onTap: {}, onPet: { _ in }, onPlay: {}, onPetModeEnd: {}
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -307,8 +312,8 @@ struct VirtualPetComponentView: View {
                 let name = ownerNameInput.trimmingCharacters(in: .whitespaces)
                 ZStack {
                     PetSceneView(
-                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0,
-                        onTap: {}, onPet: { _ in }, onPlay: {}
+                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0, petModeActive: false,
+                        onTap: {}, onPet: { _ in }, onPlay: {}, onPetModeEnd: {}
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -344,8 +349,8 @@ struct VirtualPetComponentView: View {
                 let name = ownerNameInput.trimmingCharacters(in: .whitespaces)
                 ZStack {
                     PetSceneView(
-                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0,
-                        onTap: {}, onPet: { _ in }, onPlay: {}
+                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0, petModeActive: false,
+                        onTap: {}, onPet: { _ in }, onPlay: {}, onPetModeEnd: {}
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -1063,9 +1068,11 @@ private struct PetSceneView: NSViewRepresentable {
     let theme: WidgetTheme
     let activeGame: VirtualPetComponentView.PetGame?
     let feedTrigger: Int  // incremented to trigger feed animation
+    let petModeActive: Bool  // true when user activates petting mode via button
     let onTap: () -> Void
     let onPet: (Bool) -> Void  // true = positive petting, false = over-tickled distress
     let onPlay: () -> Void
+    let onPetModeEnd: () -> Void
 
     func makeNSView(context: Context) -> PetSCNView {
         let scnView = PetSCNView()
@@ -1094,12 +1101,14 @@ private struct PetSceneView: NSViewRepresentable {
 
     func updateNSView(_ scnView: PetSCNView, context: Context) {
         context.coordinator.activeGame = activeGame
+        context.coordinator.petModeActive = petModeActive
+        context.coordinator.scnViewRef = scnView
         context.coordinator.updateMood(pet: pet, in: scnView.scene)
         context.coordinator.handleFeedTrigger(feedTrigger, in: scnView.scene)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onTap: onTap, onPet: onPet, onPlay: onPlay)
+        Coordinator(onTap: onTap, onPet: onPet, onPlay: onPlay, onPetModeEnd: onPetModeEnd)
     }
 
     // Custom SCNView subclass to forward mouse events to coordinator
@@ -1125,6 +1134,9 @@ private struct PetSceneView: NSViewRepresentable {
         let onTap: () -> Void
         let onPet: (Bool) -> Void  // true = positive, false = distress
         let onPlay: () -> Void
+        let onPetModeEnd: () -> Void
+        var petModeActive = false
+        weak var scnViewRef: SCNView?
         private var petBodyNode: SCNNode?   // the root node of the pet
         private var bodyMeshNode: SCNNode?  // the capsule body mesh
         private var headNode: SCNNode?
@@ -1167,10 +1179,11 @@ private struct PetSceneView: NSViewRepresentable {
         var activeGame: VirtualPetComponentView.PetGame?
         private var lastFeedTrigger = 0
 
-        init(onTap: @escaping () -> Void, onPet: @escaping (Bool) -> Void, onPlay: @escaping () -> Void) {
+        init(onTap: @escaping () -> Void, onPet: @escaping (Bool) -> Void, onPlay: @escaping () -> Void, onPetModeEnd: @escaping () -> Void) {
             self.onTap = onTap
             self.onPet = onPet
             self.onPlay = onPlay
+            self.onPetModeEnd = onPetModeEnd
         }
 
         @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
@@ -1193,6 +1206,14 @@ private struct PetSceneView: NSViewRepresentable {
             }
 
             if hitPet {
+                // If in pet mode, clicking ends it
+                if petModeActive {
+                    endPetting()
+                    petModeActive = false
+                    NSCursor.arrow.set()
+                    DispatchQueue.main.async { [weak self] in self?.onPetModeEnd() }
+                    return
+                }
                 onTap()
                 // Bounce + spin on click
                 guard let body = petBodyNode else { return }
@@ -1259,14 +1280,96 @@ private struct PetSceneView: NSViewRepresentable {
                 return false
             }
 
+            // In pet mode, mouse movement over pet triggers petting (no drag needed)
+            if petModeActive {
+                if overPet {
+                    NSCursor.openHand.set()
+                    // Reuse the drag-based petting logic
+                    handlePetModeMove(in: scnView, event: event, hitResults: hitResults)
+                } else {
+                    if isPettingActive {
+                        endPetting()
+                    }
+                    NSCursor.openHand.set()  // keep hand cursor in pet mode
+                }
+                return
+            }
+
             if overPet {
-                NSCursor.openHand.set()
                 headNode?.removeAction(forKey: "look")
                 headNode?.runAction(SCNAction.rotateTo(x: 0.1, y: 0, z: 0, duration: 0.2), forKey: "lookAtMouse")
                 leftPupilNode?.runAction(SCNAction.move(to: SCNVector3(0, 0.01, 0.065), duration: 0.1))
                 rightPupilNode?.runAction(SCNAction.move(to: SCNVector3(0, 0.01, 0.065), duration: 0.1))
             } else {
                 NSCursor.arrow.set()
+            }
+        }
+
+        // Pet mode — mouse movement acts like dragging for petting
+        private func handlePetModeMove(in scnView: SCNView, event: NSEvent, hitResults: [SCNHitTestResult]) {
+            // Detect which zone was hit
+            var hitZone: PetZone = .general
+
+            for result in hitResults {
+                var node: SCNNode? = result.node
+                var isPetNode = false
+                while let n = node {
+                    if n === petBodyNode { isPetNode = true; break }
+                    node = n.parent
+                }
+                guard isPetNode else { continue }
+
+                var checkNode: SCNNode? = result.node
+                while let n = checkNode {
+                    if n === headNode { hitZone = .cheeks; break }
+                    if n === bodyMeshNode { hitZone = .tummy; break }
+                    checkNode = n.parent
+                }
+                break
+            }
+
+            petStrokeCount += 1
+
+            // Track zone changes
+            if !isPettingActive || currentPetZone != hitZone {
+                if currentPetZone != hitZone && isPettingActive {
+                    tummyTickleCount = 0
+                    tummyTickleLevel = 0
+                    isCryingFromTickle = false
+                }
+                currentPetZone = hitZone
+            }
+
+            if !isPettingActive {
+                isPettingActive = true
+                let purr = SCNAction.sequence([
+                    SCNAction.moveBy(x: 0.01, y: 0, z: 0, duration: 0.03),
+                    SCNAction.moveBy(x: -0.02, y: 0, z: 0, duration: 0.06),
+                    SCNAction.moveBy(x: 0.01, y: 0, z: 0, duration: 0.03)
+                ])
+                petBodyNode?.runAction(.repeatForever(purr), forKey: "purr")
+            }
+
+            switch hitZone {
+            case .cheeks: handleCheekPetting()
+            case .tummy: handleTummyTickle()
+            case .general: handleGeneralPetting()
+            }
+
+            // Hearts (not when crying)
+            if hitZone != .tummy || !isCryingFromTickle {
+                if petStrokeCount % 8 == 0, let firstHit = hitResults.first {
+                    spawnHeartParticle(at: firstHit.worldCoordinates)
+                }
+            }
+
+            // Stat effects
+            if petStrokeCount % 20 == 0 {
+                let now = Date()
+                if now.timeIntervalSince(lastPetTime) > 2.0 {
+                    lastPetTime = now
+                    onPet(!isCryingFromTickle)
+                }
             }
         }
 
@@ -1565,6 +1668,10 @@ private struct PetSceneView: NSViewRepresentable {
 
         func handleMouseExited() {
             endPetting()
+            if petModeActive {
+                DispatchQueue.main.async { [weak self] in self?.onPetModeEnd() }
+                petModeActive = false
+            }
             NSCursor.arrow.set()
             // Hide laser dot
             laserDotNode?.runAction(SCNAction.scale(to: 0.001, duration: 0.2))
