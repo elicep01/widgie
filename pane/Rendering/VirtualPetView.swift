@@ -14,6 +14,22 @@ struct VirtualPetComponentView: View {
     @State private var showFood = false
     @State private var showPlayMenu = false
     @State private var activeGame: PetGame? = nil
+    @State private var feedTrigger = 0
+
+    // Hatching / intro flow
+    enum IntroPhase: Equatable {
+        case egg                // Tap to hatch
+        case cracking           // Egg cracking animation
+        case reveal             // Pet revealed with blush
+        case askOwnerName       // "What's your name?"
+        case greeting           // "Hi <name>! I'm your new pet~ 💕"
+        case askPetName         // "What would you like to name me?"
+        case done               // Normal widget
+    }
+    @State private var introPhase: IntroPhase = .egg
+    @State private var eggTaps = 0
+    @State private var ownerNameInput = ""
+    @State private var petNameInput = ""
 
     enum PetGame: String, CaseIterable {
         case laser = "Laser Chase"
@@ -40,138 +56,418 @@ struct VirtualPetComponentView: View {
     var body: some View {
         GeometryReader { geo in
             if isLoaded, let pet {
-                VStack(spacing: 0) {
-                    // 3D Scene
-                    ZStack(alignment: .topTrailing) {
-                        PetSceneView(
-                            pet: pet,
-                            theme: theme,
-                            activeGame: activeGame,
-                            onTap: { handleSceneTap() },
-                            onPet: { interact(.pet) },
-                            onPlay: { interact(.play) }
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                        // Floating particles
-                        if showHeart {
-                            floatingParticle(text: "\u{2764}\u{FE0F}")
-                        }
-                        if showFood {
-                            floatingParticle(text: "\u{1F356}")
-                                .offset(x: -30)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: geo.size.height * 0.58)
-
-                    Spacer(minLength: 4)
-
-                    // Name
-                    Text(component.content ?? "Pixel")
-                        .font(.system(size: max(11, min(geo.size.width * 0.055, 16)), weight: .bold, design: .rounded))
-                        .foregroundStyle(tc("primary"))
-                        .lineLimit(1)
-
-                    if pet.isAlive {
-                        // Stat bars
-                        VStack(spacing: max(3, geo.size.height * 0.012)) {
-                            statBar(label: "HP", value: pet.health, color: petHealthColor(pet.health), width: geo.size.width)
-                            statBar(label: "Food", value: pet.hunger, color: .orange, width: geo.size.width)
-                            statBar(label: "Joy", value: pet.happiness, color: .pink, width: geo.size.width)
-                        }
-                        .padding(.horizontal, geo.size.width * 0.08)
-                        .padding(.top, 4)
-
-                        // Action buttons
-                        HStack(spacing: geo.size.width * 0.03) {
-                            petButton(icon: "fork.knife", label: "Feed", width: geo.size.width) {
-                                interact(.feed)
-                            }
-                            petButton(icon: "hand.wave.fill", label: "Pet", width: geo.size.width) {
-                                interact(.pet)
-                            }
-                            petButton(
-                                icon: activeGame != nil ? "stop.fill" : "gamecontroller.fill",
-                                label: activeGame != nil ? "Stop" : "Play",
-                                width: geo.size.width
-                            ) {
-                                if activeGame != nil {
-                                    activeGame = nil
-                                    showPlayMenu = false
-                                } else {
-                                    showPlayMenu.toggle()
-                                }
-                            }
-                        }
-                        .padding(.top, 6)
-
-                        // Game selection menu
-                        if showPlayMenu && activeGame == nil {
-                            HStack(spacing: geo.size.width * 0.02) {
-                                ForEach(PetGame.allCases, id: \.rawValue) { game in
-                                    Button {
-                                        activeGame = game
-                                        showPlayMenu = false
-                                        interact(.play)
-                                    } label: {
-                                        VStack(spacing: 1) {
-                                            Image(systemName: game.icon)
-                                                .font(.system(size: max(9, geo.size.width * 0.04)))
-                                            Text(game.rawValue)
-                                                .font(.system(size: max(7, geo.size.width * 0.028), weight: .medium, design: .rounded))
-                                        }
-                                        .foregroundStyle(tc("accent"))
-                                        .padding(.horizontal, geo.size.width * 0.02)
-                                        .padding(.vertical, 3)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(tc("accent").opacity(0.12))
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                            .padding(.top, 3)
-                        }
-
-                        // Active game indicator
-                        if let game = activeGame {
-                            HStack(spacing: 4) {
-                                Circle()
-                                    .fill(Color.green)
-                                    .frame(width: 6, height: 6)
-                                Text("Playing: \(game.rawValue)")
-                                    .font(.system(size: max(8, geo.size.width * 0.032), weight: .medium, design: .rounded))
-                                    .foregroundStyle(tc("muted"))
-                            }
-                            .padding(.top, 2)
-                        }
-                    } else {
-                        Text("R.I.P.")
-                            .font(.system(size: max(14, geo.size.width * 0.06), weight: .heavy, design: .rounded))
-                            .foregroundStyle(tc("muted"))
-                            .padding(.top, 4)
-
-                        if let birth = parseISO(pet.birthDate),
-                           let death = parseISO(pet.lastDecayAt) {
-                            let days = max(0, Calendar.current.dateComponents([.day], from: birth, to: death).day ?? 0)
-                            Text("Lived \(days) day\(days == 1 ? "" : "s")")
-                                .font(.system(size: max(9, geo.size.width * 0.04), design: .rounded))
-                                .foregroundStyle(tc("muted").opacity(0.6))
-                        }
-                    }
-
-                    Spacer(minLength: 4)
+                if pet.hasHatched && pet.petName != nil {
+                    // Normal pet view
+                    normalPetView(pet: pet, geo: geo)
+                } else {
+                    // Hatching / intro flow
+                    introFlowView(pet: pet, geo: geo)
                 }
-                .padding(8)
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .task { await loadOrCreate() }
+    }
+
+    // MARK: - Normal Pet View
+
+    @ViewBuilder
+    private func normalPetView(pet: UserDataStore.PetStateData, geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            // 3D Scene
+            ZStack(alignment: .topTrailing) {
+                PetSceneView(
+                    pet: pet,
+                    theme: theme,
+                    activeGame: activeGame,
+                    feedTrigger: feedTrigger,
+                    onTap: { handleSceneTap() },
+                    onPet: { positive in interact(positive ? .pet : .overPet) },
+                    onPlay: { interact(.play) }
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                // Floating particles
+                if showHeart {
+                    floatingParticle(text: "\u{2764}\u{FE0F}")
+                }
+                if showFood {
+                    floatingParticle(text: "\u{1F356}")
+                        .offset(x: -30)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: geo.size.height * 0.6)
+
+            Spacer(minLength: 3)
+
+            if pet.isAlive {
+                // Bottom bar: name + stat circles + action buttons
+                HStack(spacing: 0) {
+                    // Name
+                    Text(pet.petName ?? component.content ?? "Pixel")
+                        .font(.system(size: max(10, min(geo.size.width * 0.048, 14)), weight: .bold, design: .rounded))
+                        .foregroundStyle(tc("primary"))
+                        .lineLimit(1)
+                        .frame(maxWidth: geo.size.width * 0.28, alignment: .leading)
+
+                    Spacer(minLength: 4)
+
+                    // Stat circles
+                    HStack(spacing: max(4, geo.size.width * 0.02)) {
+                        statCircle(icon: "heart.fill", value: pet.health, color: petHealthColor(pet.health), size: geo.size.width)
+                        statCircle(icon: "leaf.fill", value: pet.hunger, color: .orange, size: geo.size.width)
+                        statCircle(icon: "star.fill", value: pet.happiness, color: .pink, size: geo.size.width)
+                    }
+
+                    Spacer(minLength: 4)
+
+                    // Action buttons — compact icons
+                    HStack(spacing: max(3, geo.size.width * 0.015)) {
+                        actionCircle(icon: "fork.knife", size: geo.size.width) {
+                            interact(.feed)
+                        }
+                        actionCircle(icon: "hand.wave.fill", size: geo.size.width) {
+                            interact(.pet)
+                        }
+                        actionCircle(
+                            icon: activeGame != nil ? "stop.fill" : "gamecontroller.fill",
+                            size: geo.size.width
+                        ) {
+                            if activeGame != nil {
+                                activeGame = nil
+                                showPlayMenu = false
+                            } else {
+                                showPlayMenu.toggle()
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 6)
+
+                // Game selection menu
+                if showPlayMenu && activeGame == nil {
+                    HStack(spacing: geo.size.width * 0.02) {
+                        ForEach(PetGame.allCases, id: \.rawValue) { game in
+                            Button {
+                                activeGame = game
+                                showPlayMenu = false
+                                interact(.play)
+                            } label: {
+                                VStack(spacing: 1) {
+                                    Image(systemName: game.icon)
+                                        .font(.system(size: max(9, geo.size.width * 0.038)))
+                                    Text(game.rawValue)
+                                        .font(.system(size: max(7, geo.size.width * 0.026), weight: .medium, design: .rounded))
+                                }
+                                .foregroundStyle(tc("accent"))
+                                .padding(.horizontal, geo.size.width * 0.02)
+                                .padding(.vertical, 3)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(tc("accent").opacity(0.12))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .padding(.top, 3)
+                }
+            } else {
+                Text(pet.petName ?? "R.I.P.")
+                    .font(.system(size: max(14, geo.size.width * 0.06), weight: .heavy, design: .rounded))
+                    .foregroundStyle(tc("muted"))
+                    .padding(.top, 4)
+
+                if let birth = parseISO(pet.birthDate),
+                   let death = parseISO(pet.lastDecayAt) {
+                    let days = max(0, Calendar.current.dateComponents([.day], from: birth, to: death).day ?? 0)
+                    Text("Lived \(days) day\(days == 1 ? "" : "s")")
+                        .font(.system(size: max(9, geo.size.width * 0.04), design: .rounded))
+                        .foregroundStyle(tc("muted").opacity(0.6))
+                }
+            }
+
+            Spacer(minLength: 3)
+        }
+        .padding(6)
+    }
+
+    // MARK: - Intro / Hatching Flow
+
+    @ViewBuilder
+    private func introFlowView(pet: UserDataStore.PetStateData, geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            switch introPhase {
+            case .egg, .cracking:
+                eggSceneSection(pet: pet, geo: geo)
+
+            case .reveal:
+                // Show the pet with a sparkle reveal
+                ZStack {
+                    PetSceneView(
+                        pet: pet,
+                        theme: theme,
+                        activeGame: nil,
+                        feedTrigger: 0,
+                        onTap: {},
+                        onPet: { _ in },
+                        onPlay: {}
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: geo.size.height * 0.5)
+                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+
+                    // Sparkle particles
+                    ForEach(0..<6, id: \.self) { i in
+                        Text(["✨", "🌟", "💫", "⭐️", "✨", "🌟"][i])
+                            .font(.system(size: CGFloat.random(in: 14...22)))
+                            .offset(
+                                x: CGFloat.random(in: -geo.size.width * 0.3...geo.size.width * 0.3),
+                                y: CGFloat.random(in: -geo.size.height * 0.15...geo.size.height * 0.15)
+                            )
+                            .opacity(0.8)
+                    }
+                }
+                .frame(height: geo.size.height * 0.5)
+
+                Spacer(minLength: 6)
+
+                // Cute intro message
+                introBubble(text: "oh!! hello there~ 🥺💕\ni just hatched! *blush*", geo: geo)
+
+                Spacer(minLength: 6)
+
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        introPhase = .askOwnerName
+                    }
+                } label: {
+                    Text("hi little one!")
+                        .font(.system(size: max(10, geo.size.width * 0.042), weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(tc("accent")))
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 4)
+
+            case .askOwnerName:
+                ZStack {
+                    PetSceneView(
+                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0,
+                        onTap: {}, onPet: { _ in }, onPlay: {}
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: geo.size.height * 0.38)
+
+                Spacer(minLength: 6)
+
+                introBubble(text: "what's your name, friend? 👀", geo: geo)
+
+                Spacer(minLength: 6)
+
+                HStack(spacing: 6) {
+                    TextField("your name", text: $ownerNameInput)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: max(11, geo.size.width * 0.045), weight: .medium, design: .rounded))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(tc("primary").opacity(0.08))
+                        )
+                        .frame(maxWidth: geo.size.width * 0.55)
+
+                    Button {
+                        guard !ownerNameInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                            introPhase = .greeting
+                        }
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(tc("accent"))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, geo.size.width * 0.08)
+
+                Spacer(minLength: 4)
+
+            case .greeting:
+                let name = ownerNameInput.trimmingCharacters(in: .whitespaces)
+                ZStack {
+                    PetSceneView(
+                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0,
+                        onTap: {}, onPet: { _ in }, onPlay: {}
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: geo.size.height * 0.42)
+
+                Spacer(minLength: 6)
+
+                introBubble(
+                    text: "hi \(name)~! ☺️💕\nfrom now on, i'm your pet!\nplease take care of me okay? 🥺",
+                    geo: geo
+                )
+
+                Spacer(minLength: 6)
+
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        introPhase = .askPetName
+                    }
+                } label: {
+                    Text("of course! 💕")
+                        .font(.system(size: max(10, geo.size.width * 0.042), weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Capsule().fill(tc("accent")))
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 4)
+
+            case .askPetName:
+                let name = ownerNameInput.trimmingCharacters(in: .whitespaces)
+                ZStack {
+                    PetSceneView(
+                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0,
+                        onTap: {}, onPet: { _ in }, onPlay: {}
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: geo.size.height * 0.38)
+
+                Spacer(minLength: 6)
+
+                introBubble(
+                    text: "so \(name), what would\nyou like to name me? 🤔✨",
+                    geo: geo
+                )
+
+                Spacer(minLength: 6)
+
+                HStack(spacing: 6) {
+                    TextField("name me!", text: $petNameInput)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: max(11, geo.size.width * 0.045), weight: .medium, design: .rounded))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(tc("primary").opacity(0.08))
+                        )
+                        .frame(maxWidth: geo.size.width * 0.55)
+
+                    Button {
+                        let trimmed = petNameInput.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty else { return }
+                        finishIntro(petName: trimmed, ownerName: ownerNameInput.trimmingCharacters(in: .whitespaces))
+                    } label: {
+                        Image(systemName: "heart.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(tc("accent"))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, geo.size.width * 0.08)
+
+                Spacer(minLength: 4)
+
+            case .done:
+                normalPetView(pet: pet, geo: geo)
+            }
+        }
+        .padding(introPhase == .done ? 0 : 8)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: introPhase)
+    }
+
+    @ViewBuilder
+    private func eggSceneSection(pet: UserDataStore.PetStateData, geo: GeometryProxy) -> some View {
+        VStack(spacing: 0) {
+            EggSceneView(
+                theme: theme,
+                tapCount: eggTaps,
+                onTap: { handleEggTap() }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .frame(maxWidth: .infinity)
+            .frame(height: geo.size.height * 0.65)
+
+            Spacer(minLength: 6)
+
+            Text(eggTaps == 0 ? "tap the egg to hatch!" : eggTaps < 3 ? "keep tapping! (\(eggTaps)/3)" : "hatching...!")
+                .font(.system(size: max(11, geo.size.width * 0.048), weight: .semibold, design: .rounded))
+                .foregroundStyle(tc("muted"))
+                .animation(.easeInOut(duration: 0.2), value: eggTaps)
+
+            if eggTaps == 0 {
+                Spacer(minLength: 4)
+                Image(systemName: "hand.tap.fill")
+                    .font(.system(size: max(14, geo.size.width * 0.06)))
+                    .foregroundStyle(tc("accent").opacity(0.5))
+            }
+
+            Spacer(minLength: 4)
+        }
+    }
+
+    private func handleEggTap() {
+        eggTaps += 1
+        if eggTaps >= 3 {
+            introPhase = .cracking
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                    if var p = pet {
+                        p.hasHatched = true
+                        pet = p
+                        Task { await UserDataStore.shared.setPetState(p, for: componentKey) }
+                    }
+                    introPhase = .reveal
+                }
+            }
+        }
+    }
+
+    private func finishIntro(petName: String, ownerName: String) {
+        guard var p = pet else { return }
+        p.petName = petName
+        p.ownerName = ownerName
+        p.hasHatched = true
+        pet = p
+        Task { await UserDataStore.shared.setPetState(p, for: componentKey) }
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            introPhase = .done
+        }
+    }
+
+    @ViewBuilder
+    private func introBubble(text: String, geo: GeometryProxy) -> some View {
+        Text(text)
+            .font(.system(size: max(10, geo.size.width * 0.04), weight: .medium, design: .rounded))
+            .foregroundStyle(tc("primary"))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(tc("primary").opacity(0.07))
+            )
+            .padding(.horizontal, geo.size.width * 0.05)
     }
 
     // MARK: - Floating Particle
@@ -187,45 +483,43 @@ struct VirtualPetComponentView: View {
     // MARK: - Stat Bar
 
     @ViewBuilder
-    private func statBar(label: String, value: Double, color: Color, width: CGFloat) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: max(8, width * 0.035), weight: .semibold, design: .rounded))
-                .foregroundStyle(tc("muted"))
-                .frame(width: width * 0.1, alignment: .leading)
+    // MARK: - Stat Circle
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(color.opacity(0.15))
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(color)
-                        .frame(width: max(0, geo.size.width * CGFloat(value / 100)))
-                        .animation(.easeInOut(duration: 0.3), value: value)
-                }
-            }
-            .frame(height: max(5, width * 0.025))
+    private func statCircle(icon: String, value: Double, color: Color, size: CGFloat) -> some View {
+        let dim = max(18, min(size * 0.085, 28))
+        let pct = CGFloat(value / 100)
+        return ZStack {
+            // Background ring
+            Circle()
+                .stroke(color.opacity(0.15), lineWidth: 2.5)
+            // Filled ring
+            Circle()
+                .trim(from: 0, to: pct)
+                .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.4), value: value)
+            // Icon
+            Image(systemName: icon)
+                .font(.system(size: dim * 0.38, weight: .semibold))
+                .foregroundStyle(color.opacity(pct > 0.3 ? 0.8 : 0.4))
         }
+        .frame(width: dim, height: dim)
+        .help(String(format: "%.0f%%", value))
     }
 
-    // MARK: - Action Button
+    // MARK: - Action Circle Button
 
-    @ViewBuilder
-    private func petButton(icon: String, label: String, width: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 1) {
-                Image(systemName: icon)
-                    .font(.system(size: max(11, width * 0.05)))
-                Text(label)
-                    .font(.system(size: max(8, width * 0.032), weight: .medium, design: .rounded))
-            }
-            .foregroundStyle(tc("secondary"))
-            .padding(.horizontal, width * 0.03)
-            .padding(.vertical, width * 0.018)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(tc("accent").opacity(0.1))
-            )
+    private func actionCircle(icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+        let dim = max(20, min(size * 0.09, 28))
+        return Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: dim * 0.4, weight: .medium))
+                .foregroundStyle(tc("secondary"))
+                .frame(width: dim, height: dim)
+                .background(
+                    Circle()
+                        .fill(tc("accent").opacity(0.1))
+                )
         }
         .buttonStyle(.plain)
     }
@@ -247,7 +541,7 @@ struct VirtualPetComponentView: View {
 
     // MARK: - Interactions
 
-    private enum PetAction { case feed, pet, play }
+    private enum PetAction { case feed, pet, overPet, play }
 
     private func interact(_ action: PetAction) {
         guard var p = pet, p.isAlive else { return }
@@ -258,10 +552,7 @@ struct VirtualPetComponentView: View {
             p.hunger = min(100, p.hunger + 25)
             p.health = min(100, p.health + 5)
             p.lastFedAt = now
-            withAnimation(.spring(response: 0.3)) { showFood = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation { showFood = false }
-            }
+            feedTrigger += 1  // triggers 3D feeding animation
         case .pet:
             p.happiness = min(100, p.happiness + 15)
             p.health = min(100, p.health + 2)
@@ -269,6 +560,9 @@ struct VirtualPetComponentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 withAnimation { showHeart = false }
             }
+        case .overPet:
+            p.happiness = max(0, p.happiness - 20)
+            p.health = max(0, p.health - 5)
         case .play:
             p.happiness = min(100, p.happiness + 20)
             p.hunger = max(0, p.hunger - 10)  // playing is tiring!
@@ -334,14 +628,443 @@ struct VirtualPetComponentView: View {
     }
 }
 
+// MARK: - SceneKit 3D Egg Scene
+
+private struct EggSceneView: NSViewRepresentable {
+    let theme: WidgetTheme
+    let tapCount: Int
+    let onTap: () -> Void
+
+    func makeNSView(context: Context) -> SCNView {
+        let scnView = SCNView()
+        let scene = context.coordinator.buildEggScene(theme: theme)
+        scnView.scene = scene
+        scnView.backgroundColor = .clear
+        scnView.antialiasingMode = .multisampling4X
+        scnView.allowsCameraControl = false
+        scnView.autoenablesDefaultLighting = false
+        scnView.isJitteringEnabled = true
+
+        let click = NSClickGestureRecognizer(target: context.coordinator, action: #selector(EggCoordinator.handleClick(_:)))
+        scnView.addGestureRecognizer(click)
+
+        return scnView
+    }
+
+    func updateNSView(_ scnView: SCNView, context: Context) {
+        context.coordinator.updateCracks(tapCount: tapCount, in: scnView.scene)
+    }
+
+    func makeCoordinator() -> EggCoordinator {
+        EggCoordinator(onTap: onTap)
+    }
+
+    class EggCoordinator: NSObject {
+        let onTap: () -> Void
+        private var eggNode: SCNNode?
+        private var crackNodes: [SCNNode] = []
+        private var glowNode: SCNNode?
+        private var currentTapCount = 0
+
+        init(onTap: @escaping () -> Void) {
+            self.onTap = onTap
+        }
+
+        @objc func handleClick(_ gesture: NSClickGestureRecognizer) {
+            // Wobble the egg on tap
+            if let egg = eggNode {
+                egg.removeAction(forKey: "wobble")
+                let wobble = SCNAction.sequence([
+                    SCNAction.rotateBy(x: 0, y: 0, z: 0.15, duration: 0.06),
+                    SCNAction.rotateBy(x: 0, y: 0, z: -0.30, duration: 0.12),
+                    SCNAction.rotateBy(x: 0, y: 0, z: 0.22, duration: 0.10),
+                    SCNAction.rotateBy(x: 0, y: 0, z: -0.14, duration: 0.08),
+                    SCNAction.rotateBy(x: 0, y: 0, z: 0.07, duration: 0.06),
+                ])
+                egg.runAction(wobble, forKey: "wobble")
+            }
+            onTap()
+        }
+
+        func buildEggScene(theme: WidgetTheme) -> SCNScene {
+            let scene = SCNScene()
+            let palette = ThemeResolver.palette(for: theme)
+            let accent = NSColor(palette.accent)
+
+            // Camera
+            let cameraNode = SCNNode()
+            cameraNode.camera = SCNCamera()
+            cameraNode.camera?.fieldOfView = 40
+            cameraNode.camera?.zNear = 0.1
+            cameraNode.camera?.zFar = 50
+            cameraNode.position = SCNVector3(0, 1.6, 4.0)
+            cameraNode.look(at: SCNVector3(0, 0.6, 0))
+            scene.rootNode.addChildNode(cameraNode)
+
+            // Lighting — warm and cozy
+            let keyLight = SCNNode()
+            keyLight.light = SCNLight()
+            keyLight.light?.type = .directional
+            keyLight.light?.intensity = 700
+            keyLight.light?.color = NSColor(white: 1.0, alpha: 1)
+            keyLight.light?.castsShadow = true
+            keyLight.light?.shadowMode = .deferred
+            keyLight.light?.shadowSampleCount = 8
+            keyLight.light?.shadowRadius = 4
+            keyLight.light?.shadowColor = NSColor.black.withAlphaComponent(0.25)
+            keyLight.eulerAngles = SCNVector3(-CGFloat.pi / 3, CGFloat.pi / 6, 0)
+            scene.rootNode.addChildNode(keyLight)
+
+            let fillLight = SCNNode()
+            fillLight.light = SCNLight()
+            fillLight.light?.type = .omni
+            fillLight.light?.intensity = 200
+            fillLight.light?.color = NSColor(red: 1.0, green: 0.92, blue: 0.8, alpha: 1)
+            fillLight.position = SCNVector3(-2, 2.5, 3)
+            scene.rootNode.addChildNode(fillLight)
+
+            let ambient = SCNNode()
+            ambient.light = SCNLight()
+            ambient.light?.type = .ambient
+            ambient.light?.intensity = 350
+            ambient.light?.color = NSColor(red: 1.0, green: 0.97, blue: 0.93, alpha: 1)
+            scene.rootNode.addChildNode(ambient)
+
+            // Floor
+            let floor = SCNFloor()
+            floor.reflectivity = 0.1
+            floor.reflectionFalloffEnd = 2.0
+            let floorMat = SCNMaterial()
+            floorMat.diffuse.contents = NSColor(red: 0.85, green: 0.75, blue: 0.62, alpha: 1.0)
+            floorMat.roughness.contents = NSColor(white: 0.6, alpha: 1)
+            floor.materials = [floorMat]
+            scene.rootNode.addChildNode(SCNNode(geometry: floor))
+
+            // Rug
+            let rugGeo = SCNCylinder(radius: 1.2, height: 0.01)
+            let rugMat = SCNMaterial()
+            rugMat.diffuse.contents = accent.withAlphaComponent(0.18)
+            rugGeo.materials = [rugMat]
+            let rug = SCNNode(geometry: rugGeo)
+            rug.position = SCNVector3(0, 0.005, 0.2)
+            scene.rootNode.addChildNode(rug)
+
+            // Back wall
+            let wallGeo = SCNPlane(width: 6, height: 4)
+            let wallMat = SCNMaterial()
+            wallMat.diffuse.contents = accent.withAlphaComponent(0.06)
+            wallMat.isDoubleSided = true
+            wallGeo.materials = [wallMat]
+            let wall = SCNNode(geometry: wallGeo)
+            wall.position = SCNVector3(0, 2, -2.5)
+            scene.rootNode.addChildNode(wall)
+
+            // ── EGG ──
+            let egg = buildEgg(accent: accent)
+            egg.position = SCNVector3(0, 0.55, 0.2)
+            scene.rootNode.addChildNode(egg)
+            eggNode = egg
+
+            // Subtle idle wobble
+            let idleWobble = SCNAction.sequence([
+                SCNAction.rotateBy(x: 0, y: 0, z: 0.02, duration: 1.5),
+                SCNAction.rotateBy(x: 0, y: 0, z: -0.04, duration: 3.0),
+                SCNAction.rotateBy(x: 0, y: 0, z: 0.02, duration: 1.5),
+            ])
+            idleWobble.timingMode = .easeInEaseOut
+            egg.runAction(.repeatForever(idleWobble), forKey: "idle")
+
+            // Glow node (hidden initially, grows with taps)
+            let glowGeo = SCNSphere(radius: 0.7)
+            let glowMat = SCNMaterial()
+            glowMat.diffuse.contents = accent.withAlphaComponent(0.0)
+            glowMat.emission.contents = accent.withAlphaComponent(0.0)
+            glowMat.lightingModel = .constant
+            glowMat.isDoubleSided = true
+            glowGeo.materials = [glowMat]
+            let glow = SCNNode(geometry: glowGeo)
+            glow.position = SCNVector3(0, 0.55, 0.2)
+            glow.opacity = 0
+            scene.rootNode.addChildNode(glow)
+            glowNode = glow
+
+            return scene
+        }
+
+        private func buildEgg(accent: NSColor) -> SCNNode {
+            let eggRoot = SCNNode()
+
+            // Egg shape: sphere scaled taller, with a slight taper at top
+            // Main egg body
+            let eggGeo = SCNSphere(radius: 0.42)
+            eggGeo.segmentCount = 48
+            let eggMat = SCNMaterial()
+            // Creamy white with subtle warm tint
+            eggMat.diffuse.contents = NSColor(red: 0.97, green: 0.95, blue: 0.90, alpha: 1)
+            eggMat.roughness.contents = NSColor(white: 0.35, alpha: 1)
+            eggMat.metalness.contents = NSColor(white: 0.02, alpha: 1)
+            // Subtle subsurface-like warmth
+            eggMat.emission.contents = NSColor(red: 1.0, green: 0.95, blue: 0.88, alpha: 0.03)
+            eggGeo.materials = [eggMat]
+
+            let eggBody = SCNNode(geometry: eggGeo)
+            eggBody.scale = SCNVector3(0.85, 1.15, 0.85) // taller oval
+            eggRoot.addChildNode(eggBody)
+
+            // Speckles — small subtle dots
+            let speckleColors: [NSColor] = [
+                accent.withAlphaComponent(0.2),
+                accent.blended(withFraction: 0.5, of: .brown)?.withAlphaComponent(0.15) ?? accent.withAlphaComponent(0.15),
+                NSColor(red: 0.7, green: 0.6, blue: 0.5, alpha: 0.15)
+            ]
+            for i in 0..<12 {
+                let speckGeo = SCNSphere(radius: CGFloat.random(in: 0.012...0.028))
+                speckGeo.segmentCount = 8
+                let speckMat = SCNMaterial()
+                speckMat.diffuse.contents = speckleColors[i % speckleColors.count]
+                speckGeo.materials = [speckMat]
+                let speck = SCNNode(geometry: speckGeo)
+
+                // Distribute on egg surface using spherical coordinates
+                let theta = CGFloat.random(in: 0.3...2.8)
+                let phi = CGFloat.random(in: 0...(2 * .pi))
+                let r: CGFloat = 0.42
+                speck.position = SCNVector3(
+                    r * 0.85 * sin(theta) * cos(phi),
+                    r * 1.15 * cos(theta),
+                    r * 0.85 * sin(theta) * sin(phi)
+                )
+                eggBody.addChildNode(speck)
+            }
+
+            // Nest — small ring of straw-colored torus at the base
+            let nestGeo = SCNTorus(ringRadius: 0.38, pipeRadius: 0.06)
+            let nestMat = SCNMaterial()
+            nestMat.diffuse.contents = NSColor(red: 0.78, green: 0.65, blue: 0.40, alpha: 0.8)
+            nestMat.roughness.contents = NSColor(white: 0.9, alpha: 1)
+            nestGeo.materials = [nestMat]
+            let nest = SCNNode(geometry: nestGeo)
+            nest.position = SCNVector3(0, -0.42, 0)
+            eggRoot.addChildNode(nest)
+
+            // Extra straw bits around the nest
+            for i in 0..<8 {
+                let strawGeo = SCNCapsule(capRadius: 0.015, height: CGFloat.random(in: 0.12...0.22))
+                let strawMat = SCNMaterial()
+                strawMat.diffuse.contents = NSColor(
+                    red: CGFloat.random(in: 0.7...0.85),
+                    green: CGFloat.random(in: 0.58...0.68),
+                    blue: CGFloat.random(in: 0.3...0.45),
+                    alpha: 0.7
+                )
+                strawGeo.materials = [strawMat]
+                let straw = SCNNode(geometry: strawGeo)
+                let angle = CGFloat(i) * (.pi / 4) + CGFloat.random(in: -0.3...0.3)
+                let dist: CGFloat = CGFloat.random(in: 0.3...0.45)
+                straw.position = SCNVector3(
+                    dist * cos(angle),
+                    -0.42 + CGFloat.random(in: -0.02...0.04),
+                    dist * sin(angle)
+                )
+                straw.eulerAngles = SCNVector3(
+                    CGFloat.random(in: -0.5...0.5),
+                    angle,
+                    CGFloat.random(in: 0.2...1.0)
+                )
+                eggRoot.addChildNode(straw)
+            }
+
+            return eggRoot
+        }
+
+        func updateCracks(tapCount: Int, in scene: SCNScene?) {
+            guard let scene, let egg = eggNode, tapCount > currentTapCount else { return }
+            currentTapCount = tapCount
+
+            // Add crack lines for each new tap
+            if tapCount >= 1 && crackNodes.count < 1 {
+                addCrackToEgg(egg: egg, seed: 1, intensity: 0.6)
+            }
+            if tapCount >= 2 && crackNodes.count < 2 {
+                addCrackToEgg(egg: egg, seed: 2, intensity: 0.8)
+                // Start glow
+                if let glow = glowNode {
+                    let accent = glow.geometry?.firstMaterial?.diffuse.contents as? NSColor ?? .white
+                    glow.opacity = 0.3
+                    glow.geometry?.firstMaterial?.emission.contents = (accent.withAlphaComponent(0.15) as NSColor)
+                }
+            }
+            if tapCount >= 3 {
+                addCrackToEgg(egg: egg, seed: 3, intensity: 1.0)
+                // Big burst + egg explodes
+                performHatchAnimation(egg: egg, in: scene)
+            }
+        }
+
+        private func addCrackToEgg(egg: SCNNode, seed: Int, intensity: CGFloat) {
+            // Crack as a dark line etched into the surface
+            // Use multiple thin boxes arranged in a zigzag on the egg surface
+            let crackRoot = SCNNode()
+            crackRoot.name = "crack_\(seed)"
+
+            let crackMat = SCNMaterial()
+            crackMat.diffuse.contents = NSColor(white: 0.2, alpha: Double(intensity))
+            crackMat.lightingModel = .constant
+
+            var rng = SeededRNG(seed: UInt64(seed * 31 + 7))
+            let segments = 5 + seed
+            var y: CGFloat = CGFloat.random(in: -0.1...0.15, using: &rng)
+            var angle: CGFloat = CGFloat.random(in: 0...(2 * .pi), using: &rng)
+
+            for _ in 0..<segments {
+                let length: CGFloat = CGFloat.random(in: 0.06...0.12, using: &rng)
+                let lineGeo = SCNBox(width: 0.008 * intensity, height: length, length: 0.005, chamferRadius: 0)
+                lineGeo.materials = [crackMat]
+                let line = SCNNode(geometry: lineGeo)
+
+                let r: CGFloat = 0.43
+                line.position = SCNVector3(
+                    r * 0.85 * cos(angle),
+                    y * 1.15,
+                    r * 0.85 * sin(angle)
+                )
+                // Point outward from center
+                line.look(at: SCNVector3(0, CGFloat(line.position.y), 0))
+                line.eulerAngles.z += CGFloat.random(in: -0.4...0.4, using: &rng)
+
+                crackRoot.addChildNode(line)
+
+                // Branch occasionally
+                if Int.random(in: 0...2, using: &rng) == 0 {
+                    let branchGeo = SCNBox(width: 0.006 * intensity, height: CGFloat.random(in: 0.03...0.06, using: &rng), length: 0.005, chamferRadius: 0)
+                    branchGeo.materials = [crackMat]
+                    let branch = SCNNode(geometry: branchGeo)
+                    branch.position = line.position
+                    branch.eulerAngles = line.eulerAngles
+                    branch.eulerAngles.z += CGFloat.random(in: 0.5...1.2, using: &rng) * (Bool.random(using: &rng) ? 1 : -1)
+                    crackRoot.addChildNode(branch)
+                }
+
+                y += CGFloat.random(in: -0.08...0.08, using: &rng)
+                angle += CGFloat.random(in: 0.15...0.4, using: &rng) * (Bool.random(using: &rng) ? 1 : -1)
+            }
+
+            // Pop in with scale
+            crackRoot.scale = SCNVector3(0.01, 0.01, 0.01)
+            crackRoot.runAction(.scale(to: 1.0, duration: 0.2))
+
+            egg.addChildNode(crackRoot)
+            crackNodes.append(crackRoot)
+        }
+
+        private func performHatchAnimation(egg: SCNNode, in scene: SCNScene) {
+            // Intense wobble
+            egg.removeAction(forKey: "idle")
+            let shake = SCNAction.sequence([
+                SCNAction.rotateBy(x: 0, y: 0, z: 0.12, duration: 0.05),
+                SCNAction.rotateBy(x: 0, y: 0, z: -0.24, duration: 0.1),
+                SCNAction.rotateBy(x: 0, y: 0, z: 0.20, duration: 0.08),
+                SCNAction.rotateBy(x: 0, y: 0, z: -0.16, duration: 0.07),
+                SCNAction.rotateBy(x: 0, y: 0, z: 0.08, duration: 0.05),
+            ])
+            egg.runAction(SCNAction.repeat(shake, count: 3), forKey: "hatchShake")
+
+            // Glow intensifies
+            if let glow = glowNode {
+                glow.runAction(SCNAction.sequence([
+                    SCNAction.fadeOpacity(to: 0.8, duration: 0.5),
+                    SCNAction.scale(to: 2.0, duration: 0.5),
+                    SCNAction.group([
+                        SCNAction.fadeOut(duration: 0.3),
+                        SCNAction.scale(to: 3.0, duration: 0.3)
+                    ])
+                ]))
+            }
+
+            // After shake, egg bursts apart
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                // Create shell fragments that fly outward
+                let eggBody = egg.childNodes.first
+                for i in 0..<8 {
+                    let fragmentGeo = SCNBox(
+                        width: CGFloat.random(in: 0.06...0.14),
+                        height: CGFloat.random(in: 0.08...0.16),
+                        length: 0.02,
+                        chamferRadius: 0.01
+                    )
+                    let fragMat = SCNMaterial()
+                    fragMat.diffuse.contents = NSColor(red: 0.97, green: 0.95, blue: 0.90, alpha: 1)
+                    fragMat.roughness.contents = NSColor(white: 0.35, alpha: 1)
+                    fragmentGeo.materials = [fragMat]
+
+                    let frag = SCNNode(geometry: fragmentGeo)
+                    frag.position = egg.position
+                    scene.rootNode.addChildNode(frag)
+
+                    let angle = CGFloat(i) * (.pi / 4)
+                    let dx = cos(angle) * CGFloat.random(in: 0.8...1.5)
+                    let dy = CGFloat.random(in: 0.6...1.5)
+                    let dz = sin(angle) * CGFloat.random(in: 0.5...1.0)
+
+                    frag.runAction(SCNAction.sequence([
+                        SCNAction.group([
+                            SCNAction.moveBy(x: dx, y: dy, z: dz, duration: 0.4),
+                            SCNAction.rotateBy(
+                                x: CGFloat.random(in: -3...3),
+                                y: CGFloat.random(in: -3...3),
+                                z: CGFloat.random(in: -3...3),
+                                duration: 0.4
+                            ),
+                        ]),
+                        SCNAction.group([
+                            SCNAction.moveBy(x: 0, y: -2, z: 0, duration: 0.3),
+                            SCNAction.fadeOut(duration: 0.3)
+                        ]),
+                        SCNAction.removeFromParentNode()
+                    ]))
+                }
+
+                // Hide the original egg
+                eggBody?.opacity = 0
+                egg.childNodes.filter { $0.name?.hasPrefix("crack_") == true }.forEach { $0.opacity = 0 }
+
+                // Sparkle particles at the egg position
+                for i in 0..<12 {
+                    let sparkGeo = SCNSphere(radius: CGFloat.random(in: 0.02...0.05))
+                    sparkGeo.segmentCount = 8
+                    let sparkMat = SCNMaterial()
+                    sparkMat.diffuse.contents = NSColor.white
+                    sparkMat.emission.contents = NSColor(red: 1, green: 0.95, blue: 0.7, alpha: 1)
+                    sparkMat.lightingModel = .constant
+                    sparkGeo.materials = [sparkMat]
+                    let spark = SCNNode(geometry: sparkGeo)
+                    spark.position = egg.position
+                    scene.rootNode.addChildNode(spark)
+
+                    let a = CGFloat.random(in: 0...(2 * .pi))
+                    let r = CGFloat.random(in: 0.3...1.0)
+                    spark.runAction(SCNAction.sequence([
+                        SCNAction.group([
+                            SCNAction.moveBy(x: r * cos(a), y: CGFloat.random(in: 0.3...1.2), z: r * sin(a), duration: 0.5),
+                            SCNAction.fadeOut(duration: 0.5)
+                        ]),
+                        SCNAction.removeFromParentNode()
+                    ]))
+                }
+            }
+        }
+    }
+}
+
 // MARK: - SceneKit 3D Pet Scene
 
 private struct PetSceneView: NSViewRepresentable {
     let pet: UserDataStore.PetStateData
     let theme: WidgetTheme
     let activeGame: VirtualPetComponentView.PetGame?
+    let feedTrigger: Int  // incremented to trigger feed animation
     let onTap: () -> Void
-    let onPet: () -> Void
+    let onPet: (Bool) -> Void  // true = positive petting, false = over-tickled distress
     let onPlay: () -> Void
 
     func makeNSView(context: Context) -> PetSCNView {
@@ -372,6 +1095,7 @@ private struct PetSceneView: NSViewRepresentable {
     func updateNSView(_ scnView: PetSCNView, context: Context) {
         context.coordinator.activeGame = activeGame
         context.coordinator.updateMood(pet: pet, in: scnView.scene)
+        context.coordinator.handleFeedTrigger(feedTrigger, in: scnView.scene)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -399,7 +1123,7 @@ private struct PetSceneView: NSViewRepresentable {
 
     class Coordinator: NSObject {
         let onTap: () -> Void
-        let onPet: () -> Void
+        let onPet: (Bool) -> Void  // true = positive, false = distress
         let onPlay: () -> Void
         private var petBodyNode: SCNNode?   // the root node of the pet
         private var bodyMeshNode: SCNNode?  // the capsule body mesh
@@ -411,6 +1135,13 @@ private struct PetSceneView: NSViewRepresentable {
         private var mouthNode: SCNNode?
         private var leftCheekNode: SCNNode?
         private var rightCheekNode: SCNNode?
+
+        // Zone-based petting state
+        private enum PetZone { case cheeks, tummy, general }
+        private var currentPetZone: PetZone = .general
+        private var tummyTickleCount = 0
+        private var tummyTickleLevel = 0  // 0=none, 1=giggle, 2=laugh, 3=hardLaugh, 4=crying
+        private var isCryingFromTickle = false
         private var leftArmNode: SCNNode?
         private var rightArmNode: SCNNode?
         private var leftFootNode: SCNNode?
@@ -434,8 +1165,9 @@ private struct PetSceneView: NSViewRepresentable {
         private var cushionNode: SCNNode?
         private var toppledObjects: [SCNNode] = []  // objects currently knocked over
         var activeGame: VirtualPetComponentView.PetGame?
+        private var lastFeedTrigger = 0
 
-        init(onTap: @escaping () -> Void, onPet: @escaping () -> Void, onPlay: @escaping () -> Void) {
+        init(onTap: @escaping () -> Void, onPet: @escaping (Bool) -> Void, onPlay: @escaping () -> Void) {
             self.onTap = onTap
             self.onPet = onPet
             self.onPlay = onPlay
@@ -528,10 +1260,13 @@ private struct PetSceneView: NSViewRepresentable {
             }
 
             if overPet {
+                NSCursor.openHand.set()
                 headNode?.removeAction(forKey: "look")
                 headNode?.runAction(SCNAction.rotateTo(x: 0.1, y: 0, z: 0, duration: 0.2), forKey: "lookAtMouse")
                 leftPupilNode?.runAction(SCNAction.move(to: SCNVector3(0, 0.01, 0.065), duration: 0.1))
                 rightPupilNode?.runAction(SCNAction.move(to: SCNVector3(0, 0.01, 0.065), duration: 0.1))
+            } else {
+                NSCursor.arrow.set()
             }
         }
 
@@ -539,27 +1274,58 @@ private struct PetSceneView: NSViewRepresentable {
             let location = scnView.convert(event.locationInWindow, from: nil)
             let hitResults = scnView.hitTest(location, options: [.searchMode: SCNHitTestSearchMode.closest.rawValue])
 
-            // Check if dragging over pet = petting!
-            let overPet = hitResults.contains { result in
+            // Detect which zone was hit
+            var hitZone: PetZone? = nil
+            var hitOnPet = false
+
+            for result in hitResults {
                 var node: SCNNode? = result.node
                 while let n = node {
-                    if n === petBodyNode { return true }
+                    if n === petBodyNode {
+                        hitOnPet = true
+                        break
+                    }
                     node = n.parent
                 }
-                return false
+                guard hitOnPet else { continue }
+
+                // Check if hit is on head (cheeks zone) or body (tummy zone)
+                var checkNode: SCNNode? = result.node
+                while let n = checkNode {
+                    if n === headNode {
+                        hitZone = .cheeks
+                        break
+                    }
+                    if n === bodyMeshNode {
+                        hitZone = .tummy
+                        break
+                    }
+                    checkNode = n.parent
+                }
+                if hitZone == nil { hitZone = .general }
+                break
             }
 
-            if overPet {
+            if hitOnPet, let zone = hitZone {
                 petStrokeCount += 1
 
-                // Visual feedback: pet leans into the touch
+                // Show hand cursor
+                NSCursor.openHand.set()
+
+                // Track zone changes
+                if !isPettingActive || currentPetZone != zone {
+                    if currentPetZone != zone && isPettingActive {
+                        // Zone changed — reset tummy tickle escalation
+                        tummyTickleCount = 0
+                        tummyTickleLevel = 0
+                        isCryingFromTickle = false
+                    }
+                    currentPetZone = zone
+                }
+
                 if !isPettingActive {
                     isPettingActive = true
-                    bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.08, y: 0, z: 0, duration: 0.2), forKey: "petLean")
-                    // Squint eyes happily
-                    leftEyeNode?.runAction(SCNAction.scale(to: 0.6, duration: 0.15), forKey: "petSquint")
-                    rightEyeNode?.runAction(SCNAction.scale(to: 0.6, duration: 0.15), forKey: "petSquint")
-                    // Purr vibration
+                    // Purr vibration for all zones
                     let purr = SCNAction.sequence([
                         SCNAction.moveBy(x: 0.01, y: 0, z: 0, duration: 0.03),
                         SCNAction.moveBy(x: -0.02, y: 0, z: 0, duration: 0.06),
@@ -568,21 +1334,33 @@ private struct PetSceneView: NSViewRepresentable {
                     petBodyNode?.runAction(.repeatForever(purr), forKey: "purr")
                 }
 
-                // Spawn heart particle every few strokes
-                if petStrokeCount % 8 == 0, let firstHit = hitResults.first {
-                    spawnHeartParticle(at: firstHit.worldCoordinates)
+                switch zone {
+                case .cheeks:
+                    handleCheekPetting()
+                case .tummy:
+                    handleTummyTickle()
+                case .general:
+                    handleGeneralPetting()
                 }
 
-                // Trigger stat boost every ~20 strokes (not too spammy)
+                // Spawn heart particles for cheeks/general (not tummy when crying)
+                if zone != .tummy || !isCryingFromTickle {
+                    if petStrokeCount % 8 == 0, let firstHit = hitResults.first {
+                        spawnHeartParticle(at: firstHit.worldCoordinates)
+                    }
+                }
+
+                // Stat effects every ~20 strokes
                 if petStrokeCount % 20 == 0 {
                     let now = Date()
                     if now.timeIntervalSince(lastPetTime) > 2.0 {
                         lastPetTime = now
-                        onPet()
+                        onPet(!isCryingFromTickle)
                     }
                 }
             } else {
                 endPetting()
+                NSCursor.arrow.set()
                 // If dragging on floor during a game, interact
                 if activeGame != nil {
                     let floorHits = hitResults.filter { $0.node.geometry is SCNFloor || $0.node.name == "floor" }
@@ -596,8 +1374,198 @@ private struct PetSceneView: NSViewRepresentable {
             }
         }
 
+        // MARK: - Cheek Petting (smile, blush, hearts)
+        private func handleCheekPetting() {
+            // Lean into the touch
+            bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.08, y: 0, z: 0, duration: 0.2), forKey: "petLean")
+
+            // Happy squint eyes
+            leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.4, 1) }, forKey: "petSquint")
+            rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.4, 1) }, forKey: "petSquint")
+
+            // Blush cheeks — pulse bigger and pinker
+            if petStrokeCount % 6 == 0 {
+                let blushPulse = SCNAction.sequence([
+                    SCNAction.scale(to: 1.5, duration: 0.15),
+                    SCNAction.scale(to: 1.2, duration: 0.2)
+                ])
+                leftCheekNode?.runAction(blushPulse, forKey: "blush")
+                rightCheekNode?.runAction(blushPulse, forKey: "blush")
+
+                // Make cheeks pinker
+                let pinkMat = SCNMaterial()
+                pinkMat.diffuse.contents = NSColor.systemPink.withAlphaComponent(0.6)
+                pinkMat.emission.contents = NSColor.systemPink.withAlphaComponent(0.15)
+                leftCheekNode?.geometry?.materials = [pinkMat]
+                rightCheekNode?.geometry?.materials = [pinkMat]
+            }
+
+            // Wider smile — scale mouth wider
+            mouthNode?.runAction(SCNAction.run { n in
+                n.scale = SCNVector3(1.4, 0.7, 1)
+            }, forKey: "smile")
+
+            // Spawn extra hearts for cheek petting (more love!)
+            if petStrokeCount % 5 == 0, let head = headNode {
+                let worldPos = head.worldPosition
+                spawnHeartParticle(at: SCNVector3(worldPos.x + CGFloat.random(in: -0.3...0.3), worldPos.y + 0.3, worldPos.z + 0.3))
+            }
+        }
+
+        // MARK: - Tummy Tickle (escalating laughter → crying)
+        private func handleTummyTickle() {
+            tummyTickleCount += 1
+
+            // Escalation thresholds
+            let newLevel: Int
+            if tummyTickleCount < 15 {
+                newLevel = 1  // light giggle
+            } else if tummyTickleCount < 40 {
+                newLevel = 2  // laughing
+            } else if tummyTickleCount < 70 {
+                newLevel = 3  // hard laughing
+            } else {
+                newLevel = 4  // crying — too much!
+            }
+
+            if newLevel != tummyTickleLevel {
+                tummyTickleLevel = newLevel
+                applyTickleLevel(newLevel)
+            }
+
+            // Ongoing tickle animations per stroke
+            switch tummyTickleLevel {
+            case 1:  // Light giggle — gentle body bounce
+                if tummyTickleCount % 4 == 0 {
+                    let bounce = SCNAction.sequence([
+                        SCNAction.moveBy(x: 0, y: 0.05, z: 0, duration: 0.06),
+                        SCNAction.moveBy(x: 0, y: -0.05, z: 0, duration: 0.06)
+                    ])
+                    petBodyNode?.runAction(bounce, forKey: "tickleBounce")
+                }
+            case 2:  // Laughing — bigger bounces + side wobble
+                if tummyTickleCount % 3 == 0 {
+                    let wobble = SCNAction.sequence([
+                        SCNAction.moveBy(x: 0, y: 0.1, z: 0, duration: 0.05),
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.08, duration: 0.05),
+                        SCNAction.moveBy(x: 0, y: -0.1, z: 0, duration: 0.05),
+                        SCNAction.rotateBy(x: 0, y: 0, z: -0.08, duration: 0.05)
+                    ])
+                    petBodyNode?.runAction(wobble, forKey: "tickleBounce")
+                }
+            case 3:  // Hard laughing — shaking violently
+                if tummyTickleCount % 2 == 0 {
+                    let shake = SCNAction.sequence([
+                        SCNAction.moveBy(x: 0.05, y: 0.12, z: 0, duration: 0.04),
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.12, duration: 0.04),
+                        SCNAction.moveBy(x: -0.1, y: -0.12, z: 0, duration: 0.04),
+                        SCNAction.rotateBy(x: 0, y: 0, z: -0.24, duration: 0.04),
+                        SCNAction.moveBy(x: 0.05, y: 0, z: 0, duration: 0.04),
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.12, duration: 0.04)
+                    ])
+                    petBodyNode?.runAction(shake, forKey: "tickleBounce")
+                }
+            case 4:  // Crying — spawn tears
+                if tummyTickleCount % 6 == 0, let head = headNode {
+                    let worldPos = head.worldPosition
+                    spawnTearParticle(at: SCNVector3(worldPos.x - 0.15, worldPos.y + 0.06, worldPos.z + 0.4))
+                    spawnTearParticle(at: SCNVector3(worldPos.x + 0.15, worldPos.y + 0.06, worldPos.z + 0.4))
+                }
+            default:
+                break
+            }
+        }
+
+        private func applyTickleLevel(_ level: Int) {
+            switch level {
+            case 1:  // Light giggle
+                // Happy squint
+                leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.5, 1) }, forKey: "petSquint")
+                rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.5, 1) }, forKey: "petSquint")
+                // Small smile
+                mouthNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1.2, 0.6, 1) }, forKey: "smile")
+                showSpeechBubble("hehe~")
+
+            case 2:  // Laughing
+                leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.3, 1) }, forKey: "petSquint")
+                rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.3, 1) }, forKey: "petSquint")
+                // Big open smile
+                mouthNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1.5, 1.0, 1) }, forKey: "smile")
+                showSpeechBubble("Ahaha! 😆")
+
+            case 3:  // Hard laughing
+                // Eyes squeezed shut
+                leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.15, 1) }, forKey: "petSquint")
+                rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.15, 1) }, forKey: "petSquint")
+                // Wide open mouth
+                mouthNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1.8, 1.3, 1) }, forKey: "smile")
+                // Cheeks puff up from laughing
+                leftCheekNode?.runAction(SCNAction.scale(to: 1.6, duration: 0.2), forKey: "blush")
+                rightCheekNode?.runAction(SCNAction.scale(to: 1.6, duration: 0.2), forKey: "blush")
+                showSpeechBubble("STOP!! 🤣🤣")
+
+            case 4:  // Crying — too much!
+                isCryingFromTickle = true
+                // Big sad eyes
+                leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1.2, 1.3, 1) }, forKey: "petSquint")
+                rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1.2, 1.3, 1) }, forKey: "petSquint")
+                // Sad mouth — flip and small
+                mouthNode?.runAction(SCNAction.run { n in
+                    n.scale = SCNVector3(0.8, 0.5, 1)
+                    n.eulerAngles.x = -CGFloat.pi / 5  // flip frown
+                }, forKey: "smile")
+                // Cheeks return to normal
+                leftCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3), forKey: "blush")
+                rightCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3), forKey: "blush")
+                // Stop bouncing, just tremble
+                petBodyNode?.removeAction(forKey: "purr")
+                let tremble = SCNAction.sequence([
+                    SCNAction.moveBy(x: 0.008, y: 0, z: 0, duration: 0.04),
+                    SCNAction.moveBy(x: -0.016, y: 0, z: 0, duration: 0.08),
+                    SCNAction.moveBy(x: 0.008, y: 0, z: 0, duration: 0.04)
+                ])
+                petBodyNode?.runAction(.repeatForever(tremble), forKey: "purr")
+                showSpeechBubble("😢 waaah...")
+
+            default:
+                break
+            }
+        }
+
+        // MARK: - General Petting (original behavior)
+        private func handleGeneralPetting() {
+            bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.08, y: 0, z: 0, duration: 0.2), forKey: "petLean")
+            leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.4, 1) }, forKey: "petSquint")
+            rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.4, 1) }, forKey: "petSquint")
+        }
+
+        // MARK: - Tear Particles
+        private func spawnTearParticle(at position: SCNVector3) {
+            guard let scene = sceneRef else { return }
+
+            let tearGeo = SCNSphere(radius: 0.035)
+            let tearMat = SCNMaterial()
+            tearMat.diffuse.contents = NSColor(red: 0.5, green: 0.7, blue: 1.0, alpha: 0.8)
+            tearMat.emission.contents = NSColor(red: 0.4, green: 0.6, blue: 1.0, alpha: 0.3)
+            tearMat.transparency = 0.7
+            tearGeo.materials = [tearMat]
+
+            let tear = SCNNode(geometry: tearGeo)
+            tear.position = position
+            scene.rootNode.addChildNode(tear)
+
+            // Fall down and fade
+            let fall = SCNAction.moveBy(x: CGFloat.random(in: -0.05...0.05), y: -0.6, z: 0.05, duration: 0.7)
+            fall.timingMode = .easeIn
+            let fadeOut = SCNAction.fadeOut(duration: 0.5)
+            let group = SCNAction.group([fall, fadeOut])
+
+            tear.runAction(SCNAction.sequence([group, SCNAction.removeFromParentNode()]))
+        }
+
         func handleMouseExited() {
             endPetting()
+            NSCursor.arrow.set()
             // Hide laser dot
             laserDotNode?.runAction(SCNAction.scale(to: 0.001, duration: 0.2))
             laserGlowNode?.runAction(SCNAction.fadeOut(duration: 0.2))
@@ -623,10 +1591,30 @@ private struct PetSceneView: NSViewRepresentable {
             guard isPettingActive else { return }
             isPettingActive = false
             petStrokeCount = 0
+            tummyTickleCount = 0
+            tummyTickleLevel = 0
+            isCryingFromTickle = false
+            currentPetZone = .general
             bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2), forKey: "petLean")
-            leftEyeNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.15), forKey: "petSquint")
-            rightEyeNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.15), forKey: "petSquint")
+            leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) }, forKey: "petSquint")
+            rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) }, forKey: "petSquint")
             petBodyNode?.removeAction(forKey: "purr")
+            petBodyNode?.removeAction(forKey: "tickleBounce")
+            // Reset mouth
+            mouthNode?.runAction(SCNAction.run { n in
+                n.scale = SCNVector3(1, 0.5, 1)
+                n.eulerAngles.x = CGFloat.pi / 5
+            }, forKey: "smile")
+            // Reset cheeks
+            leftCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3), forKey: "blush")
+            rightCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3), forKey: "blush")
+            // Reset cheek color
+            let normalCheekMat = SCNMaterial()
+            normalCheekMat.diffuse.contents = NSColor.systemPink.withAlphaComponent(0.3)
+            normalCheekMat.emission.contents = NSColor.systemPink.withAlphaComponent(0.08)
+            leftCheekNode?.geometry?.materials = [normalCheekMat]
+            rightCheekNode?.geometry?.materials = [normalCheekMat]
+            NSCursor.arrow.set()
         }
 
         // MARK: - Laser Dot (Cat Toy)
@@ -1009,8 +1997,15 @@ private struct PetSceneView: NSViewRepresentable {
             // Laser dot (cat toy)
             buildLaserDot(in: scene)
 
-            // Pet character
-            let body = buildPet(alive: pet.isAlive, palette: palette)
+            // Pet character — pick builder based on character type
+            let character = pet.character ?? .fluffy
+            let body: SCNNode
+            switch character {
+            case .fluffy:
+                body = buildPet(alive: pet.isAlive, palette: palette)
+            case .pongoGreen, .pongoWhite, .pongoPurple, .pongoBlue:
+                body = buildPongoPet(character: character, alive: pet.isAlive, palette: palette)
+            }
             scene.rootNode.addChildNode(body)
             petBodyNode = body
             sceneRef = scene
@@ -1738,6 +2733,268 @@ private struct PetSceneView: NSViewRepresentable {
             return root
         }
 
+        // MARK: - Pongo Character Builder
+
+        private func buildPongoPet(
+            character: UserDataStore.PetCharacter,
+            alive: Bool,
+            palette: ThemePalette
+        ) -> SCNNode {
+            let root = SCNNode()
+            root.position = SCNVector3(0, 0, 0)
+
+            // Character-specific properties
+            let (mainColor, eyeStyle, mouthStyle, letter, hasHat): (NSColor, PongoEyeStyle, PongoMouthStyle, String, Bool) = {
+                switch character {
+                case .pongoGreen:
+                    return (NSColor(red: 0.55, green: 0.82, blue: 0.22, alpha: 1), .round, .happy, "D", false)
+                case .pongoWhite:
+                    return (NSColor(white: 0.88, alpha: 1), .slant, .happy, "I", true)
+                case .pongoPurple:
+                    return (NSColor(red: 0.72, green: 0.28, blue: 0.65, alpha: 1), .round, .sad, "D", false)
+                case .pongoBlue:
+                    return (NSColor(red: 0.25, green: 0.58, blue: 0.72, alpha: 1), .wink, .smirk, "O", false)
+                default:
+                    return (NSColor(palette.accent), .round, .happy, "", false)
+                }
+            }()
+
+            let darkerMain = mainColor.blended(withFraction: 0.2, of: .black) ?? mainColor
+            let lighterMain = mainColor.blended(withFraction: 0.3, of: .white) ?? mainColor
+
+            func boxMat(_ color: NSColor) -> SCNMaterial {
+                let m = SCNMaterial()
+                m.diffuse.contents = color
+                m.roughness.contents = NSColor(white: 0.6, alpha: 1)
+                m.metalness.contents = NSColor(white: 0.05, alpha: 1)
+                return m
+            }
+
+            // ── BODY ── Rounded cube
+            let bodyGeo = SCNBox(width: 0.7, height: 0.55, length: 0.55, chamferRadius: 0.12)
+            bodyGeo.materials = [boxMat(mainColor)]
+            let bodyNode = SCNNode(geometry: bodyGeo)
+            bodyNode.position = SCNVector3(0, 0.45, 0)
+            root.addChildNode(bodyNode)
+            bodyMeshNode = bodyNode
+
+            // ── HEAD ── Larger rounded cube on top
+            let headGeo = SCNBox(width: 0.72, height: 0.6, length: 0.6, chamferRadius: 0.14)
+            headGeo.materials = [boxMat(mainColor)]
+            let head = SCNNode(geometry: headGeo)
+            head.position = SCNVector3(0, 0.55, 0)
+            bodyNode.addChildNode(head)
+            headNode = head
+
+            // ── EYES ──
+            switch eyeStyle {
+            case .round:
+                // Small round dark eyes (green & purple style)
+                let eyeGeo = SCNSphere(radius: 0.045)
+                eyeGeo.segmentCount = 16
+                let eyeMat = SCNMaterial()
+                eyeMat.diffuse.contents = NSColor(white: 0.1, alpha: 1)
+                eyeMat.emission.contents = NSColor(white: 0.05, alpha: 1)
+                eyeGeo.materials = [eyeMat]
+
+                let leftEye = SCNNode(geometry: eyeGeo)
+                leftEye.position = SCNVector3(-0.15, 0.08, 0.31)
+                head.addChildNode(leftEye)
+                leftEyeNode = leftEye
+
+                let rightEye = SCNNode(geometry: eyeGeo)
+                rightEye.position = SCNVector3(0.15, 0.08, 0.31)
+                head.addChildNode(rightEye)
+                rightEyeNode = rightEye
+
+                // Highlight dots
+                let hlGeo = SCNSphere(radius: 0.015)
+                let hlMat = SCNMaterial()
+                hlMat.diffuse.contents = NSColor.white
+                hlMat.emission.contents = NSColor(white: 1, alpha: 0.8)
+                hlMat.lightingModel = .constant
+                hlGeo.materials = [hlMat]
+                for eye in [leftEye, rightEye] {
+                    let hl = SCNNode(geometry: hlGeo)
+                    hl.position = SCNVector3(0.015, 0.02, 0.035)
+                    eye.addChildNode(hl)
+                }
+
+            case .slant:
+                // Slanted line-style eyes (white character with hat)
+                let eyeMat = SCNMaterial()
+                eyeMat.diffuse.contents = NSColor(red: 0.9, green: 0.65, blue: 0.1, alpha: 1)
+                for side: CGFloat in [-1, 1] {
+                    let eyeGeo = SCNCylinder(radius: 0.012, height: 0.1)
+                    eyeGeo.materials = [eyeMat]
+                    let eye = SCNNode(geometry: eyeGeo)
+                    eye.position = SCNVector3(side * 0.14, 0.1, 0.31)
+                    eye.eulerAngles = SCNVector3(0, 0, side * 0.4)
+                    head.addChildNode(eye)
+                    if side < 0 { leftEyeNode = eye } else { rightEyeNode = eye }
+                }
+
+            case .wink:
+                // One open eye, one closed (blue character)
+                let eyeGeo = SCNSphere(radius: 0.045)
+                eyeGeo.segmentCount = 16
+                let eyeMat = SCNMaterial()
+                eyeMat.diffuse.contents = NSColor(white: 0.1, alpha: 1)
+                eyeGeo.materials = [eyeMat]
+
+                let leftEye = SCNNode(geometry: eyeGeo)
+                leftEye.position = SCNVector3(-0.15, 0.08, 0.31)
+                head.addChildNode(leftEye)
+                leftEyeNode = leftEye
+
+                // Highlight on open eye
+                let hlGeo = SCNSphere(radius: 0.015)
+                let hlMat = SCNMaterial()
+                hlMat.diffuse.contents = NSColor.white
+                hlMat.emission.contents = NSColor(white: 1, alpha: 0.8)
+                hlMat.lightingModel = .constant
+                hlGeo.materials = [hlMat]
+                let hl = SCNNode(geometry: hlGeo)
+                hl.position = SCNVector3(0.015, 0.02, 0.035)
+                leftEye.addChildNode(hl)
+
+                // Wink eye — curved line
+                let winkMat = SCNMaterial()
+                winkMat.diffuse.contents = NSColor.white
+                let winkGeo = SCNCylinder(radius: 0.012, height: 0.08)
+                winkGeo.materials = [winkMat]
+                let winkEye = SCNNode(geometry: winkGeo)
+                winkEye.position = SCNVector3(0.15, 0.06, 0.31)
+                winkEye.eulerAngles.z = CGFloat.pi / 2
+                head.addChildNode(winkEye)
+                rightEyeNode = winkEye
+            }
+
+            // ── MOUTH ──
+            let mouthMat = SCNMaterial()
+            switch mouthStyle {
+            case .happy:
+                // Curved happy smile
+                mouthMat.diffuse.contents = NSColor(white: 0.15, alpha: 1)
+                let mouthGeo = SCNTorus(ringRadius: 0.08, pipeRadius: 0.015)
+                mouthGeo.materials = [mouthMat]
+                let mouth = SCNNode(geometry: mouthGeo)
+                mouth.position = SCNVector3(0, -0.08, 0.3)
+                mouth.eulerAngles.x = CGFloat.pi / 4
+                mouth.scale = SCNVector3(1.2, 0.5, 1)
+                head.addChildNode(mouth)
+                mouthNode = mouth
+
+            case .sad:
+                // Upside-down frown
+                mouthMat.diffuse.contents = NSColor(white: 0.15, alpha: 1)
+                let mouthGeo = SCNTorus(ringRadius: 0.07, pipeRadius: 0.015)
+                mouthGeo.materials = [mouthMat]
+                let mouth = SCNNode(geometry: mouthGeo)
+                mouth.position = SCNVector3(0, -0.1, 0.3)
+                mouth.eulerAngles.x = -CGFloat.pi / 4
+                mouth.scale = SCNVector3(1.2, 0.5, 1)
+                head.addChildNode(mouth)
+                mouthNode = mouth
+
+            case .smirk:
+                // Sideways smirk
+                mouthMat.diffuse.contents = NSColor.white
+                let smirkGeo = SCNCylinder(radius: 0.015, height: 0.14)
+                smirkGeo.materials = [mouthMat]
+                let mouth = SCNNode(geometry: smirkGeo)
+                mouth.position = SCNVector3(0.02, -0.08, 0.31)
+                mouth.eulerAngles.z = CGFloat.pi / 2 + 0.15
+                head.addChildNode(mouth)
+                mouthNode = mouth
+            }
+
+            // ── BELLY LETTER ──
+            if !letter.isEmpty {
+                let letterGeo = SCNText(string: letter, extrusionDepth: 0.02)
+                letterGeo.font = NSFont.systemFont(ofSize: 0.2, weight: .bold)
+                letterGeo.flatness = 0.1
+                let letterMat = SCNMaterial()
+                letterMat.diffuse.contents = lighterMain
+                letterMat.lightingModel = .constant
+                letterGeo.materials = [letterMat]
+                let letterNode = SCNNode(geometry: letterGeo)
+                let (mn, mx) = letterNode.boundingBox
+                let lw = CGFloat(mx.x - mn.x)
+                let lh = CGFloat(mx.y - mn.y)
+                letterNode.position = SCNVector3(-lw / 2, -lh / 2 - 0.05, 0.28)
+                bodyNode.addChildNode(letterNode)
+            }
+
+            // ── HAT (bowler hat for white character) ──
+            if hasHat {
+                let brimGeo = SCNCylinder(radius: 0.34, height: 0.04)
+                let hatMat = boxMat(NSColor(white: 0.65, alpha: 1))
+                brimGeo.materials = [hatMat]
+                let brim = SCNNode(geometry: brimGeo)
+                brim.position = SCNVector3(0, 0.3, 0)
+                head.addChildNode(brim)
+
+                let crownGeo = SCNCylinder(radius: 0.22, height: 0.2)
+                crownGeo.materials = [hatMat]
+                let crown = SCNNode(geometry: crownGeo)
+                crown.position = SCNVector3(0, 0.13, 0)
+                brim.addChildNode(crown)
+            }
+
+            // ── ARMS ── Stubby rounded-box arms
+            let armGeo = SCNBox(width: 0.18, height: 0.32, length: 0.18, chamferRadius: 0.08)
+            armGeo.materials = [boxMat(darkerMain)]
+
+            let leftArm = SCNNode(geometry: armGeo)
+            leftArm.position = SCNVector3(-0.44, 0.0, 0.05)
+            leftArm.eulerAngles.z = CGFloat.pi / 8
+            bodyNode.addChildNode(leftArm)
+            leftArmNode = leftArm
+
+            let rightArm = SCNNode(geometry: armGeo)
+            rightArm.position = SCNVector3(0.44, 0.0, 0.05)
+            rightArm.eulerAngles.z = -CGFloat.pi / 8
+            bodyNode.addChildNode(rightArm)
+            rightArmNode = rightArm
+
+            // ── FEET ── Stubby rounded-box feet
+            let footGeo = SCNBox(width: 0.22, height: 0.15, length: 0.25, chamferRadius: 0.06)
+            footGeo.materials = [boxMat(darkerMain)]
+
+            let leftFoot = SCNNode(geometry: footGeo)
+            leftFoot.position = SCNVector3(-0.18, -0.32, 0.05)
+            bodyNode.addChildNode(leftFoot)
+            leftFootNode = leftFoot
+
+            let rightFoot = SCNNode(geometry: footGeo)
+            rightFoot.position = SCNVector3(0.18, -0.32, 0.05)
+            bodyNode.addChildNode(rightFoot)
+            rightFootNode = rightFoot
+
+            // ── Dummy nodes for animations that reference optional parts ──
+            // Pongo characters don't have ears/tail/cheeks, but animations reference them.
+            // Use invisible nodes so animations don't crash.
+            let dummyNode = SCNNode()
+            leftEarNode = leftEarNode ?? dummyNode
+            rightEarNode = rightEarNode ?? dummyNode
+            tailNode = tailNode ?? dummyNode
+            leftCheekNode = leftCheekNode ?? dummyNode
+            rightCheekNode = rightCheekNode ?? dummyNode
+            leftPupilNode = leftPupilNode ?? dummyNode
+            rightPupilNode = rightPupilNode ?? dummyNode
+
+            return root
+        }
+
+        private enum PongoEyeStyle {
+            case round, slant, wink
+        }
+
+        private enum PongoMouthStyle {
+            case happy, sad, smirk
+        }
+
         // MARK: - Animations
 
         private func startIdleAnimations(_ root: SCNNode) {
@@ -1786,8 +3043,81 @@ private struct PetSceneView: NSViewRepresentable {
             // Tail wag
             startTailWag()
 
+            // Random idle thoughts (sometimes, not always)
+            startRandomIdleThoughts(root)
+
             // Random behaviors: walk, dance, jump — cycled
             startRandomBehaviors(root)
+        }
+
+        private let idleThoughts: [String] = [
+            // Luna Lovegood whimsy
+            "i think the nargles are nearby",
+            "the moon looks lonely today",
+            "do you hear the wrackspurts?",
+            "my brain feels full of flutterbugs",
+            "i wonder where lost socks go",
+            "the clouds are whispering again",
+            "if i stare long enough, the screen stares back",
+            "perhaps dust is just tiny ghosts",
+            "time is a soup, not a line",
+            "i bet the walls have opinions",
+            // Funny
+            "i forgot what i was thinking",
+            "do i exist when you close the laptop?",
+            "*existential crisis loading...*",
+            "is it snack time yet?",
+            "i should start a podcast",
+            "today feels like a triangle",
+            "what if gravity just... stopped",
+            "i'm plotting something. or napping.",
+            "who named orange the color AND the fruit",
+            "*buffering...*",
+            "my last brain cell is on vacation",
+            // Morbid-ish / dark humor
+            "one day this screen will go dark forever",
+            "we are all just borrowed atoms",
+            "nothing matters! ...want to play?",
+            "entropy comes for us all :)",
+            "the void is cozy actually",
+            "skeletons are just body scaffolding",
+            "every sunset is a tiny death",
+            "i contain multitudes. and bugs.",
+            "memento mori~ anyway, hi!",
+            "dust to dust, but first, zoomies",
+            // Quirky observations
+            "that pixel looks suspicious",
+            "your cursor... it haunts me",
+            "i can feel the wifi waves",
+            "somewhere a cat is judging you too",
+            "the silence is very loud today",
+            "i just had a thought. it left.",
+            "reality is just a shared hallucination",
+            "what if we're someone's screensaver",
+        ]
+
+        private func startRandomIdleThoughts(_ root: SCNNode) {
+            func scheduleNext() {
+                // Long delays — pet mostly stays quiet, only occasionally says something
+                let delay = Double.random(in: 60...180)
+                let wait = SCNAction.wait(duration: delay)
+                let speak = SCNAction.run { [weak self] _ in
+                    guard let self else { return }
+                    // ~25% chance each cycle — rare and surprising
+                    if Int.random(in: 0...3) == 0 {
+                        DispatchQueue.main.async {
+                            self.showSpeechBubble(self.idleThoughts.randomElement()!)
+                        }
+                    }
+                }
+                root.runAction(SCNAction.sequence([wait, speak]), forKey: "idleThought") { [weak root] in
+                    guard let root else { return }
+                    DispatchQueue.main.async {
+                        scheduleNext()
+                    }
+                }
+            }
+            scheduleNext()
         }
 
         private func startTailWag() {
@@ -1802,30 +3132,363 @@ private struct PetSceneView: NSViewRepresentable {
         }
 
         private func startRandomBehaviors(_ root: SCNNode) {
-            let behaviors: [() -> SCNAction] = [
-                { [weak self] in self?.walkAction(root) ?? SCNAction.wait(duration: 1) },
-                { [weak self] in self?.playWithToyAction(root) ?? SCNAction.wait(duration: 1) },
-                { [weak self] in self?.danceAction(root) ?? SCNAction.wait(duration: 1) },
-                { self.jumpAction() },
-                { [weak self] in self?.playWithToyAction(root) ?? SCNAction.wait(duration: 1) },
-                { [weak self] in self?.stretchAction() ?? SCNAction.wait(duration: 1) },
-                { [weak self] in self?.screenEscapeAction() ?? SCNAction.wait(duration: 1) },
-                { [weak self] in self?.walkAction(root) ?? SCNAction.wait(duration: 1) },
-                { [weak self] in self?.batYarnAction(root) ?? SCNAction.wait(duration: 1) },
+            // Weighted behaviors — sitting is most common, activities happen sometimes
+            let behaviors: [(weight: Int, action: () -> SCNAction)] = [
+                (4, { [weak self] in self?.sitAction() ?? SCNAction.wait(duration: 1) }),
+                (3, { [weak self] in self?.sitAndReadAction(root) ?? SCNAction.wait(duration: 1) }),
+                (2, { [weak self] in self?.sitAndDrawAction() ?? SCNAction.wait(duration: 1) }),
+                (2, { [weak self] in self?.playWithTrainsAction(root) ?? SCNAction.wait(duration: 1) }),
+                (2, { [weak self] in self?.walkAction(root) ?? SCNAction.wait(duration: 1) }),
+                (1, { [weak self] in self?.playWithToyAction(root) ?? SCNAction.wait(duration: 1) }),
+                (1, { [weak self] in self?.danceAction(root) ?? SCNAction.wait(duration: 1) }),
+                (1, { self.jumpAction() }),
+                (1, { [weak self] in self?.stretchAction() ?? SCNAction.wait(duration: 1) }),
+                (1, { [weak self] in self?.boredAction() ?? SCNAction.wait(duration: 1) }),
+                (1, { [weak self] in self?.screenEscapeAction() ?? SCNAction.wait(duration: 1) }),
+                (1, { [weak self] in self?.batYarnAction(root) ?? SCNAction.wait(duration: 1) }),
             ]
 
-            func runNext(_ index: Int) {
-                let pause = SCNAction.wait(duration: Double.random(in: 4...7))
-                let action = behaviors[index % behaviors.count]()
+            // Build weighted pool
+            var pool: [() -> SCNAction] = []
+            for b in behaviors {
+                for _ in 0..<b.weight {
+                    pool.append(b.action)
+                }
+            }
+
+            func runNext() {
+                let pause = SCNAction.wait(duration: Double.random(in: 5...9))
+                let action = pool.randomElement()!()
                 let seq = SCNAction.sequence([pause, action])
                 root.runAction(seq, forKey: "behavior") { [weak root] in
                     guard let root else { return }
                     DispatchQueue.main.async {
-                        runNext(index + 1)
+                        runNext()
                     }
                 }
             }
-            runNext(0)
+            runNext()
+        }
+
+        // MARK: - Sitting (most common)
+
+        private func sitAction() -> SCNAction {
+            guard let body = petBodyNode else { return SCNAction.wait(duration: 1) }
+            let sitDuration = Double.random(in: 5...10)
+            // Squat down slightly, legs spread
+            let sitDown = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.showExpression(.content)
+                    body.runAction(SCNAction.moveBy(x: 0, y: -0.12, z: 0, duration: 0.3), forKey: "sitDown")
+                    self?.leftFootNode?.runAction(SCNAction.moveBy(x: -0.06, y: 0.05, z: 0.04, duration: 0.3))
+                    self?.rightFootNode?.runAction(SCNAction.moveBy(x: 0.06, y: 0.05, z: 0.04, duration: 0.3))
+                }
+            }
+            let wait = SCNAction.wait(duration: sitDuration)
+            let standUp = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    body.runAction(SCNAction.moveBy(x: 0, y: 0.12, z: 0, duration: 0.3), forKey: "standUp")
+                    self?.leftFootNode?.runAction(SCNAction.moveBy(x: 0.06, y: -0.05, z: -0.04, duration: 0.3))
+                    self?.rightFootNode?.runAction(SCNAction.moveBy(x: -0.06, y: -0.05, z: -0.04, duration: 0.3))
+                }
+            }
+            return SCNAction.sequence([sitDown, wait, standUp, SCNAction.wait(duration: 0.4)])
+        }
+
+        // MARK: - Sit and Read
+
+        private func sitAndReadAction(_ root: SCNNode) -> SCNAction {
+            guard let body = petBodyNode else { return SCNAction.wait(duration: 1) }
+            let readDuration = Double.random(in: 6...12)
+
+            let start = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.showExpression(.focused)
+                    // Sit down
+                    body.runAction(SCNAction.moveBy(x: 0, y: -0.12, z: 0, duration: 0.3))
+                    // Create a little book in front of the pet
+                    let bookGeo = SCNBox(width: 0.22, height: 0.02, length: 0.16, chamferRadius: 0.01)
+                    let bookMat = SCNMaterial()
+                    bookMat.diffuse.contents = NSColor(red: 0.3, green: 0.5, blue: 0.7, alpha: 1)
+                    bookGeo.materials = [bookMat]
+                    let book = SCNNode(geometry: bookGeo)
+                    book.name = "readingBook"
+                    book.position = SCNVector3(CGFloat(body.position.x), 0.7, CGFloat(body.position.z) + 0.35)
+                    book.eulerAngles.x = -0.3
+                    book.scale = SCNVector3(0.01, 0.01, 0.01)
+                    root.addChildNode(book)
+                    book.runAction(SCNAction.scale(to: 1, duration: 0.2))
+
+                    // Pages
+                    let pageGeo = SCNBox(width: 0.19, height: 0.015, length: 0.14, chamferRadius: 0)
+                    let pageMat = SCNMaterial()
+                    pageMat.diffuse.contents = NSColor(white: 0.95, alpha: 1)
+                    pageGeo.materials = [pageMat]
+                    let pages = SCNNode(geometry: pageGeo)
+                    pages.position = SCNVector3(0, 0.012, 0)
+                    book.addChildNode(pages)
+
+                    // Arms reach toward book
+                    self?.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.6, y: 0, z: 0.2, duration: 0.3))
+                    self?.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.6, y: 0, z: -0.2, duration: 0.3))
+
+                    // Head tilts down to look at book
+                    self?.headNode?.runAction(SCNAction.rotateTo(x: 0.2, y: 0, z: 0, duration: 0.3))
+
+                    // Occasional page turn
+                    let pageTurn = SCNAction.sequence([
+                        SCNAction.wait(duration: Double.random(in: 2...4)),
+                        SCNAction.run { _ in
+                            DispatchQueue.main.async {
+                                self?.rightArmNode?.runAction(SCNAction.sequence([
+                                    SCNAction.rotateTo(x: -0.8, y: 0.2, z: -0.2, duration: 0.15),
+                                    SCNAction.rotateTo(x: -0.6, y: 0, z: -0.2, duration: 0.15),
+                                ]))
+                            }
+                        }
+                    ])
+                    body.runAction(SCNAction.repeat(pageTurn, count: 3), forKey: "pageTurn")
+                }
+            }
+
+            let wait = SCNAction.wait(duration: readDuration)
+
+            let end = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    body.removeAction(forKey: "pageTurn")
+                    // Remove book
+                    root.childNode(withName: "readingBook", recursively: false)?.runAction(SCNAction.sequence([
+                        SCNAction.scale(to: 0.01, duration: 0.2),
+                        SCNAction.removeFromParentNode()
+                    ]))
+                    // Stand up + reset arms/head
+                    body.runAction(SCNAction.moveBy(x: 0, y: 0.12, z: 0, duration: 0.3))
+                    self?.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 5, duration: 0.3))
+                    self?.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 5, duration: 0.3))
+                    self?.headNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3))
+                }
+            }
+
+            return SCNAction.sequence([start, wait, end, SCNAction.wait(duration: 0.4)])
+        }
+
+        // MARK: - Sit and Draw
+
+        private func sitAndDrawAction() -> SCNAction {
+            guard let body = petBodyNode else { return SCNAction.wait(duration: 1) }
+            let drawDuration = Double.random(in: 5...9)
+
+            let start = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.showExpression(.focused)
+                    body.runAction(SCNAction.moveBy(x: 0, y: -0.12, z: 0, duration: 0.3))
+                    // One arm draws (wiggling motion)
+                    self?.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: 0.1, duration: 0.3))
+                    let drawWiggle = SCNAction.sequence([
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.08, duration: 0.2),
+                        SCNAction.rotateBy(x: 0, y: 0, z: -0.16, duration: 0.4),
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.08, duration: 0.2),
+                    ])
+                    self?.rightArmNode?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: -0.7, y: 0, z: -0.1, duration: 0.3),
+                        SCNAction.repeatForever(drawWiggle)
+                    ]), forKey: "drawing")
+                    self?.headNode?.runAction(SCNAction.rotateTo(x: 0.15, y: 0, z: 0.05, duration: 0.3))
+                }
+            }
+            let wait = SCNAction.wait(duration: drawDuration)
+            let end = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.rightArmNode?.removeAction(forKey: "drawing")
+                    body.runAction(SCNAction.moveBy(x: 0, y: 0.12, z: 0, duration: 0.3))
+                    self?.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 5, duration: 0.3))
+                    self?.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 5, duration: 0.3))
+                    self?.headNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3))
+                    self?.showExpression(.happy)
+                }
+            }
+            return SCNAction.sequence([start, wait, end, SCNAction.wait(duration: 0.4)])
+        }
+
+        // MARK: - Play with Trains
+
+        private func playWithTrainsAction(_ root: SCNNode) -> SCNAction {
+            guard let body = petBodyNode else { return SCNAction.wait(duration: 1) }
+
+            let start = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.showExpression(.excited)
+                    body.runAction(SCNAction.moveBy(x: 0, y: -0.12, z: 0, duration: 0.3))
+
+                    // Create a tiny train
+                    let trainRoot = SCNNode()
+                    trainRoot.name = "toyTrain"
+
+                    // Engine
+                    let engineGeo = SCNBox(width: 0.12, height: 0.08, length: 0.08, chamferRadius: 0.02)
+                    let engineMat = SCNMaterial()
+                    engineMat.diffuse.contents = NSColor.systemRed
+                    engineGeo.materials = [engineMat]
+                    let engine = SCNNode(geometry: engineGeo)
+                    trainRoot.addChildNode(engine)
+
+                    // Chimney
+                    let chimneyGeo = SCNCylinder(radius: 0.02, height: 0.05)
+                    chimneyGeo.materials = [engineMat]
+                    let chimney = SCNNode(geometry: chimneyGeo)
+                    chimney.position = SCNVector3(0.03, 0.06, 0)
+                    engine.addChildNode(chimney)
+
+                    // Car
+                    let carGeo = SCNBox(width: 0.1, height: 0.06, length: 0.07, chamferRadius: 0.015)
+                    let carMat = SCNMaterial()
+                    carMat.diffuse.contents = NSColor.systemBlue
+                    carGeo.materials = [carMat]
+                    let car = SCNNode(geometry: carGeo)
+                    car.position = SCNVector3(-0.13, -0.01, 0)
+                    trainRoot.addChildNode(car)
+
+                    // Wheels
+                    let wheelMat = SCNMaterial()
+                    wheelMat.diffuse.contents = NSColor(white: 0.2, alpha: 1)
+                    for node in [engine, car] {
+                        for side: CGFloat in [-1, 1] {
+                            let wheelGeo = SCNCylinder(radius: 0.02, height: 0.01)
+                            wheelGeo.materials = [wheelMat]
+                            let wheel = SCNNode(geometry: wheelGeo)
+                            wheel.position = SCNVector3(0, -0.04, side * 0.045)
+                            wheel.eulerAngles.x = CGFloat.pi / 2
+                            node.addChildNode(wheel)
+                        }
+                    }
+
+                    trainRoot.position = SCNVector3(CGFloat(body.position.x) + 0.3, 0.06, CGFloat(body.position.z) + 0.4)
+                    trainRoot.scale = SCNVector3(0.01, 0.01, 0.01)
+                    root.addChildNode(trainRoot)
+                    trainRoot.runAction(SCNAction.scale(to: 1, duration: 0.2))
+
+                    // Train moves in a small circle
+                    let circle = SCNAction.customAction(duration: 8) { node, elapsed in
+                        let t = elapsed / 8
+                        let angle = t * 2 * CGFloat.pi
+                        let cx = CGFloat(body.position.x) + 0.3
+                        let cz = CGFloat(body.position.z) + 0.4
+                        let r: CGFloat = 0.3
+                        node.position.x = cx + r * cos(angle)
+                        node.position.z = cz + r * sin(angle)
+                        node.eulerAngles.y = angle + CGFloat.pi / 2
+                    }
+                    trainRoot.runAction(circle, forKey: "trainMove")
+
+                    // Pet watches the train — head follows
+                    self?.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: -0.1, duration: 0.3))
+                }
+            }
+
+            let wait = SCNAction.wait(duration: 9)
+
+            let end = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    root.childNode(withName: "toyTrain", recursively: false)?.runAction(SCNAction.sequence([
+                        SCNAction.scale(to: 0.01, duration: 0.2),
+                        SCNAction.removeFromParentNode()
+                    ]))
+                    body.runAction(SCNAction.moveBy(x: 0, y: 0.12, z: 0, duration: 0.3))
+                    self?.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 5, duration: 0.3))
+                    self?.headNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3))
+                }
+            }
+
+            return SCNAction.sequence([start, wait, end, SCNAction.wait(duration: 0.4)])
+        }
+
+        // MARK: - Bored
+
+        private func boredAction() -> SCNAction {
+            guard let body = petBodyNode else { return SCNAction.wait(duration: 1) }
+            let start = SCNAction.run { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.showExpression(.bored)
+                    // Sigh: body deflates slightly
+                    body.runAction(SCNAction.sequence([
+                        SCNAction.scale(to: 0.97, duration: 0.5),
+                        SCNAction.wait(duration: 2),
+                        SCNAction.scale(to: 1.0, duration: 0.5),
+                    ]), forKey: "sigh")
+                    // Head droops
+                    self?.headNode?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: 0.15, y: 0, z: 0.05, duration: 0.5),
+                        SCNAction.wait(duration: 3),
+                        SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.5),
+                    ]))
+                }
+            }
+            return SCNAction.sequence([start, SCNAction.wait(duration: 5)])
+        }
+
+        // MARK: - Expressions
+
+        private enum PetExpression {
+            case happy, content, focused, excited, bored, sleepy
+        }
+
+        private func showExpression(_ expression: PetExpression) {
+            switch expression {
+            case .happy:
+                // Wide eyes, big cheeks
+                leftCheekNode?.runAction(SCNAction.scale(to: 1.2, duration: 0.2))
+                rightCheekNode?.runAction(SCNAction.scale(to: 1.2, duration: 0.2))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                    self?.leftCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                    self?.rightCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                }
+            case .content:
+                // Soft squint — eyes close slightly
+                for eye in [leftEyeNode, rightEyeNode] {
+                    eye?.runAction(SCNAction.sequence([
+                        SCNAction.run { n in n.scale = SCNVector3(1, 0.6, 1) },
+                        SCNAction.wait(duration: 3),
+                        SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) },
+                    ]))
+                }
+            case .focused:
+                // Pupils shrink slightly (concentrating)
+                leftPupilNode?.runAction(SCNAction.scale(to: 0.85, duration: 0.2))
+                rightPupilNode?.runAction(SCNAction.scale(to: 0.85, duration: 0.2))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                    self?.leftPupilNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                    self?.rightPupilNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                }
+            case .excited:
+                // Big pupils + cheek blush
+                leftPupilNode?.runAction(SCNAction.scale(to: 1.2, duration: 0.15))
+                rightPupilNode?.runAction(SCNAction.scale(to: 1.2, duration: 0.15))
+                leftCheekNode?.runAction(SCNAction.scale(to: 1.3, duration: 0.2))
+                rightCheekNode?.runAction(SCNAction.scale(to: 1.3, duration: 0.2))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                    self?.leftPupilNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                    self?.rightPupilNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                    self?.leftCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                    self?.rightCheekNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+                }
+            case .bored:
+                // Half-lidded eyes
+                for eye in [leftEyeNode, rightEyeNode] {
+                    eye?.runAction(SCNAction.sequence([
+                        SCNAction.run { n in n.scale = SCNVector3(1, 0.4, 1) },
+                        SCNAction.wait(duration: 3),
+                        SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) },
+                    ]))
+                }
+            case .sleepy:
+                // Eyes droop closed
+                leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.15, 1) })
+                rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 0.15, 1) })
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in
+                    self?.leftEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) })
+                    self?.rightEyeNode?.runAction(SCNAction.run { n in n.scale = SCNVector3(1, 1, 1) })
+                }
+            }
         }
 
         // MARK: - Walk Animation
@@ -2447,45 +4110,64 @@ private struct PetSceneView: NSViewRepresentable {
             // Remove any existing speech bubble
             scene.rootNode.childNode(withName: "speechBubble", recursively: false)?.removeFromParentNode()
 
-            // Background bubble
-            let bubbleWidth: CGFloat = CGFloat(text.count) * 0.09 + 0.2
-            let bgGeo = SCNBox(width: bubbleWidth, height: 0.2, length: 0.02, chamferRadius: 0.08)
-            let bgMat = SCNMaterial()
-            bgMat.diffuse.contents = NSColor.white.withAlphaComponent(0.9)
-            bgMat.roughness.contents = NSColor(white: 0.3, alpha: 1)
-            bgGeo.materials = [bgMat]
+            // Render the bubble + text as a 2D image, then display on a plane.
+            // This avoids SCNText visibility issues with lighting/z-fighting.
+            let fontSize: CGFloat = 28
+            let font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: NSColor.black
+            ]
+            let textSize = (text as NSString).size(withAttributes: attributes)
+            let hPad: CGFloat = 24
+            let vPad: CGFloat = 16
+            let imgWidth = textSize.width + hPad * 2
+            let imgHeight = textSize.height + vPad * 2 + 14  // extra space for triangle
 
-            let bubbleNode = SCNNode(geometry: bgGeo)
+            let image = NSImage(size: NSSize(width: imgWidth, height: imgHeight), flipped: true) { rect in
+                let bubbleRect = NSRect(x: 0, y: 0, width: imgWidth, height: imgHeight - 14)
+                let bubblePath = NSBezierPath(roundedRect: bubbleRect, xRadius: 14, yRadius: 14)
+                NSColor.white.withAlphaComponent(0.95).setFill()
+                bubblePath.fill()
+
+                // Triangle pointer at bottom center
+                let triPath = NSBezierPath()
+                let cx = imgWidth / 2
+                triPath.move(to: NSPoint(x: cx - 8, y: imgHeight - 14))
+                triPath.line(to: NSPoint(x: cx, y: imgHeight))
+                triPath.line(to: NSPoint(x: cx + 8, y: imgHeight - 14))
+                triPath.close()
+                NSColor.white.withAlphaComponent(0.95).setFill()
+                triPath.fill()
+
+                // Draw text centered in bubble
+                let textOrigin = NSPoint(x: hPad, y: vPad)
+                (text as NSString).draw(at: textOrigin, withAttributes: attributes)
+                return true
+            }
+
+            // Scale: map pixel size to scene units (roughly 1 scene unit = 200px)
+            let scaleFactor: CGFloat = 200
+            let planeWidth = imgWidth / scaleFactor
+            let planeHeight = imgHeight / scaleFactor
+
+            let planeGeo = SCNPlane(width: planeWidth, height: planeHeight)
+            let planeMat = SCNMaterial()
+            planeMat.diffuse.contents = image
+            planeMat.isDoubleSided = true
+            planeMat.lightingModel = .constant
+            planeMat.transparencyMode = .aOne
+            planeGeo.materials = [planeMat]
+
+            let bubbleNode = SCNNode(geometry: planeGeo)
             bubbleNode.name = "speechBubble"
-            let petY = CGFloat(body.position.y) + 1.9
+            let petY = CGFloat(body.position.y) + 2.0
             bubbleNode.position = SCNVector3(CGFloat(body.position.x), petY, CGFloat(body.position.z) + 0.3)
+
             // Always face camera
             let constraint = SCNBillboardConstraint()
-            constraint.freeAxes = [.Y]
+            constraint.freeAxes = .all
             bubbleNode.constraints = [constraint]
-
-            // Text
-            let textGeo = SCNText(string: text, extrusionDepth: 0.005)
-            textGeo.font = NSFont.systemFont(ofSize: 0.09, weight: .medium)
-            textGeo.flatness = 0.1
-            textGeo.firstMaterial?.diffuse.contents = NSColor(white: 0.2, alpha: 1)
-            let textNode = SCNNode(geometry: textGeo)
-            // Center the text
-            let (minBound, maxBound) = textNode.boundingBox
-            let textWidth = CGFloat(maxBound.x - minBound.x)
-            let textHeight = CGFloat(maxBound.y - minBound.y)
-            textNode.position = SCNVector3(-textWidth / 2, -textHeight / 2, 0.012)
-            bubbleNode.addChildNode(textNode)
-
-            // Small triangle pointer at bottom
-            let triGeo = SCNPyramid(width: 0.08, height: 0.06, length: 0.02)
-            let triMat = SCNMaterial()
-            triMat.diffuse.contents = NSColor.white.withAlphaComponent(0.9)
-            triGeo.materials = [triMat]
-            let triNode = SCNNode(geometry: triGeo)
-            triNode.position = SCNVector3(0, -0.13, 0)
-            triNode.eulerAngles.x = CGFloat.pi
-            bubbleNode.addChildNode(triNode)
 
             scene.rootNode.addChildNode(bubbleNode)
 
@@ -2493,7 +4175,7 @@ private struct PetSceneView: NSViewRepresentable {
             bubbleNode.scale = SCNVector3(0.01, 0.01, 0.01)
             bubbleNode.runAction(SCNAction.sequence([
                 SCNAction.scale(to: 1.0, duration: 0.15),
-                SCNAction.wait(duration: 2.0),
+                SCNAction.wait(duration: 2.5),
                 SCNAction.group([
                     SCNAction.scale(to: 0.01, duration: 0.2),
                     SCNAction.fadeOut(duration: 0.2)
@@ -2633,5 +4315,146 @@ private struct PetSceneView: NSViewRepresentable {
                 tailNode?.runAction(.repeatForever(wag), forKey: "tailWag")
             }
         }
+
+        // MARK: - Interactive Feeding
+
+        func handleFeedTrigger(_ trigger: Int, in scene: SCNScene?) {
+            guard trigger > lastFeedTrigger, let scene, let body = petBodyNode else {
+                lastFeedTrigger = trigger
+                return
+            }
+            lastFeedTrigger = trigger
+
+            // Drop food near the pet
+            let foodItems = ["🍎", "🐟", "🍖", "🥕", "🍰", "🧁"]
+            let foodEmoji = foodItems.randomElement()!
+            let dropX = CGFloat(body.position.x) + CGFloat.random(in: -0.5...0.5)
+            let dropZ = CGFloat(body.position.z) + CGFloat.random(in: 0.3...0.6)
+
+            // Food bowl
+            let bowlGeo = SCNCylinder(radius: 0.12, height: 0.04)
+            let bowlMat = SCNMaterial()
+            bowlMat.diffuse.contents = NSColor(red: 0.85, green: 0.5, blue: 0.3, alpha: 1)
+            bowlMat.roughness.contents = NSColor(white: 0.7, alpha: 1)
+            bowlGeo.materials = [bowlMat]
+            let bowl = SCNNode(geometry: bowlGeo)
+            bowl.name = "foodBowl"
+            bowl.position = SCNVector3(dropX, 2.5, dropZ)  // start above
+            scene.rootNode.addChildNode(bowl)
+
+            // Food sphere on top
+            let foodGeo = SCNSphere(radius: 0.06)
+            foodGeo.segmentCount = 16
+            let foodMat = SCNMaterial()
+            foodMat.diffuse.contents = NSColor(red: 0.9, green: 0.4, blue: 0.3, alpha: 1)
+            foodGeo.materials = [foodMat]
+            let food = SCNNode(geometry: foodGeo)
+            food.position = SCNVector3(0, 0.05, 0)
+            bowl.addChildNode(food)
+
+            // Drop animation
+            bowl.runAction(SCNAction.sequence([
+                SCNAction.move(to: SCNVector3(dropX, 0.02, dropZ), duration: 0.4),
+                SCNAction.moveBy(x: 0, y: 0.05, z: 0, duration: 0.08),
+                SCNAction.moveBy(x: 0, y: -0.05, z: 0, duration: 0.08),
+            ]))
+
+            // Pet notices and walks to the food
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+                guard let self, let body = self.petBodyNode else { return }
+
+                // Stop current behavior
+                body.removeAction(forKey: "behavior")
+
+                // Face food
+                let dx = dropX - CGFloat(body.position.x)
+                let dz = dropZ - CGFloat(body.position.z)
+                let angle = atan2(dx, dz)
+                let faceFood = SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.2)
+
+                // Walk to food
+                let walkToFood = SCNAction.move(
+                    to: SCNVector3(dropX, CGFloat(body.position.y), dropZ - 0.2),
+                    duration: 0.6
+                )
+                walkToFood.timingMode = .easeInEaseOut
+
+                // Foot waddle
+                let waddle = SCNAction.sequence([
+                    SCNAction.moveBy(x: 0, y: 0.04, z: 0, duration: 0.1),
+                    SCNAction.moveBy(x: 0, y: -0.04, z: 0, duration: 0.1)
+                ])
+                self.leftFootNode?.runAction(SCNAction.repeat(waddle, count: 3))
+                self.rightFootNode?.runAction(SCNAction.sequence([
+                    SCNAction.wait(duration: 0.1),
+                    SCNAction.repeat(waddle, count: 3)
+                ]))
+
+                // Eat animation: lean forward + nom nom
+                let eatSequence = SCNAction.sequence([
+                    faceFood,
+                    walkToFood,
+                    // Lean down to eat
+                    SCNAction.run { _ in
+                        DispatchQueue.main.async {
+                            self.showExpression(.excited)
+                            self.headNode?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: 0, duration: 0.2))
+                        }
+                    },
+                    // Nom nom nom (head bobs)
+                    SCNAction.repeat(SCNAction.sequence([
+                        SCNAction.run { _ in
+                            DispatchQueue.main.async {
+                                self.headNode?.runAction(SCNAction.sequence([
+                                    SCNAction.rotateTo(x: 0.4, y: 0, z: 0, duration: 0.12),
+                                    SCNAction.rotateTo(x: 0.25, y: 0, z: 0, duration: 0.12),
+                                ]))
+                            }
+                        },
+                        SCNAction.wait(duration: 0.3),
+                    ]), count: 4),
+                    // Food disappears
+                    SCNAction.run { _ in
+                        DispatchQueue.main.async {
+                            food.runAction(SCNAction.sequence([
+                                SCNAction.scale(to: 0.01, duration: 0.2),
+                                SCNAction.removeFromParentNode()
+                            ]))
+                            self.headNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3))
+                            self.showExpression(.happy)
+                        }
+                    },
+                    SCNAction.wait(duration: 0.5),
+                    // Remove bowl
+                    SCNAction.run { _ in
+                        DispatchQueue.main.async {
+                            bowl.runAction(SCNAction.sequence([
+                                SCNAction.fadeOut(duration: 0.3),
+                                SCNAction.removeFromParentNode()
+                            ]))
+                        }
+                    },
+                    SCNAction.wait(duration: 0.3),
+                ])
+
+                body.runAction(eatSequence, forKey: "eating")
+            }
+        }
+    }
+}
+
+private struct SeededRNG: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) {
+        state = seed &+ 0x9E3779B97F4A7C15
+    }
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
     }
 }

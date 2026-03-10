@@ -1045,6 +1045,9 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         if component.type == .checklist {
             return true
         }
+        if component.type == .virtualPet {
+            return true
+        }
         if let children = component.children, children.contains(where: { hasEditableContent($0) }) {
             return true
         }
@@ -1218,21 +1221,15 @@ private struct WidgetPanelContentView: View {
             )
             .onHover { _ in }
             .overlay(alignment: .top) {
-                if isHoverEngaged && !isLocked && !isPassive {
-                    // Subtle drag handle indicator
-                    Capsule()
-                        .fill(Color.primary.opacity(0.2))
-                        .frame(width: 32, height: 3)
-                        .padding(.top, 5)
-                        .transition(.opacity)
-                }
-            }
-            .overlay(alignment: .topTrailing) {
-                if isLocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .padding(8)
+                if isHoverEngaged && !isPassive {
+                    WidgetHoverToolbar(
+                        isLocked: isLocked,
+                        onToggleLock: onToggleLock,
+                        onEdit: onEdit,
+                        onRemove: onRemove
+                    )
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             .overlay {
@@ -1313,6 +1310,74 @@ private extension ComponentType {
     }
 }
 
+// MARK: - Hover Toolbar
+
+private struct WidgetHoverToolbar: View {
+    let isLocked: Bool
+    let onToggleLock: () -> Void
+    let onEdit: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            toolbarButton(
+                icon: isLocked ? "lock.fill" : "arrow.up.and.down.and.arrow.left.and.right",
+                tooltip: isLocked ? "Unlock to Move" : "Move (Drag to Reposition)",
+                isHighlighted: !isLocked
+            ) {
+                onToggleLock()
+            }
+
+            toolbarButton(
+                icon: "pencil",
+                tooltip: "Edit Widget"
+            ) {
+                onEdit()
+            }
+
+            toolbarButton(
+                icon: "xmark",
+                tooltip: "Remove Widget",
+                isDestructive: true
+            ) {
+                onRemove()
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 2)
+        }
+    }
+
+    @ViewBuilder
+    private func toolbarButton(
+        icon: String,
+        tooltip: String,
+        isHighlighted: Bool = false,
+        isDestructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(
+                    isDestructive ? Color.red.opacity(0.85) :
+                    isHighlighted ? Color.accentColor :
+                    Color.primary.opacity(0.75)
+                )
+                .frame(width: 22, height: 22)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+    }
+}
+
+// MARK: - Resize Handles
+
 private struct ResizeHandlesOverlay: View {
     let onResizeDrag: (ResizeHandle) -> Void
     let onResizeEnd: () -> Void
@@ -1322,10 +1387,10 @@ private struct ResizeHandlesOverlay: View {
             ZStack {
                 ForEach(ResizeHandle.visibleHandles) { handle in
                     ZStack {
-                        Circle()
-                            .fill(Color.white.opacity(0.7))
-                            .frame(width: 7, height: 7)
-                            .shadow(color: .black.opacity(0.2), radius: 1.5, x: 0, y: 0.5)
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .shadow(color: .black.opacity(0.3), radius: 1.5, x: 0, y: 0.5)
                     }
                     .frame(width: 20, height: 20)
                     .background(Color.clear)

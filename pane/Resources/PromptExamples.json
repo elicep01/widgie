@@ -298,15 +298,6 @@
       "expectedFile": "bookmarks_social.json"
     },
     {
-      "id": "productivity-daily",
-      "prompt": "productivity HQ with day progress goals and a quote",
-      "intentSummary": "Compact daily focus widget with day progress, goals checklist, and motivational quote in hstack two-column layout.",
-      "keySignals": ["productivity hq", "productivity widget", "daily focus", "day progress goals", "focus widget", "goals and progress", "daily goals", "productivity dashboard"],
-      "categories": ["dashboard", "productivity"],
-      "outputHints": ["hstack layout NOT vstack", "340x160 compact size", "day_progress left column", "checklist right column"],
-      "expectedFile": "productivity_daily.json"
-    },
-    {
       "id": "dashboard-morning",
       "prompt": "morning dashboard with time weather calendar and a checklist",
       "intentSummary": "Compact morning dashboard using hstack: clock/weather/day-progress left, calendar+checklist right.",

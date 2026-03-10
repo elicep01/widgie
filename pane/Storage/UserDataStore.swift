@@ -25,11 +25,27 @@ actor UserDataStore {
         var petStates: [String: PetStateData] = [:]                   // key → pet state
     }
 
+    enum PetCharacter: String, Codable, CaseIterable {
+        case fluffy         // Original round Kirby/Molang style
+        case pongoGreen     // Boxy green, happy smile, letter "D"
+        case pongoWhite     // Boxy white with bowler hat, letter "I"
+        case pongoPurple    // Boxy purple, sad face, letter "D"
+        case pongoBlue      // Boxy blue, winking, letter "O"
+
+        static var random: PetCharacter {
+            allCases.randomElement()!
+        }
+    }
+
     struct PetStateData: Codable {
         var health: Double = 100
         var hunger: Double = 100       // 100 = full, 0 = starving
         var happiness: Double = 100
         var isAlive: Bool = true
+        var character: PetCharacter?   // nil = randomly assigned on first load
+        var hasHatched: Bool = false
+        var petName: String?           // user-given name; nil until intro completes
+        var ownerName: String?         // user's name; nil until intro completes
         var birthDate: String          // ISO date
         var lastFedAt: String          // ISO date
         var lastPlayedAt: String       // ISO date
@@ -230,6 +246,7 @@ actor UserDataStore {
     func createPet(for key: String) -> PetStateData {
         let now = isoStamp()
         let state = PetStateData(
+            character: PetCharacter.random,
             birthDate: now, lastFedAt: now, lastPlayedAt: now, lastDecayAt: now
         )
         payload.petStates[key] = state
