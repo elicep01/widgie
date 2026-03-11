@@ -256,7 +256,7 @@ struct WidgetRenderer: View {
             return AnyView(MoodTrackerComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .breathingExercise:
-            return AnyView(BreathingExerciseComponentView(component: component, theme: config.theme))
+            return AnyView(BreathingExerciseComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .virtualPet:
             return AnyView(VirtualPetComponentView(widgetID: config.id, component: component, theme: config.theme))
@@ -5268,6 +5268,7 @@ private typealias AmbientRainSound = AmbientSoundPlayer
 // MARK: - Breathing Exercise
 
 private struct BreathingExerciseComponentView: View {
+    let widgetID: UUID
     let component: ComponentConfig
     let theme: WidgetTheme
 
@@ -5281,7 +5282,12 @@ private struct BreathingExerciseComponentView: View {
     @State private var selectedAnimation: BreathAnimationStyle = .orb
     @State private var waveOffset: Double = 0
     @State private var showSettings = false
+    @State private var settingsLoaded = false
     @Environment(\.widgetScaleFactor) private var scale
+
+    private var storageKey: String {
+        componentStorageKey(widgetID: widgetID, component: component, fallback: "breathing")
+    }
 
     private enum BreathPhase: Equatable {
         case idle, breatheIn, holdIn, breatheOut, holdOut, done
@@ -5366,9 +5372,12 @@ private struct BreathingExerciseComponentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .onAppear {
+            // Load from component config first (defaults)
             if let s = component.soundType, let t = AmbientSoundType(rawValue: s) { selectedSound = t }
             if let a = component.animationStyle, let t = BreathAnimationStyle(rawValue: a) { selectedAnimation = t }
             if let d = component.sessionDuration { selectedDuration = d }
+            // Then override with persisted user settings
+            loadSettings()
         }
         .onDisappear { stopSession() }
     }
@@ -5377,59 +5386,54 @@ private struct BreathingExerciseComponentView: View {
 
     @ViewBuilder
     private func idleView(accentColor: Color, primaryColor: Color, mutedColor: Color) -> some View {
-        Spacer(minLength: 0)
+        ZStack(alignment: .topTrailing) {
+            // Main content — tap to start
+            VStack(spacing: (5 * scale).cgFloat) {
+                Spacer(minLength: 0)
 
-        // Breathing orb preview (static, at resting scale)
-        ZStack {
-            switch selectedAnimation {
-            case .orb:
-                orbAnimation(accentColor: accentColor)
-            case .wave:
-                waveAnimation(accentColor: accentColor)
+                // Breathing orb preview (tap to start)
+                ZStack {
+                    switch selectedAnimation {
+                    case .orb:
+                        orbAnimation(accentColor: accentColor)
+                    case .wave:
+                        waveAnimation(accentColor: accentColor)
+                    }
+                }
+                .frame(width: (80 * scale).cgFloat, height: (80 * scale).cgFloat)
+                .contentShape(Circle())
+                .onTapGesture { startSession() }
+
+                // Current settings summary
+                HStack(spacing: (4 * scale).cgFloat) {
+                    let durLabel = DurationOption.all.first { $0.seconds == selectedDuration }?.label ?? "\(selectedDuration)s"
+                    Text(durLabel)
+                    Text("·")
+                    Image(systemName: selectedSound.icon)
+                    Text("·")
+                    Image(systemName: selectedAnimation.icon)
+                }
+                .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+                .foregroundStyle(mutedColor)
+
+                // Tap hint
+                Text("tap to begin")
+                    .font(.system(size: (7 * scale).cgFloat, weight: .regular))
+                    .foregroundStyle(mutedColor.opacity(0.6))
+
+                Spacer(minLength: 0)
             }
-        }
-        .frame(width: (80 * scale).cgFloat, height: (80 * scale).cgFloat)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        // Current settings summary
-        HStack(spacing: (4 * scale).cgFloat) {
-            let durLabel = DurationOption.all.first { $0.seconds == selectedDuration }?.label ?? "\(selectedDuration)s"
-            Text(durLabel)
-            Text("·")
-            Image(systemName: selectedSound.icon)
-            Text("·")
-            Image(systemName: selectedAnimation.icon)
-        }
-        .font(.system(size: (8 * scale).cgFloat, weight: .medium))
-        .foregroundStyle(mutedColor)
-
-        // Start button
-        Button(action: startSession) {
-            Text("Start")
-                .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, (6 * scale).cgFloat)
-                .background(
-                    RoundedRectangle(cornerRadius: (8 * scale).cgFloat, style: .continuous)
-                        .fill(accentColor)
-                )
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, (8 * scale).cgFloat)
-
-        // Settings gear
-        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings = true } }) {
-            HStack(spacing: (3 * scale).cgFloat) {
+            // Settings gear icon — top right
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings = true } }) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: (9 * scale).cgFloat))
-                Text("Settings")
-                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                    .font(.system(size: (10 * scale).cgFloat))
+                    .foregroundStyle(mutedColor)
+                    .padding((6 * scale).cgFloat)
             }
-            .foregroundStyle(mutedColor)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-
-        Spacer(minLength: 0)
     }
 
     // MARK: - Settings View
@@ -5486,7 +5490,10 @@ private struct BreathingExerciseComponentView: View {
         }
 
         // Done button
-        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings = false } }) {
+        Button(action: {
+            saveSettings()
+            withAnimation(.easeInOut(duration: 0.2)) { showSettings = false }
+        }) {
             Text("Done")
                 .font(.system(size: (10 * scale).cgFloat, weight: .semibold))
                 .foregroundStyle(.white)
@@ -5742,6 +5749,25 @@ private struct BreathingExerciseComponentView: View {
                 phase = .idle
                 circleScale = 0.5
             }
+        }
+    }
+
+    private func loadSettings() {
+        guard !settingsLoaded else { return }
+        settingsLoaded = true
+        Task {
+            let s = await UserDataStore.shared.widgetSettings(for: storageKey)
+            if let v = s["duration"], let n = Int(v) { selectedDuration = n }
+            if let v = s["sound"], let t = AmbientSoundType(rawValue: v) { selectedSound = t }
+            if let v = s["animation"], let t = BreathAnimationStyle(rawValue: v) { selectedAnimation = t }
+        }
+    }
+
+    private func saveSettings() {
+        Task {
+            await UserDataStore.shared.setWidgetSetting("\(selectedDuration)", forKey: "duration", widgetKey: storageKey)
+            await UserDataStore.shared.setWidgetSetting(selectedSound.rawValue, forKey: "sound", widgetKey: storageKey)
+            await UserDataStore.shared.setWidgetSetting(selectedAnimation.rawValue, forKey: "animation", widgetKey: storageKey)
         }
     }
 

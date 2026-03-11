@@ -1229,32 +1229,28 @@ private struct WidgetPanelContentView: View {
                     RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous)
                         .stroke(Color.accentColor.opacity(isActive ? 0.32 : 0), lineWidth: isActive ? 1 : 0)
                 )
-
-            // Control overlays — always positioned within widget bounds,
-            // independent of content size, so they're always accessible.
-            Color.clear
-                .onHover { _ in }
-                .overlay(alignment: .top) {
-                    if isHoverEngaged && !isPassive {
-                        WidgetHoverToolbar(
-                            isLocked: isLocked,
-                            onToggleLock: onToggleLock,
-                            onEdit: onEdit,
-                            onRemove: onRemove
-                        )
-                        .padding(.top, 4)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-                .overlay {
-                    if showsResizeHandles {
-                        ResizeHandlesOverlay(
-                            onResizeDrag: onResizeDrag,
-                            onResizeEnd: onResizeEnd
-                        )
-                    }
-                }
-                .allowsHitTesting(isHoverEngaged || showsResizeHandles)
+        }
+        // Control overlays applied directly so they don't block content clicks.
+        // Each overlay only intercepts hits on its own visible controls.
+        .overlay(alignment: .top) {
+            if isHoverEngaged && !isPassive {
+                WidgetHoverToolbar(
+                    isLocked: isLocked,
+                    onToggleLock: onToggleLock,
+                    onEdit: onEdit,
+                    onRemove: onRemove
+                )
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .overlay {
+            if showsResizeHandles {
+                ResizeHandlesOverlay(
+                    onResizeDrag: onResizeDrag,
+                    onResizeEnd: onResizeEnd
+                )
+            }
         }
         .animation(.easeInOut(duration: 0.18), value: isHoverEngaged)
         .animation(.easeInOut(duration: 0.18), value: isActive)
