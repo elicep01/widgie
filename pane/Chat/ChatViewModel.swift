@@ -34,6 +34,8 @@ final class ChatViewModel: ObservableObject {
         let plan: AgentBuildPlan
         let questions: [ClarificationQuestion]
         let conversation: AgentConversation
+        /// Non-nil when this clarification is for an edit operation.
+        var editingWidgetID: UUID?
     }
 
     init(conversationStore: ConversationStore) {

@@ -355,64 +355,73 @@ final class AppCoordinator {
         Task {
             do {
                 var config: WidgetConfig
-                var isEdit = false
-                if let existingWidgetID, let existing = widgetManager.widgetConfig(for: existingWidgetID) {
-                    // Edit existing widget
-                    isEdit = true
-                    chatViewModel.setProcessing(true, status: "Updating widget...")
-                    chatViewModel.appendTrace("Editing existing widget...")
-                    config = try await aiService.editWidget(existingConfig: existing, editPrompt: prompt)
-                    // Ensure position/size are preserved from the on-screen widget
-                    if config.position == nil { config.position = existing.position }
-                    config.size = existing.size
-                } else {
-                    // New widget — use agentic pipeline with web research
-                    chatViewModel.setProcessing(true, status: "Researching...")
-                    chatViewModel.appendTrace("Analyzing request...")
+                let isEdit = existingWidgetID != nil
+                    && widgetManager.widgetConfig(for: existingWidgetID!) != nil
 
-                    let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
-                    let decision = await agentOrchestrator.plan(
+                // Both new and edit flows go through planning + clarification
+                chatViewModel.setProcessing(true, status: isEdit ? "Analyzing edit..." : "Researching...")
+                chatViewModel.appendTrace(isEdit ? "Analyzing edit request..." : "Analyzing request...")
+
+                let clarificationClient = (aiService as? ProviderBackedAIService).flatMap { try? $0.makeClarificationClient() }
+
+                let decision: AgentPlanningDecision
+                if isEdit, let existing = widgetManager.widgetConfig(for: existingWidgetID!) {
+                    decision = await agentOrchestrator.planEdit(
+                        existingConfig: existing,
+                        editPrompt: prompt,
+                        clarificationClient: clarificationClient
+                    )
+                } else {
+                    decision = await agentOrchestrator.plan(
                         prompt: prompt,
                         clarificationClient: clarificationClient,
                         onTrace: { [weak self] line in
                             Task { @MainActor in
                                 self?.chatViewModel.appendTrace(line)
-                                // Update status with latest trace
                                 if line.hasPrefix("Searching:") || line.hasPrefix("Fetching") || line.hasPrefix("Reading:") {
                                     self?.chatViewModel.setProcessing(true, status: line)
                                 }
                             }
                         }
                     )
+                }
 
-                    switch decision {
-                    case .needsClarification(let plan, let questions, let conversation):
-                        // Show clarification questions in chat with clickable option chips
-                        let questionText = formatClarificationQuestions(questions)
-                        chatViewModel.appendAssistantMessage(questionText)
-                        chatViewModel.clarificationSelections = [:]
-                        chatViewModel.pendingClarification = ChatViewModel.PendingClarification(
-                            plan: plan,
-                            questions: questions,
-                            conversation: conversation
-                        )
-                        chatViewModel.setProcessing(false)
+                switch decision {
+                case .needsClarification(let plan, let questions, let conversation):
+                    // Show clarification questions in chat with clickable option chips
+                    let questionText = formatClarificationQuestions(questions)
+                    chatViewModel.appendAssistantMessage(questionText)
+                    chatViewModel.clarificationSelections = [:]
+                    chatViewModel.pendingClarification = ChatViewModel.PendingClarification(
+                        plan: plan,
+                        questions: questions,
+                        conversation: conversation,
+                        editingWidgetID: existingWidgetID
+                    )
+                    chatViewModel.setProcessing(false)
 
-                        // Wire up the answer handler
-                        chatViewModel.onAnswerClarification = { [weak self] answer in
-                            self?.handleClarificationAnswer(answer, plan: plan, questions: questions, conversation: conversation)
-                        }
-                        return
-
-                    case .ready(let plan):
-                        chatViewModel.appendTrace("Plan ready, generating...")
-                        config = try await executeGeneration(plan: plan)
+                    // Wire up the answer handler
+                    chatViewModel.onAnswerClarification = { [weak self] answer in
+                        self?.handleClarificationAnswer(answer, plan: plan, questions: questions, conversation: conversation, editingWidgetID: existingWidgetID)
                     }
+                    return
 
-                    // Apply user's default theme
-                    let theme = settingsStore.defaultTheme
-                    config.theme = theme
-                    config.background = BackgroundConfig.default(for: theme)
+                case .ready(let plan):
+                    chatViewModel.appendTrace("Plan ready, generating...")
+                    if isEdit, let existing = widgetManager.widgetConfig(for: existingWidgetID!) {
+                        chatViewModel.setProcessing(true, status: "Updating widget...")
+                        let editPrompt = plan.synthesizedPrompt
+                        config = try await aiService.editWidget(existingConfig: existing, editPrompt: editPrompt)
+                        // Preserve position/size from the on-screen widget
+                        if config.position == nil { config.position = existing.position }
+                        config.size = existing.size
+                    } else {
+                        config = try await executeGeneration(plan: plan)
+                        // Apply user's default theme for new widgets
+                        let theme = settingsStore.defaultTheme
+                        config.theme = theme
+                        config.background = BackgroundConfig.default(for: theme)
+                    }
                 }
 
                 finalizeChatWidget(config: config, prompt: prompt, isEdit: isEdit)
@@ -443,8 +452,9 @@ final class AppCoordinator {
         }
     }
 
-    private func handleClarificationAnswer(_ answer: String, plan: AgentBuildPlan, questions: [ClarificationQuestion], conversation: AgentConversation) {
-        chatViewModel.setProcessing(true, status: "Building your widget...")
+    private func handleClarificationAnswer(_ answer: String, plan: AgentBuildPlan, questions: [ClarificationQuestion], conversation: AgentConversation, editingWidgetID: UUID? = nil) {
+        let isEdit = editingWidgetID != nil
+        chatViewModel.setProcessing(true, status: isEdit ? "Updating your widget..." : "Building your widget...")
         chatViewModel.clearTrace()
 
         // Capture structured selections before they get cleared
@@ -473,23 +483,32 @@ final class AppCoordinator {
                 )
 
                 var config: WidgetConfig
+                let resolvedPlan: AgentBuildPlan
                 switch decision {
                 case .needsClarification(let updatedPlan, _, _):
                     // Enough clarification — just build it
                     chatViewModel.appendTrace("Building with your preferences...")
-                    config = try await executeGeneration(plan: updatedPlan)
+                    resolvedPlan = updatedPlan
 
                 case .ready(let updatedPlan):
                     chatViewModel.appendTrace("Plan ready, generating...")
-                    config = try await executeGeneration(plan: updatedPlan)
+                    resolvedPlan = updatedPlan
                 }
 
-                // Apply user's default theme
-                let theme = settingsStore.defaultTheme
-                config.theme = theme
-                config.background = BackgroundConfig.default(for: theme)
+                if isEdit, let editingWidgetID, let existing = widgetManager.widgetConfig(for: editingWidgetID) {
+                    // Edit flow — use enriched prompt from clarification
+                    config = try await aiService.editWidget(existingConfig: existing, editPrompt: resolvedPlan.synthesizedPrompt)
+                    if config.position == nil { config.position = existing.position }
+                    config.size = existing.size
+                } else {
+                    config = try await executeGeneration(plan: resolvedPlan)
+                    // Apply user's default theme for new widgets
+                    let theme = settingsStore.defaultTheme
+                    config.theme = theme
+                    config.background = BackgroundConfig.default(for: theme)
+                }
 
-                finalizeChatWidget(config: config, prompt: plan.originalPrompt + " " + answer)
+                finalizeChatWidget(config: config, prompt: plan.originalPrompt + " " + answer, isEdit: isEdit)
             } catch {
                 // Recovery: build simpler version rather than showing empty error
                 let combinedPrompt = plan.originalPrompt + " " + answer
@@ -498,7 +517,14 @@ final class AppCoordinator {
                 var fallback = recoveryConfig
                 fallback.theme = theme
                 fallback.background = BackgroundConfig.default(for: theme)
-                finalizeChatWidget(config: fallback, prompt: combinedPrompt)
+
+                if let editingWidgetID, let existing = widgetManager.widgetConfig(for: editingWidgetID) {
+                    fallback.id = existing.id
+                    fallback.position = existing.position
+                    fallback.size = existing.size
+                }
+
+                finalizeChatWidget(config: fallback, prompt: combinedPrompt, isEdit: isEdit)
                 let explanation = chatRecoveryExplanation(for: combinedPrompt, error: error)
                 chatViewModel.appendAssistantMessage(explanation)
             }
