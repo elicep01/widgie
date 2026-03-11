@@ -206,12 +206,7 @@ struct GenerationPipeline {
         }
 
         guard var config = generatedConfig else {
-            if isTimeoutFailure(lastGenerationError) {
-                throw AIWidgetServiceError.requestFailed(
-                    "Timed out while generating widget."
-                )
-            }
-
+            // Always try to produce a functional widget — never return empty-handed
             if allowFallbackWidget {
                 if let heuristic = heuristicWidget(
                     for: originalPrompt,
@@ -343,45 +338,105 @@ struct GenerationPipeline {
         theme: WidgetTheme,
         error: Error?
     ) -> WidgetConfig {
-        let headline = ComponentConfig(
+        // Last resort: build the closest functional widget we can.
+        // Extract meaningful content from the prompt to populate the widget.
+        let lower = prompt.lowercased()
+
+        // If the prompt mentions any data type, build a minimal but FUNCTIONAL widget
+        // that actually fetches and displays real data.
+
+        // Multi-component: try to combine the most obvious elements
+        let wantsWeather = lower.contains("weather") || lower.contains("temperature") || lower.contains("forecast")
+        let wantsClock = lower.contains("clock") || lower.contains("time")
+        let wantsDate = lower.contains("date")
+
+        if wantsWeather || wantsClock || wantsDate {
+            var children: [ComponentConfig] = []
+
+            if wantsClock || wantsDate {
+                let clock = ComponentConfig(type: .clock)
+                clock.timezone = "local"
+                clock.format = lower.contains("12") ? "h:mm a" : "HH:mm"
+                clock.font = "sf-mono"
+                clock.size = 32
+                clock.weight = .light
+                clock.color = "primary"
+                children.append(clock)
+            }
+
+            if wantsDate || (!wantsClock && !wantsWeather) {
+                let date = ComponentConfig(
+                    type: .text,
+                    content: "{date}",
+                    font: "sf-pro",
+                    size: 12,
+                    color: "secondary"
+                )
+                children.append(date)
+            }
+
+            if wantsWeather {
+                let location = heuristicExtractCity(from: lower) ?? "New York"
+                let weather = ComponentConfig(type: .weather)
+                weather.location = location
+                weather.temperatureUnit = explicitTemperatureUnit(in: lower) ?? "fahrenheit"
+                children.append(weather)
+            }
+
+            let root = ComponentConfig(
+                type: .vstack,
+                alignment: "leading",
+                spacing: 8,
+                children: children
+            )
+            return WidgetConfig(
+                name: wantsWeather ? "Weather" : "Clock",
+                description: prompt,
+                size: WidgetSize(width: 300, height: CGFloat(80 + children.count * 60)),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: root
+            )
+        }
+
+        // Generic: editable note seeded with the user's intent so they can refine
+        let note = ComponentConfig(type: .note)
+        note.content = ""
+        note.editable = true
+        note.color = "primary"
+
+        let title = ComponentConfig(
             type: .text,
-            content: "Fallback Widget",
+            content: titleFromPrompt(prompt),
             font: "sf-pro",
-            size: 13,
+            size: 14,
             weight: .semibold,
-            color: "secondary"
-        )
-        let body = ComponentConfig(
-            type: .note,
-            content: "Widget generation failed. Edit this widget to refine it.\n\nPrompt: \(prompt)",
-            font: "sf-pro",
-            size: 13,
             color: "primary"
         )
-        body.editable = true
-        var children = [headline, body]
-        if let error {
-            let detail = ComponentConfig(
-                type: .text,
-                content: error.localizedDescription,
-                font: "sf-mono",
-                size: 11,
-                color: "muted",
-                maxLines: 3
-            )
-            children.append(detail)
-        }
+
+        let hint = ComponentConfig(
+            type: .text,
+            content: "Edit this widget to refine it",
+            font: "sf-pro",
+            size: 11,
+            color: "muted"
+        )
+
         let root = ComponentConfig(
             type: .vstack,
             alignment: "leading",
             spacing: 8,
-            children: children
+            children: [title, note, hint]
         )
 
         return WidgetConfig(
-            name: "Fallback Widget",
+            name: titleFromPrompt(prompt),
             description: prompt,
-            size: WidgetSize(width: 380, height: 190),
+            size: WidgetSize(width: 300, height: 190),
             minSize: nil,
             maxSize: nil,
             theme: theme,
@@ -391,6 +446,29 @@ struct GenerationPipeline {
             refreshInterval: 60,
             content: root
         )
+    }
+
+    /// Derive a reasonable widget title from the user's prompt
+    private func titleFromPrompt(_ prompt: String) -> String {
+        let lower = prompt.lowercased()
+        if lower.contains("weather") { return "Weather" }
+        if lower.contains("clock") || lower.contains("time") { return "Clock" }
+        if lower.contains("stock") { return "Stock" }
+        if lower.contains("crypto") || lower.contains("bitcoin") { return "Crypto" }
+        if lower.contains("calendar") || lower.contains("event") { return "Calendar" }
+        if lower.contains("reminder") { return "Reminders" }
+        if lower.contains("note") || lower.contains("memo") { return "Note" }
+        if lower.contains("checklist") || lower.contains("todo") { return "Checklist" }
+        if lower.contains("news") || lower.contains("headline") { return "News" }
+        if lower.contains("music") || lower.contains("playing") { return "Now Playing" }
+        if lower.contains("battery") { return "Battery" }
+        if lower.contains("quote") { return "Quote" }
+        if lower.contains("pomodoro") { return "Pomodoro" }
+        if lower.contains("pet") { return "Virtual Pet" }
+        // Capitalize first few words of the prompt
+        let words = prompt.components(separatedBy: .whitespaces).prefix(4)
+        let title = words.joined(separator: " ")
+        return title.isEmpty ? "Widget" : title
     }
 
     private func isLowQualityGeneratedConfig(_ config: WidgetConfig, prompt: String) -> Bool {
@@ -988,6 +1066,391 @@ struct GenerationPipeline {
             )
         }
 
+        // ── Weather-only (no time requirement) ──
+        let asksWeatherOnly = lower.contains("weather") || lower.contains("wether")
+            || lower.contains("temperature") || lower.contains("temp")
+            || lower.contains("forecast")
+        if asksWeatherOnly {
+            let location = heuristicExtractCity(from: lower) ?? "New York"
+            let unit = explicitTemperatureUnit(in: lower) ?? "fahrenheit"
+            let isForecast = lower.contains("forecast") || lower.contains("3 day") || lower.contains("5 day") || lower.contains("week")
+            let weather = ComponentConfig(type: .weather)
+            weather.location = location
+            weather.temperatureUnit = unit
+            if isForecast {
+                weather.style = "forecast"
+                weather.forecastDays = lower.contains("5") ? 5 : 3
+            }
+            return WidgetConfig(
+                name: "\(location) Weather",
+                description: prompt,
+                size: WidgetSize(width: 320, height: isForecast ? 200 : 170),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: weather
+            )
+        }
+
+        // ── Time-only (digital clock, no weather) ──
+        let asksTimeOnly = lower.contains("time") && !lower.contains("screen time")
+        if asksTimeOnly {
+            let clock = ComponentConfig(type: .clock)
+            clock.timezone = "local"
+            clock.format = lower.contains("12") ? "h:mm a" : "HH:mm"
+            clock.showSeconds = lower.contains("second")
+            clock.font = "sf-mono"
+            clock.size = 42
+            clock.weight = .light
+            clock.color = "primary"
+            return WidgetConfig(
+                name: "Clock",
+                description: prompt,
+                size: WidgetSize(width: 220, height: 100),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 20, trailing: 20),
+                refreshInterval: 60,
+                content: clock
+            )
+        }
+
+        // ── Calendar / schedule ──
+        if lower.contains("calendar") || lower.contains("event") || lower.contains("schedule") || lower.contains("meeting") {
+            let cal = ComponentConfig(type: .calendarNext)
+            cal.maxEvents = 5
+            cal.showCalendarColor = true
+            return WidgetConfig(
+                name: "Upcoming Events",
+                description: prompt,
+                size: WidgetSize(width: 320, height: 240),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: cal
+            )
+        }
+
+        // ── Reminders ──
+        if lower.contains("reminder") {
+            let rem = ComponentConfig(type: .reminders)
+            rem.maxItems = 5
+            return WidgetConfig(
+                name: "Reminders",
+                description: prompt,
+                size: WidgetSize(width: 300, height: 220),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: rem
+            )
+        }
+
+        // ── News / headlines ──
+        if lower.contains("news") || lower.contains("headline") || lower.contains("rss") {
+            let news = ComponentConfig(type: .newsHeadlines)
+            news.maxItems = 5
+            news.feedUrl = "https://feeds.bbci.co.uk/news/rss.xml"
+            news.showFavicon = true
+            return WidgetConfig(
+                name: "News Headlines",
+                description: prompt,
+                size: WidgetSize(width: 340, height: 260),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 600,
+                content: news
+            )
+        }
+
+        // ── Battery ──
+        if lower.contains("battery") {
+            let bat = ComponentConfig(type: .battery)
+            return WidgetConfig(
+                name: "Battery",
+                description: prompt,
+                size: WidgetSize(width: 200, height: 100),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: bat
+            )
+        }
+
+        // ── System stats (CPU, RAM, disk) ──
+        if lower.contains("cpu") || lower.contains("ram") || lower.contains("memory") || lower.contains("system") || lower.contains("disk") {
+            let sys = ComponentConfig(type: .systemStats)
+            return WidgetConfig(
+                name: "System Stats",
+                description: prompt,
+                size: WidgetSize(width: 280, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 10,
+                content: sys
+            )
+        }
+
+        // ── Music / now playing ──
+        if lower.contains("music") || lower.contains("now playing") || lower.contains("spotify") || lower.contains("apple music") || lower.contains("song") {
+            let music = ComponentConfig(type: .musicNowPlaying)
+            music.showAlbumArt = true
+            music.showArtist = true
+            music.showTitle = true
+            music.showProgress = true
+            return WidgetConfig(
+                name: "Now Playing",
+                description: prompt,
+                size: WidgetSize(width: 320, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 5,
+                content: music
+            )
+        }
+
+        // ── Pomodoro / timer ──
+        if lower.contains("pomodoro") || lower.contains("focus timer") {
+            let pom = ComponentConfig(type: .pomodoro)
+            pom.workDuration = 25
+            pom.breakDuration = 5
+            pom.showSessionCount = true
+            return WidgetConfig(
+                name: "Pomodoro Timer",
+                description: prompt,
+                size: WidgetSize(width: 240, height: 200),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 1,
+                content: pom
+            )
+        }
+
+        // ── Timer / stopwatch ──
+        if lower.contains("timer") || lower.contains("stopwatch") {
+            let isStopwatch = lower.contains("stopwatch")
+            let comp = ComponentConfig(type: isStopwatch ? .stopwatch : .timer)
+            if !isStopwatch {
+                comp.duration = 300 // 5 min default
+            }
+            comp.showControls = true
+            return WidgetConfig(
+                name: isStopwatch ? "Stopwatch" : "Timer",
+                description: prompt,
+                size: WidgetSize(width: 220, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 1,
+                content: comp
+            )
+        }
+
+        // ── Quote / inspiration ──
+        if lower.contains("quote") || lower.contains("inspiration") || lower.contains("motivat") {
+            let quote = ComponentConfig(type: .quote)
+            quote.category = "inspirational"
+            quote.showQuotationMarks = true
+            return WidgetConfig(
+                name: "Daily Quote",
+                description: prompt,
+                size: WidgetSize(width: 320, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 3600,
+                content: quote
+            )
+        }
+
+        // ── Day/year progress ──
+        if lower.contains("progress") || lower.contains("day progress") || lower.contains("year progress") {
+            let isYear = lower.contains("year")
+            let prog = ComponentConfig(type: isYear ? .yearProgress : .dayProgress)
+            prog.showPercentage = true
+            return WidgetConfig(
+                name: isYear ? "Year Progress" : "Day Progress",
+                description: prompt,
+                size: WidgetSize(width: 260, height: 100),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: prog
+            )
+        }
+
+        // ── Screen time ──
+        if lower.contains("screen time") {
+            let st = ComponentConfig(type: .screenTime)
+            st.maxApps = 5
+            return WidgetConfig(
+                name: "Screen Time",
+                description: prompt,
+                size: WidgetSize(width: 300, height: 220),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: st
+            )
+        }
+
+        // ── Breathing exercise ──
+        if lower.contains("breath") || lower.contains("meditat") || lower.contains("relax") || lower.contains("calm") {
+            let breath = ComponentConfig(type: .breathingExercise)
+            return WidgetConfig(
+                name: "Breathing Exercise",
+                description: prompt,
+                size: WidgetSize(width: 240, height: 240),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: breath
+            )
+        }
+
+        // ── Shortcut launcher ──
+        if lower.contains("shortcut") || lower.contains("launcher") || lower.contains("app launcher") {
+            let launcher = ComponentConfig(type: .shortcutLauncher)
+            return WidgetConfig(
+                name: "Shortcuts",
+                description: prompt,
+                size: WidgetSize(width: 280, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: launcher
+            )
+        }
+
+        // ── Bookmark links ──
+        if lower.contains("bookmark") || lower.contains("link") || lower.contains("favorite") {
+            let links = ComponentConfig(type: .linkBookmarks)
+            links.style = "grid"
+            return WidgetConfig(
+                name: "Bookmarks",
+                description: prompt,
+                size: WidgetSize(width: 280, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 3600,
+                content: links
+            )
+        }
+
+        // ── Virtual pet ──
+        if lower.contains("pet") || lower.contains("tamagotchi") || lower.contains("virtual pet") {
+            let pet = ComponentConfig(type: .virtualPet)
+            return WidgetConfig(
+                name: "Virtual Pet",
+                description: prompt,
+                size: WidgetSize(width: 300, height: 300),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 8, bottom: 8, leading: 8, trailing: 8),
+                refreshInterval: 60,
+                content: pet
+            )
+        }
+
+        return nil
+    }
+
+    /// Try to extract a recognizable city name from the prompt
+    private func heuristicExtractCity(from normalizedPrompt: String) -> String? {
+        let knownCities: [(tokens: [String], label: String)] = [
+            (["new york", "nyc"], "New York"),
+            (["los angeles", "la"], "Los Angeles"),
+            (["san francisco", "sf"], "San Francisco"),
+            (["chicago"], "Chicago"),
+            (["seattle"], "Seattle"),
+            (["london"], "London"),
+            (["paris"], "Paris"),
+            (["tokyo"], "Tokyo"),
+            (["dubai"], "Dubai"),
+            (["mumbai", "bombay"], "Mumbai"),
+            (["bangalore", "banglore", "bengaluru"], "Bangalore"),
+            (["pune"], "Pune"),
+            (["delhi", "new delhi"], "New Delhi"),
+            (["singapore"], "Singapore"),
+            (["sydney"], "Sydney"),
+            (["toronto"], "Toronto"),
+            (["berlin"], "Berlin"),
+            (["amsterdam"], "Amsterdam"),
+            (["hong kong"], "Hong Kong"),
+            (["shanghai"], "Shanghai"),
+            (["seoul"], "Seoul"),
+            (["bangkok"], "Bangkok"),
+            (["rome"], "Rome"),
+            (["madrid"], "Madrid"),
+            (["lisbon"], "Lisbon"),
+            (["vienna"], "Vienna"),
+            (["zurich"], "Zurich"),
+            (["stockholm"], "Stockholm"),
+            (["tempe"], "Tempe"),
+            (["madison"], "Madison"),
+            (["austin"], "Austin"),
+            (["boston"], "Boston"),
+            (["denver"], "Denver"),
+            (["portland"], "Portland"),
+            (["miami"], "Miami"),
+            (["atlanta"], "Atlanta"),
+            (["dallas"], "Dallas"),
+            (["houston"], "Houston"),
+            (["phoenix"], "Phoenix"),
+            (["nagpur"], "Nagpur"),
+        ]
+        for city in knownCities {
+            for token in city.tokens {
+                if normalizedPrompt.contains(token) { return city.label }
+            }
+        }
         return nil
     }
 
