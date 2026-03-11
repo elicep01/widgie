@@ -417,8 +417,28 @@ final class AppCoordinator {
 
                 finalizeChatWidget(config: config, prompt: prompt, isEdit: isEdit)
             } catch {
-                chatViewModel.setProcessing(false)
-                chatViewModel.appendAssistantMessage("Something went wrong: \(userFacingErrorMessage(for: error))\n\nTry describing what you want differently.")
+                // Never fail silently — always try to produce SOMETHING
+                chatViewModel.appendTrace("Generation hit an issue, attempting recovery...")
+
+                // Try emergency recovery: build a simpler version of what the user asked
+                let recoveryConfig = emergencyRecoveryWidget(for: prompt, details: error.localizedDescription)
+                let theme = settingsStore.defaultTheme
+                var fallback = recoveryConfig
+                fallback.theme = theme
+                fallback.background = BackgroundConfig.default(for: theme)
+
+                if let existingWidgetID, let existing = widgetManager.widgetConfig(for: existingWidgetID) {
+                    // Edit recovery — preserve ID/position/size
+                    fallback.id = existing.id
+                    fallback.position = existing.position
+                    fallback.size = existing.size
+                }
+
+                finalizeChatWidget(config: fallback, prompt: prompt, isEdit: existingWidgetID != nil)
+
+                // Explain what happened and invite refinement
+                let explanation = chatRecoveryExplanation(for: prompt, error: error)
+                chatViewModel.appendAssistantMessage(explanation)
             }
         }
     }
@@ -471,8 +491,16 @@ final class AppCoordinator {
 
                 finalizeChatWidget(config: config, prompt: plan.originalPrompt + " " + answer)
             } catch {
-                chatViewModel.setProcessing(false)
-                chatViewModel.appendAssistantMessage("Something went wrong: \(userFacingErrorMessage(for: error))\n\nTry describing what you want differently.")
+                // Recovery: build simpler version rather than showing empty error
+                let combinedPrompt = plan.originalPrompt + " " + answer
+                let recoveryConfig = emergencyRecoveryWidget(for: combinedPrompt, details: error.localizedDescription)
+                let theme = settingsStore.defaultTheme
+                var fallback = recoveryConfig
+                fallback.theme = theme
+                fallback.background = BackgroundConfig.default(for: theme)
+                finalizeChatWidget(config: fallback, prompt: combinedPrompt)
+                let explanation = chatRecoveryExplanation(for: combinedPrompt, error: error)
+                chatViewModel.appendAssistantMessage(explanation)
             }
         }
     }
@@ -516,6 +544,33 @@ final class AppCoordinator {
         } else {
             chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" created! You can continue chatting to make changes.")
         }
+    }
+
+    /// Build a helpful message explaining what went wrong and how the user can refine the widget.
+    private func chatRecoveryExplanation(for prompt: String, error: Error) -> String {
+        let errorDetail = userFacingErrorMessage(for: error)
+        let lower = prompt.lowercased()
+
+        var message = "I ran into an issue generating the full widget you asked for, so I built a simpler version to start with.\n\n"
+        message += "**What happened:** \(errorDetail)\n\n"
+        message += "You can refine it by telling me what to change — for example:\n"
+
+        if lower.contains("weather") || lower.contains("forecast") || lower.contains("temperature") {
+            message += "- \"Show weather for [city] in celsius\"\n"
+            message += "- \"Add a 3-day forecast\"\n"
+            message += "- \"Show high/low temperatures\"\n"
+        } else if lower.contains("clock") || lower.contains("time") {
+            message += "- \"Make it a 12-hour clock\"\n"
+            message += "- \"Add the date below\"\n"
+        } else if lower.contains("stock") || lower.contains("crypto") {
+            message += "- \"Show [ticker] price with a chart\"\n"
+        } else {
+            message += "- Describe a simpler version of what you want\n"
+            message += "- Break it into steps (e.g., \"first add weather, then add the clock\")\n"
+        }
+        message += "\nJust tell me what to change and I'll update it!"
+
+        return message
     }
 
     private func formatClarificationQuestions(_ questions: [ClarificationQuestion]) -> String {
@@ -718,9 +773,8 @@ final class AppCoordinator {
                                 )
                                 return
                             }
-                            throw AIWidgetServiceError.requestFailed(
-                                "I couldn't reach a reliable confidence score for this request. Please add more details and try again."
-                            )
+                            // No follow-up questions possible — use what we have rather than failing
+                            commandBarWindow.appendAgentTrace("Using best-effort result (confidence: \(Int(outcome.confidence * 100))%)")
                         }
                         config = outcome.config
                         commandBarWindow.completeChecklistItem(id: "build")
@@ -773,14 +827,36 @@ final class AppCoordinator {
                 if !isEditing, offerStuckClarificationsIfHelpful(prompt: originalPrompt, error: error) {
                     return
                 }
-                if isTimeoutError(error) {
-                    commandBarWindow.setStatus(
-                        refinementQuestionsAfterTimeout(for: originalPrompt),
-                        isError: true
-                    )
-                } else {
-                    commandBarWindow.setStatus(userFacingErrorMessage(for: error), isError: true)
+
+                // Last resort: always produce a widget rather than showing just an error
+                let recoveryConfig = emergencyRecoveryWidget(for: originalPrompt, details: error.localizedDescription)
+                let theme = settingsStore.defaultTheme
+                var fallback = recoveryConfig
+                fallback.theme = theme
+                fallback.background = BackgroundConfig.default(for: theme)
+
+                if isEditing, let editingWidgetID, let existing = widgetManager.widgetConfig(for: editingWidgetID) {
+                    fallback.id = existing.id
+                    fallback.position = existing.position
+                    fallback.size = existing.size
                 }
+
+                widgetManager.createOrUpdateWidget(fallback, forceAutoFit: true)
+                refreshMenuState()
+                editingWidgetID = nil
+
+                let statusMsg = "Built a starting version. Tweak it to refine! (\(userFacingErrorMessage(for: error)))"
+                commandBarWindow.showFeedback(
+                    widgetID: fallback.id,
+                    originalPrompt: originalPrompt,
+                    onAccepted: {},
+                    onTweak: { [weak self] widgetID, original in
+                        guard let self else { return }
+                        self.commandBarWindow.hide()
+                        self.showCommandBar(prefill: original, editingWidgetID: widgetID)
+                    }
+                )
+                commandBarWindow.setStatus(statusMsg, isError: false)
             }
         }
     }
@@ -1540,54 +1616,226 @@ final class AppCoordinator {
 
     private func emergencyRecoveryWidget(for prompt: String, details: String) -> WidgetConfig {
         let lower = prompt.lowercased()
+
+        // Try specialized recovery widgets first
         if let timeWeather = emergencyTimeWeatherWidget(for: prompt, normalizedPrompt: lower) {
             return timeWeather
         }
 
-        let title = ComponentConfig(
+        let theme = settingsStore.defaultTheme
+
+        // Weather-only recovery
+        if lower.contains("weather") || lower.contains("forecast") || lower.contains("temperature") {
+            let location = extractFirstCity(from: prompt) ?? "New York"
+            let unit = lower.contains("celsius") || lower.contains("°c") ? "celsius" : "fahrenheit"
+            let weather = ComponentConfig(type: .weather)
+            weather.location = location
+            weather.temperatureUnit = unit
+            weather.style = lower.contains("forecast") ? "forecast" : nil
+            if lower.contains("forecast") { weather.forecastDays = 3 }
+            return WidgetConfig(
+                name: "\(location) Weather",
+                description: prompt,
+                size: WidgetSize(width: 320, height: lower.contains("forecast") ? 200 : 170),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: weather
+            )
+        }
+
+        // Clock-only recovery
+        if lower.contains("clock") || lower.contains("time") {
+            let isAnalog = lower.contains("analog")
+            let clock = ComponentConfig(type: isAnalog ? .analogClock : .clock)
+            clock.timezone = "local"
+            if !isAnalog {
+                clock.format = lower.contains("12") ? "h:mm a" : "HH:mm"
+                clock.showSeconds = lower.contains("second")
+                clock.font = "sf-mono"
+                clock.size = 42
+                clock.weight = .light
+                clock.color = "primary"
+            }
+            return WidgetConfig(
+                name: "Clock",
+                description: prompt,
+                size: WidgetSize(width: isAnalog ? 200 : 220, height: isAnalog ? 200 : 100),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: clock
+            )
+        }
+
+        // Stock/crypto recovery
+        if lower.contains("stock") || lower.contains("crypto") || lower.contains("bitcoin") || lower.contains("eth") {
+            let isCrypto = lower.contains("crypto") || lower.contains("bitcoin") || lower.contains("eth")
+            let comp = ComponentConfig(type: isCrypto ? .crypto : .stock)
+            if isCrypto {
+                comp.symbol = lower.contains("eth") ? "ethereum" : "bitcoin"
+            } else {
+                comp.symbol = "AAPL"
+                // Try to extract ticker
+                let words = prompt.uppercased().components(separatedBy: .whitespaces)
+                for word in words where word.count <= 5 && word == word.uppercased() && word.rangeOfCharacter(from: .letters) != nil {
+                    if !["STOCK", "THE", "SHOW", "PRICE", "FOR", "AND", "WITH"].contains(word) {
+                        comp.symbol = word
+                        break
+                    }
+                }
+            }
+            return WidgetConfig(
+                name: isCrypto ? "Crypto" : "Stock",
+                description: prompt,
+                size: WidgetSize(width: 280, height: 160),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: comp
+            )
+        }
+
+        // Checklist / to-do recovery
+        if lower.contains("checklist") || lower.contains("todo") || lower.contains("to-do") || lower.contains("task") {
+            let checklist = ComponentConfig(type: .checklist)
+            checklist.items = [
+                ChecklistItemConfig(id: UUID().uuidString, text: "Item 1", checked: false),
+                ChecklistItemConfig(id: UUID().uuidString, text: "Item 2", checked: false),
+                ChecklistItemConfig(id: UUID().uuidString, text: "Item 3", checked: false)
+            ]
+            checklist.editable = true
+            return WidgetConfig(
+                name: "Checklist",
+                description: prompt,
+                size: WidgetSize(width: 280, height: 200),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: checklist
+            )
+        }
+
+        // Note / text recovery
+        if lower.contains("note") || lower.contains("memo") || lower.contains("sticky") {
+            let note = ComponentConfig(type: .note)
+            note.content = "Type your note here..."
+            note.editable = true
+            note.color = "primary"
+            return WidgetConfig(
+                name: "Note",
+                description: prompt,
+                size: WidgetSize(width: 280, height: 200),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 60,
+                content: note
+            )
+        }
+
+        // Calendar recovery
+        if lower.contains("calendar") || lower.contains("event") || lower.contains("schedule") {
+            let cal = ComponentConfig(type: .calendarNext)
+            cal.maxEvents = 5
+            return WidgetConfig(
+                name: "Upcoming Events",
+                description: prompt,
+                size: WidgetSize(width: 320, height: 220),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 300,
+                content: cal
+            )
+        }
+
+        // News recovery
+        if lower.contains("news") || lower.contains("headline") || lower.contains("rss") {
+            let news = ComponentConfig(type: .newsHeadlines)
+            news.maxItems = 5
+            news.feedUrl = "https://feeds.bbci.co.uk/news/rss.xml"
+            return WidgetConfig(
+                name: "News Headlines",
+                description: prompt,
+                size: WidgetSize(width: 340, height: 240),
+                minSize: nil, maxSize: nil,
+                theme: theme,
+                background: BackgroundConfig.default(for: theme),
+                cornerRadius: 20,
+                padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
+                refreshInterval: 600,
+                content: news
+            )
+        }
+
+        // Generic fallback — editable note with the user's prompt as starting point
+        let titleComp = ComponentConfig(
             type: .text,
-            content: "Recovery Widget",
+            content: "Your Widget",
             font: "sf-pro",
-            size: 13,
+            size: 14,
             weight: .semibold,
-            color: "secondary"
-        )
-        let note = ComponentConfig(
-            type: .note,
-            content: "widgie recovered from an AI schema error and created this editable draft.\n\nPrompt: \(prompt)",
-            font: "sf-pro",
-            size: 13,
             color: "primary"
         )
+        let note = ComponentConfig(type: .note)
+        note.content = "I built this as a starting point for: \"\(prompt)\"\n\nEdit this widget to refine it, or describe what you'd like changed."
         note.editable = true
-        let detail = ComponentConfig(
-            type: .text,
-            content: details,
-            font: "sf-mono",
-            size: 11,
-            color: "muted",
-            maxLines: 3
-        )
+        note.color = "secondary"
+        note.font = "sf-pro"
+        note.size = 12
         let root = ComponentConfig(
             type: .vstack,
             alignment: "leading",
             spacing: 8,
-            children: [title, note, detail]
+            children: [titleComp, note]
         )
 
         return WidgetConfig(
-            name: "Recovery Widget",
+            name: "Widget",
             description: prompt,
-            size: WidgetSize(width: 420, height: 190),
+            size: WidgetSize(width: 340, height: 190),
             minSize: nil,
             maxSize: nil,
-            theme: settingsStore.defaultTheme,
-            background: BackgroundConfig.default(for: settingsStore.defaultTheme),
+            theme: theme,
+            background: BackgroundConfig.default(for: theme),
             cornerRadius: 20,
             padding: EdgeInsetsConfig(top: 14, bottom: 14, leading: 14, trailing: 14),
             refreshInterval: 60,
             content: root
         )
+    }
+
+    /// Try to extract a city name from the prompt
+    private func extractFirstCity(from prompt: String) -> String? {
+        let lower = prompt.lowercased()
+        let knownCities = [
+            "new york", "nyc", "los angeles", "chicago", "san francisco", "seattle",
+            "london", "paris", "tokyo", "dubai", "mumbai", "bangalore", "pune",
+            "delhi", "singapore", "sydney", "toronto", "berlin", "amsterdam",
+            "hong kong", "shanghai", "beijing", "seoul", "bangkok", "rome",
+            "madrid", "barcelona", "lisbon", "vienna", "zurich", "stockholm"
+        ]
+        for city in knownCities where lower.contains(city) {
+            return city.capitalized
+        }
+        return nil
     }
 
     private func emergencyTimeWeatherWidget(for prompt: String, normalizedPrompt: String) -> WidgetConfig? {

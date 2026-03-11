@@ -208,6 +208,46 @@ final class ComponentConfig: Codable {
         return false
     }
 
+    /// Stable fingerprint of data-affecting properties.  When this changes the component
+    /// should re-fetch its data (used as SwiftUI `.id()` on data-fetching views).
+    var dataFingerprint: String {
+        var parts: [String] = [type.rawValue]
+        if let v = id { parts.append("id:\(v)") }
+        if let v = location { parts.append("loc:\(v)") }
+        if let v = temperatureUnit { parts.append("unit:\(v)") }
+        if let v = symbol { parts.append("sym:\(v)") }
+        if let v = currency { parts.append("cur:\(v)") }
+        if let v = feedUrl { parts.append("feed:\(v)") }
+        if let v = feedUrls { parts.append("feeds:\(v.joined(separator: ","))") }
+        if let v = timezone { parts.append("tz:\(v)") }
+        if let v = format { parts.append("fmt:\(v)") }
+        if let v = style { parts.append("sty:\(v)") }
+        if let v = forecastDays { parts.append("fd:\(v)") }
+        if let v = list { parts.append("list:\(v)") }
+        if let v = source { parts.append("src:\(v)") }
+        if let v = category { parts.append("cat:\(v)") }
+        if let v = targetDate { parts.append("td:\(v)") }
+        if let v = content { parts.append("ct:\(v)") }
+        if let v = name { parts.append("n:\(v)") }
+        if let v = label { parts.append("lb:\(v)") }
+        if let v = timeRange { parts.append("tr:\(v)") }
+        if let v = maxItems { parts.append("mi:\(v)") }
+        if let v = maxEvents { parts.append("me:\(v)") }
+        if let v = device { parts.append("dev:\(v)") }
+        // Display toggles that affect what data is shown
+        if let v = showTemperature { parts.append("sT:\(v)") }
+        if let v = showCondition { parts.append("sC:\(v)") }
+        if let v = showHighLow { parts.append("sHL:\(v)") }
+        if let v = showHumidity { parts.append("sH:\(v)") }
+        if let v = showWind { parts.append("sW:\(v)") }
+        if let v = showFeelsLike { parts.append("sFL:\(v)") }
+        if let v = showChange { parts.append("sCh:\(v)") }
+        if let v = showPrice { parts.append("sP:\(v)") }
+        if let v = showChart { parts.append("sChart:\(v)") }
+        if let v = chartPeriod { parts.append("cp:\(v)") }
+        return parts.joined(separator: "|")
+    }
+
     init(
         type: ComponentType,
         content: String? = nil,

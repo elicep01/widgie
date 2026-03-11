@@ -182,34 +182,44 @@ struct WidgetRenderer: View {
             return AnyView(ChartComponentView(component: component, theme: config.theme))
 
         case .weather:
-            return AnyView(WeatherComponentView(component: component, theme: config.theme))
+            return AnyView(WeatherComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .stock:
-            return AnyView(StockComponentView(component: component, theme: config.theme))
+            return AnyView(StockComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .crypto:
-            return AnyView(CryptoComponentView(component: component, theme: config.theme))
+            return AnyView(CryptoComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .calendarNext:
-            return AnyView(CalendarNextComponentView(component: component, theme: config.theme))
+            return AnyView(CalendarNextComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .reminders:
-            return AnyView(RemindersComponentView(component: component, theme: config.theme))
+            return AnyView(RemindersComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .battery:
-            return AnyView(BatteryComponentView(component: component, theme: config.theme))
+            return AnyView(BatteryComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .systemStats:
-            return AnyView(SystemStatsComponentView(component: component, theme: config.theme))
+            return AnyView(SystemStatsComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .musicNowPlaying:
-            return AnyView(MusicNowPlayingComponentView(component: component, theme: config.theme))
+            return AnyView(MusicNowPlayingComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .newsHeadlines:
-            return AnyView(NewsHeadlinesComponentView(widgetID: config.id, component: component, theme: config.theme))
+            return AnyView(NewsHeadlinesComponentView(widgetID: config.id, component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .screenTime:
-            return AnyView(ScreenTimeComponentView(component: component, theme: config.theme))
+            return AnyView(ScreenTimeComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .checklist:
             return AnyView(ChecklistComponentView(widgetID: config.id, component: component, theme: config.theme))
@@ -218,7 +228,8 @@ struct WidgetRenderer: View {
             return AnyView(HabitTrackerComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .quote:
-            return AnyView(QuoteComponentView(widgetID: config.id, component: component, theme: config.theme))
+            return AnyView(QuoteComponentView(widgetID: config.id, component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .note:
             return AnyView(NoteComponentView(widgetID: config.id, component: component, theme: config.theme))
@@ -227,13 +238,15 @@ struct WidgetRenderer: View {
             return AnyView(ShortcutLauncherComponentView(component: component, theme: config.theme))
 
         case .linkBookmarks:
-            return AnyView(LinkBookmarksComponentView(component: component, theme: config.theme))
+            return AnyView(LinkBookmarksComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .fileClipboard:
             return AnyView(FileClipboardComponentView(widgetID: config.id, component: component, theme: config.theme))
 
         case .githubRepoStats:
-            return AnyView(GitHubStatsComponentView(component: component, theme: config.theme))
+            return AnyView(GitHubStatsComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
 
         case .periodTracker:
             return AnyView(PeriodTrackerComponentView(widgetID: config.id, component: component, theme: config.theme))
