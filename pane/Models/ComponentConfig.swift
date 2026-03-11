@@ -178,6 +178,10 @@ final class ComponentConfig: Codable {
     var breatheOutDuration: Double?
     var holdDuration: Double?
     var sessionDuration: Int?
+    /// Sound type for breathing exercise: "rain", "binaural", "flute"
+    var soundType: String?
+    /// Animation style for breathing exercise: "orb" (default) or "wave"
+    var animationStyle: String?
     var moods: [String]?
 
     var direction: String?

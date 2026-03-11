@@ -1,22 +1,22 @@
 {
   "id": "meditation",
   "name": "Breathing Exercise",
-  "description": "Guided 1-minute breathing with calming animation and gentle sounds.",
+  "description": "Guided breathing meditation with duration options, calming sounds (rain, binaural, flute), and soothing animations.",
   "category": "health",
   "config": {
     "name": "Breathing Exercise",
-    "description": "Animated breathe in/out meditation",
+    "description": "Animated breathe in/out meditation with sound and duration options",
     "size": {
-      "width": 170,
-      "height": 180
+      "width": 190,
+      "height": 280
     },
     "theme": "obsidian",
     "cornerRadius": 20,
     "padding": {
-      "top": 12,
-      "bottom": 10,
-      "leading": 12,
-      "trailing": 12
+      "top": 10,
+      "bottom": 8,
+      "leading": 10,
+      "trailing": 10
     },
     "refreshInterval": 0,
     "content": {
@@ -25,12 +25,14 @@
       "breatheOutDuration": 6,
       "holdDuration": 5,
       "sessionDuration": 60,
+      "soundType": "rain",
+      "animationStyle": "orb",
       "color": "accent",
       "alignment": "center"
     },
     "maxSize": {
-      "width": 220,
-      "height": 220
+      "width": 240,
+      "height": 340
     }
   }
 }

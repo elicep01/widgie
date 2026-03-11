@@ -14,6 +14,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
     var onSizeChanged: ((WidgetSize) -> Void)?
     var onDragFeedbackRequested: ((CGRect) -> WidgetDragFeedback)?
     var onDragEnded: (() -> Void)?
+    var onUserResizeEnded: (() -> Void)?
     var onAutoSizeCompleted: (() -> Void)?
     var onThemeChanged: ((WidgetTheme) -> Void)?
 
@@ -565,8 +566,11 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             }
         } else {
             cancelHoverActivation()
-            isHoverEngaged = false
+            // Keep hover engaged while the widget is active (e.g. context menu open).
+            // Dropping isHoverEngaged triggers refreshContent() which re-creates the
+            // SwiftUI hierarchy and dismisses any open context menu / submenu.
             if !isActive {
+                isHoverEngaged = false
                 schedulePassivation()
             }
         }
@@ -719,6 +723,7 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
         config.position = WidgetPosition(x: frame.origin.x.double, y: frame.origin.y.double)
         onPositionChanged?(config.position ?? WidgetPosition(x: frame.origin.x.double, y: frame.origin.y.double))
         onSizeChanged?(config.size)
+        onUserResizeEnded?()
         WidgetAnimator.animateResizeRelease(of: self)
         updateCursor(forScreenPoint: NSEvent.mouseLocation)
 
@@ -1031,6 +1036,8 @@ final class WidgetWindow: NSPanel, NSWindowDelegate {
             return CGSize(width: 160, height: 60)
         case .virtualPet:
             return CGSize(width: 280, height: 320)
+        case .breathingExercise:
+            return CGSize(width: 180, height: 260)
         case .countdown, .date, .stock, .crypto, .dayProgress, .yearProgress, .systemStats:
             return CGSize(width: 185, height: 82)
         default:
@@ -1211,40 +1218,49 @@ private struct WidgetPanelContentView: View {
     let onThemeChanged: (WidgetTheme) -> Void
 
     var body: some View {
-        WidgetRenderer(config: config)
-            .scaleEffect(scale)
-            .opacity(isDragging ? 0.60 : 1)
-            .brightness(isHoverEngaged ? 0.02 : 0)
-            .overlay(
-                RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous)
-                    .stroke(Color.accentColor.opacity(isActive ? 0.32 : 0), lineWidth: isActive ? 1 : 0)
-            )
-            .onHover { _ in }
-            .overlay(alignment: .top) {
-                if isHoverEngaged && !isPassive {
-                    WidgetHoverToolbar(
-                        isLocked: isLocked,
-                        onToggleLock: onToggleLock,
-                        onEdit: onEdit,
-                        onRemove: onRemove
-                    )
-                    .padding(.top, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+        ZStack {
+            // Content layer — clipped so it never bleeds outside the widget bounds.
+            WidgetRenderer(config: config)
+                .clipped()
+                .scaleEffect(scale)
+                .opacity(isDragging ? 0.60 : 1)
+                .brightness(isHoverEngaged ? 0.02 : 0)
+                .overlay(
+                    RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous)
+                        .stroke(Color.accentColor.opacity(isActive ? 0.32 : 0), lineWidth: isActive ? 1 : 0)
+                )
+
+            // Control overlays — always positioned within widget bounds,
+            // independent of content size, so they're always accessible.
+            Color.clear
+                .onHover { _ in }
+                .overlay(alignment: .top) {
+                    if isHoverEngaged && !isPassive {
+                        WidgetHoverToolbar(
+                            isLocked: isLocked,
+                            onToggleLock: onToggleLock,
+                            onEdit: onEdit,
+                            onRemove: onRemove
+                        )
+                        .padding(.top, 4)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
                 }
-            }
-            .overlay {
-                if showsResizeHandles {
-                    ResizeHandlesOverlay(
-                        onResizeDrag: onResizeDrag,
-                        onResizeEnd: onResizeEnd
-                    )
+                .overlay {
+                    if showsResizeHandles {
+                        ResizeHandlesOverlay(
+                            onResizeDrag: onResizeDrag,
+                            onResizeEnd: onResizeEnd
+                        )
+                    }
                 }
-            }
-            .animation(.easeInOut(duration: 0.18), value: isHoverEngaged)
-            .animation(.easeInOut(duration: 0.18), value: isActive)
-            .animation(.easeInOut(duration: 0.18), value: isDragging)
-            .animation(.spring(response: 0.28, dampingFraction: 0.74, blendDuration: 0.12), value: isResizing)
-            .contextMenu {
+                .allowsHitTesting(isHoverEngaged || showsResizeHandles)
+        }
+        .animation(.easeInOut(duration: 0.18), value: isHoverEngaged)
+        .animation(.easeInOut(duration: 0.18), value: isActive)
+        .animation(.easeInOut(duration: 0.18), value: isDragging)
+        .animation(.spring(response: 0.28, dampingFraction: 0.74, blendDuration: 0.12), value: isResizing)
+        .contextMenu {
                 Button("Edit Widget") {
                     onEdit()
                 }

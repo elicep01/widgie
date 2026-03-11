@@ -273,6 +273,45 @@ struct WidgetMetadata: Codable {
     var isLocked: Bool
     var isVisible: Bool
     var space: String
+    /// True when the user has manually dragged this widget to a new position.
+    var userHasManuallyPositioned: Bool
+    /// True when the user has manually resized this widget.
+    var userHasManuallyResized: Bool
+
+    init(
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        originalPrompt: String = "",
+        position: WidgetPosition? = nil,
+        isLocked: Bool = false,
+        isVisible: Bool = true,
+        space: String = "all",
+        userHasManuallyPositioned: Bool = false,
+        userHasManuallyResized: Bool = false
+    ) {
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.originalPrompt = originalPrompt
+        self.position = position
+        self.isLocked = isLocked
+        self.isVisible = isVisible
+        self.space = space
+        self.userHasManuallyPositioned = userHasManuallyPositioned
+        self.userHasManuallyResized = userHasManuallyResized
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        originalPrompt = try container.decode(String.self, forKey: .originalPrompt)
+        position = try container.decodeIfPresent(WidgetPosition.self, forKey: .position)
+        isLocked = try container.decode(Bool.self, forKey: .isLocked)
+        isVisible = try container.decode(Bool.self, forKey: .isVisible)
+        space = try container.decode(String.self, forKey: .space)
+        userHasManuallyPositioned = try container.decodeIfPresent(Bool.self, forKey: .userHasManuallyPositioned) ?? false
+        userHasManuallyResized = try container.decodeIfPresent(Bool.self, forKey: .userHasManuallyResized) ?? false
+    }
 }
 
 struct WidgetFileEnvelope: Codable {

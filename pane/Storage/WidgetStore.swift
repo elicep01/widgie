@@ -24,7 +24,12 @@ final class WidgetStore {
         createDirectoriesIfNeeded()
     }
 
-    func save(_ config: WidgetConfig, isLocked: Bool? = nil) {
+    func save(
+        _ config: WidgetConfig,
+        isLocked: Bool? = nil,
+        userHasManuallyPositioned: Bool? = nil,
+        userHasManuallyResized: Bool? = nil
+    ) {
         let url = fileURL(for: config.id)
 
         let metadata: WidgetMetadata
@@ -36,7 +41,9 @@ final class WidgetStore {
                 position: config.position,
                 isLocked: isLocked ?? existing.metadata.isLocked,
                 isVisible: existing.metadata.isVisible,
-                space: existing.metadata.space
+                space: existing.metadata.space,
+                userHasManuallyPositioned: userHasManuallyPositioned ?? existing.metadata.userHasManuallyPositioned,
+                userHasManuallyResized: userHasManuallyResized ?? existing.metadata.userHasManuallyResized
             )
         } else {
             metadata = WidgetMetadata(
@@ -46,12 +53,18 @@ final class WidgetStore {
                 position: config.position,
                 isLocked: isLocked ?? false,
                 isVisible: true,
-                space: "all"
+                space: "all",
+                userHasManuallyPositioned: userHasManuallyPositioned ?? false,
+                userHasManuallyResized: userHasManuallyResized ?? false
             )
         }
 
         let envelope = WidgetFileEnvelope(config: config, metadata: metadata)
         writeEnvelope(envelope, to: url)
+    }
+
+    func loadMetadata(for id: UUID) -> WidgetMetadata? {
+        loadEnvelope(at: fileURL(for: id))?.metadata
     }
 
     func delete(id: UUID) {

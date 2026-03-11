@@ -64,6 +64,7 @@ struct WidgetRenderer: View {
             renderComponent(config.content)
                 .padding(scaledPadding)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: contentAlignment)
+                .clipped()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: config.cornerRadius.cgFloat, style: .continuous))
@@ -5046,23 +5047,65 @@ private struct MoodTrackerComponentView: View {
 // MARK: - Ambient Rain Sound
 
 /// Generates soft rain-like ambient noise using AVAudioEngine with pink noise filtering.
-private final class AmbientRainSound {
-    static let shared = AmbientRainSound()
+// MARK: - Ambient Sound Player (Rain / Binaural / Flute)
+
+private enum AmbientSoundType: String, CaseIterable {
+    case rain
+    case binaural
+    case flute
+
+    var displayName: String {
+        switch self {
+        case .rain: return "Rain"
+        case .binaural: return "Binaural"
+        case .flute: return "Flute"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .rain: return "cloud.rain"
+        case .binaural: return "waveform.path"
+        case .flute: return "music.note"
+        }
+    }
+}
+
+private final class AmbientSoundPlayer {
+    static let shared = AmbientSoundPlayer()
 
     private var engine: AVAudioEngine?
-    private var noiseNode: AVAudioSourceNode?
+    private var sourceNode: AVAudioSourceNode?
     private var activeCount = 0
     private let lock = NSLock()
+    private var currentType: AmbientSoundType = .rain
 
-    // Pink noise state (Voss-McCartney algorithm)
+    // Pink noise state (rain)
     private var pinkRows: [Double] = Array(repeating: 0, count: 16)
     private var pinkRunningSum: Double = 0
     private var pinkIndex: UInt32 = 0
 
-    func start() {
+    // Binaural beat state
+    private var binauralPhaseL: Double = 0
+    private var binauralPhaseR: Double = 0
+    private let binauralBaseFreq: Double = 200   // Left ear base frequency
+    private let binauralBeatFreq: Double = 6     // 6 Hz theta wave (deep relaxation)
+
+    // Flute synth state
+    private var flutePhase: Double = 0
+    private var fluteVibratoPhase: Double = 0
+    private var fluteNotePhase: Double = 0 // slow note changes
+    private var fluteCurrentFreq: Double = 440
+    private var fluteTargetFreq: Double = 440
+    private let fluteNotes: [Double] = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25] // C pentatonic
+
+    func start(type: AmbientSoundType) {
         lock.lock()
+        let typeChanged = currentType != type
+        currentType = type
         activeCount += 1
-        if activeCount == 1 {
+        if activeCount == 1 || typeChanged {
+            if typeChanged { stopEngine() }
             startEngine()
         }
         lock.unlock()
@@ -5083,54 +5126,86 @@ private final class AmbientRainSound {
         let outputFormat = mainMixer.outputFormat(forBus: 0)
         let sampleRate = outputFormat.sampleRate
         guard sampleRate > 0 else { return }
+        let channelCount = outputFormat.channelCount
 
-        // Reset pink noise state
+        // Reset state
         pinkRows = Array(repeating: 0, count: 16)
         pinkRunningSum = 0
         pinkIndex = 0
+        binauralPhaseL = 0
+        binauralPhaseR = 0
+        flutePhase = 0
+        fluteVibratoPhase = 0
+        fluteNotePhase = 0
+        fluteCurrentFreq = fluteNotes.randomElement() ?? 440
+        fluteTargetFreq = fluteCurrentFreq
 
-        let sourceNode = AVAudioSourceNode(format: outputFormat) { [weak self] _, _, frameCount, bufferList -> OSStatus in
+        let type = currentType
+        let node = AVAudioSourceNode(format: outputFormat) { [weak self] _, _, frameCount, bufferList -> OSStatus in
             guard let self else { return noErr }
             let ablPointer = UnsafeMutableAudioBufferListPointer(bufferList)
             for frame in 0..<Int(frameCount) {
-                let sample = Float(self.nextPinkSample() * 0.08) // very soft
-                for buffer in ablPointer {
-                    let buf = buffer.mData?.assumingMemoryBound(to: Float.self)
-                    buf?[frame] = sample
+                switch type {
+                case .rain:
+                    let sample = Float(self.nextPinkSample() * 0.08)
+                    for buffer in ablPointer {
+                        let buf = buffer.mData?.assumingMemoryBound(to: Float.self)
+                        buf?[frame] = sample
+                    }
+                case .binaural:
+                    let (left, right) = self.nextBinauralSample(sampleRate: sampleRate)
+                    if channelCount >= 2 {
+                        let bufL = ablPointer[0].mData?.assumingMemoryBound(to: Float.self)
+                        bufL?[frame] = Float(left)
+                        let bufR = ablPointer[1].mData?.assumingMemoryBound(to: Float.self)
+                        bufR?[frame] = Float(right)
+                    } else {
+                        // Mono fallback — average
+                        let mono = Float((left + right) * 0.5)
+                        for buffer in ablPointer {
+                            let buf = buffer.mData?.assumingMemoryBound(to: Float.self)
+                            buf?[frame] = mono
+                        }
+                    }
+                case .flute:
+                    let sample = Float(self.nextFluteSample(sampleRate: sampleRate))
+                    for buffer in ablPointer {
+                        let buf = buffer.mData?.assumingMemoryBound(to: Float.self)
+                        buf?[frame] = sample
+                    }
                 }
             }
             return noErr
         }
 
-        engine.attach(sourceNode)
-        engine.connect(sourceNode, to: mainMixer, format: outputFormat)
+        engine.attach(node)
+        engine.connect(node, to: mainMixer, format: outputFormat)
         mainMixer.outputVolume = 0.5
 
         do {
             try engine.start()
             self.engine = engine
-            self.noiseNode = sourceNode
+            self.sourceNode = node
         } catch {
-            print("[AmbientRain] Failed to start: \(error)")
+            print("[AmbientSound] Failed to start: \(error)")
         }
     }
 
     private func stopEngine() {
         engine?.stop()
-        if let node = noiseNode {
+        if let node = sourceNode {
             engine?.detach(node)
         }
         engine = nil
-        noiseNode = nil
+        sourceNode = nil
     }
 
-    /// Voss-McCartney pink noise: each octave contributes equally.
+    // MARK: - Rain (Pink Noise)
+
     private func nextPinkSample() -> Double {
         let prev = pinkIndex
         pinkIndex &+= 1
         let changed = pinkIndex ^ prev
-
-        // Find which rows to update (trailing zeros of changed bits)
         for i in 0..<pinkRows.count {
             if changed & (1 << i) != 0 {
                 pinkRunningSum -= pinkRows[i]
@@ -5139,12 +5214,56 @@ private final class AmbientRainSound {
                 pinkRunningSum += newRandom
             }
         }
-
-        // Add fresh white noise for high frequencies
         let whiteNoise = Double.random(in: -1...1)
         return (pinkRunningSum + whiteNoise) / Double(pinkRows.count + 1)
     }
+
+    // MARK: - Binaural Beats
+
+    private func nextBinauralSample(sampleRate: Double) -> (Double, Double) {
+        let freqL = binauralBaseFreq
+        let freqR = binauralBaseFreq + binauralBeatFreq
+        let left = sin(binauralPhaseL) * 0.12
+        let right = sin(binauralPhaseR) * 0.12
+        binauralPhaseL += 2.0 * .pi * freqL / sampleRate
+        binauralPhaseR += 2.0 * .pi * freqR / sampleRate
+        if binauralPhaseL > 2.0 * .pi { binauralPhaseL -= 2.0 * .pi }
+        if binauralPhaseR > 2.0 * .pi { binauralPhaseR -= 2.0 * .pi }
+        return (left, right)
+    }
+
+    // MARK: - Flute Synth
+
+    private func nextFluteSample(sampleRate: Double) -> Double {
+        // Slow note drift — change target every ~4 seconds
+        fluteNotePhase += 1.0 / sampleRate
+        if fluteNotePhase > 4.0 {
+            fluteNotePhase = 0
+            fluteTargetFreq = fluteNotes.randomElement() ?? 440
+        }
+        // Smooth glide between notes
+        fluteCurrentFreq += (fluteTargetFreq - fluteCurrentFreq) * (1.0 / sampleRate) * 2.0
+
+        // Vibrato
+        fluteVibratoPhase += 2.0 * .pi * 5.0 / sampleRate
+        if fluteVibratoPhase > 2.0 * .pi { fluteVibratoPhase -= 2.0 * .pi }
+        let vibrato = sin(fluteVibratoPhase) * 3.0 // ±3 Hz wobble
+
+        let freq = fluteCurrentFreq + vibrato
+        flutePhase += 2.0 * .pi * freq / sampleRate
+        if flutePhase > 2.0 * .pi { flutePhase -= 2.0 * .pi }
+
+        // Breathy flute: fundamental + soft harmonics + breath noise
+        let fundamental = sin(flutePhase)
+        let harmonic2 = sin(flutePhase * 2.0) * 0.3
+        let harmonic3 = sin(flutePhase * 3.0) * 0.08
+        let breath = Double.random(in: -1...1) * 0.04
+        return (fundamental + harmonic2 + harmonic3 + breath) * 0.07
+    }
 }
+
+// Backward compatibility alias
+private typealias AmbientRainSound = AmbientSoundPlayer
 
 // MARK: - Breathing Exercise
 
@@ -5157,10 +5276,49 @@ private struct BreathingExerciseComponentView: View {
     @State private var elapsed: TimeInterval = 0
     @State private var circleScale: CGFloat = 0.5
     @State private var timer: Timer?
+    @State private var selectedDuration: Int = 60
+    @State private var selectedSound: AmbientSoundType = .rain
+    @State private var selectedAnimation: BreathAnimationStyle = .orb
+    @State private var waveOffset: Double = 0
+    @State private var showSettings = false
     @Environment(\.widgetScaleFactor) private var scale
 
     private enum BreathPhase: Equatable {
         case idle, breatheIn, holdIn, breatheOut, holdOut, done
+    }
+
+    private enum BreathAnimationStyle: String, CaseIterable {
+        case orb
+        case wave
+
+        var displayName: String {
+            switch self {
+            case .orb: return "Orb"
+            case .wave: return "Wave"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .orb: return "circle.circle"
+            case .wave: return "water.waves"
+            }
+        }
+    }
+
+    private struct DurationOption: Identifiable {
+        let id: Int
+        let seconds: Int
+        let label: String
+
+        static let all: [DurationOption] = [
+            DurationOption(id: 10, seconds: 10, label: "10s"),
+            DurationOption(id: 30, seconds: 30, label: "30s"),
+            DurationOption(id: 60, seconds: 60, label: "1m"),
+            DurationOption(id: 120, seconds: 120, label: "2m"),
+            DurationOption(id: 180, seconds: 180, label: "3m"),
+            DurationOption(id: 300, seconds: 300, label: "5m"),
+        ]
     }
 
     private var breatheIn: Double { component.breatheInDuration ?? 4.0 }
@@ -5168,15 +5326,15 @@ private struct BreathingExerciseComponentView: View {
     private var breatheOut: Double { component.breatheOutDuration ?? 6.0 }
     private var holdOut: Double { 2.0 }
     private var cycleDuration: Double { breatheIn + holdIn + breatheOut + holdOut }
-    private var sessionLength: TimeInterval { TimeInterval(component.sessionDuration ?? 60) }
+    private var sessionLength: TimeInterval { TimeInterval(selectedDuration) }
 
     private var phaseText: String {
         switch phase {
-        case .idle: return "Tap to begin"
+        case .idle: return "Start"
         case .breatheIn: return "Breathe in"
         case .holdIn, .holdOut: return "Hold"
         case .breatheOut: return "Breathe out"
-        case .done: return "Namaste"
+        case .done: return "\u{1F64F}" // 🙏
         }
     }
 
@@ -5194,73 +5352,373 @@ private struct BreathingExerciseComponentView: View {
         let primaryColor = ThemeResolver.color(for: "primary", theme: theme)
         let mutedColor = ThemeResolver.color(for: "muted", theme: theme)
 
-        VStack(spacing: (6 * scale).cgFloat) {
-            // Breathing circle
-            ZStack {
-                // Outer glow
-                Circle()
-                    .fill(accentColor.opacity(0.08))
-                    .frame(width: (64 * scale).cgFloat, height: (64 * scale).cgFloat)
-
-                // Animated breathing circle
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [accentColor.opacity(0.6), accentColor.opacity(0.15)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: (30 * scale).cgFloat
-                        )
-                    )
-                    .frame(width: (54 * scale).cgFloat, height: (54 * scale).cgFloat)
-                    .scaleEffect(circleScale)
-
-                // Inner dot
-                Circle()
-                    .fill(accentColor)
-                    .frame(width: (8 * scale).cgFloat, height: (8 * scale).cgFloat)
-                    .scaleEffect(circleScale * 0.8 + 0.2)
-            }
-            .onTapGesture {
-                if phase == .idle || phase == .done {
-                    startSession()
-                } else {
-                    stopSession()
-                }
-            }
-
-            // Phase text
-            Text(phaseText)
-                .font(.system(size: (10 * scale).cgFloat, weight: .medium))
-                .foregroundStyle(phase == .idle ? mutedColor : primaryColor)
-                .animation(.easeInOut(duration: 0.3), value: phaseText)
-
-            // Timer
-            if isActive {
-                let remaining = max(0, Int(sessionLength - elapsed))
-                Text("\(remaining)s")
-                    .font(.system(size: (9 * scale).cgFloat, weight: .medium, design: .monospaced))
-                    .foregroundStyle(mutedColor)
+        VStack(spacing: (5 * scale).cgFloat) {
+            if showSettings {
+                // ── Settings panel ──
+                settingsView(accentColor: accentColor, primaryColor: primaryColor, mutedColor: mutedColor)
+            } else if isActive || phase == .done {
+                // ── Active session ──
+                activeSessionView(accentColor: accentColor, primaryColor: primaryColor, mutedColor: mutedColor)
+            } else {
+                // ── Default idle view ──
+                idleView(accentColor: accentColor, primaryColor: primaryColor, mutedColor: mutedColor)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .onAppear {
+            if let s = component.soundType, let t = AmbientSoundType(rawValue: s) { selectedSound = t }
+            if let a = component.animationStyle, let t = BreathAnimationStyle(rawValue: a) { selectedAnimation = t }
+            if let d = component.sessionDuration { selectedDuration = d }
+        }
         .onDisappear { stopSession() }
     }
+
+    // MARK: - Idle (Default) View
+
+    @ViewBuilder
+    private func idleView(accentColor: Color, primaryColor: Color, mutedColor: Color) -> some View {
+        Spacer(minLength: 0)
+
+        // Breathing orb preview (static, at resting scale)
+        ZStack {
+            switch selectedAnimation {
+            case .orb:
+                orbAnimation(accentColor: accentColor)
+            case .wave:
+                waveAnimation(accentColor: accentColor)
+            }
+        }
+        .frame(width: (80 * scale).cgFloat, height: (80 * scale).cgFloat)
+
+        // Current settings summary
+        HStack(spacing: (4 * scale).cgFloat) {
+            let durLabel = DurationOption.all.first { $0.seconds == selectedDuration }?.label ?? "\(selectedDuration)s"
+            Text(durLabel)
+            Text("·")
+            Image(systemName: selectedSound.icon)
+            Text("·")
+            Image(systemName: selectedAnimation.icon)
+        }
+        .font(.system(size: (8 * scale).cgFloat, weight: .medium))
+        .foregroundStyle(mutedColor)
+
+        // Start button
+        Button(action: startSession) {
+            Text("Start")
+                .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, (6 * scale).cgFloat)
+                .background(
+                    RoundedRectangle(cornerRadius: (8 * scale).cgFloat, style: .continuous)
+                        .fill(accentColor)
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, (8 * scale).cgFloat)
+
+        // Settings gear
+        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings = true } }) {
+            HStack(spacing: (3 * scale).cgFloat) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: (9 * scale).cgFloat))
+                Text("Settings")
+                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+            }
+            .foregroundStyle(mutedColor)
+        }
+        .buttonStyle(.plain)
+
+        Spacer(minLength: 0)
+    }
+
+    // MARK: - Settings View
+
+    @ViewBuilder
+    private func settingsView(accentColor: Color, primaryColor: Color, mutedColor: Color) -> some View {
+        // Duration picker
+        VStack(spacing: (4 * scale).cgFloat) {
+            Text("Duration")
+                .font(.system(size: (8 * scale).cgFloat, weight: .semibold))
+                .foregroundStyle(mutedColor)
+                .textCase(.uppercase)
+
+            VStack(spacing: (3 * scale).cgFloat) {
+                HStack(spacing: (3 * scale).cgFloat) {
+                    ForEach(DurationOption.all.prefix(3)) { option in
+                        durationPill(option, accentColor: accentColor, mutedColor: mutedColor)
+                    }
+                }
+                HStack(spacing: (3 * scale).cgFloat) {
+                    ForEach(DurationOption.all.suffix(3)) { option in
+                        durationPill(option, accentColor: accentColor, mutedColor: mutedColor)
+                    }
+                }
+            }
+        }
+
+        // Sound picker
+        VStack(spacing: (4 * scale).cgFloat) {
+            Text("Sound")
+                .font(.system(size: (8 * scale).cgFloat, weight: .semibold))
+                .foregroundStyle(mutedColor)
+                .textCase(.uppercase)
+
+            HStack(spacing: (4 * scale).cgFloat) {
+                ForEach(AmbientSoundType.allCases, id: \.rawValue) { sound in
+                    soundPill(sound, accentColor: accentColor, mutedColor: mutedColor)
+                }
+            }
+        }
+
+        // Animation picker
+        VStack(spacing: (4 * scale).cgFloat) {
+            Text("Style")
+                .font(.system(size: (8 * scale).cgFloat, weight: .semibold))
+                .foregroundStyle(mutedColor)
+                .textCase(.uppercase)
+
+            HStack(spacing: (4 * scale).cgFloat) {
+                ForEach(BreathAnimationStyle.allCases, id: \.rawValue) { style in
+                    animationPill(style, accentColor: accentColor, mutedColor: mutedColor)
+                }
+            }
+        }
+
+        // Done button
+        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showSettings = false } }) {
+            Text("Done")
+                .font(.system(size: (10 * scale).cgFloat, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, (5 * scale).cgFloat)
+                .background(
+                    RoundedRectangle(cornerRadius: (8 * scale).cgFloat, style: .continuous)
+                        .fill(accentColor)
+                )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, (4 * scale).cgFloat)
+        .padding(.top, (2 * scale).cgFloat)
+    }
+
+    // MARK: - Active Session View
+
+    @ViewBuilder
+    private func activeSessionView(accentColor: Color, primaryColor: Color, mutedColor: Color) -> some View {
+        Spacer(minLength: 0)
+
+        // Animation
+        ZStack {
+            switch selectedAnimation {
+            case .orb:
+                orbAnimation(accentColor: accentColor)
+            case .wave:
+                waveAnimation(accentColor: accentColor)
+            }
+        }
+        .frame(width: (80 * scale).cgFloat, height: (80 * scale).cgFloat)
+        .onTapGesture { stopSession() }
+
+        // Phase text
+        Text(phaseText)
+            .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+            .foregroundStyle(phase == .done ? accentColor : primaryColor)
+            .animation(.easeInOut(duration: 0.3), value: phaseText)
+
+        // Timer
+        if isActive {
+            let remaining = max(0, Int(sessionLength - elapsed))
+            let mins = remaining / 60
+            let secs = remaining % 60
+            let timeText = mins > 0 ? String(format: "%d:%02d", mins, secs) : "\(secs)s"
+            Text(timeText)
+                .font(.system(size: (9 * scale).cgFloat, weight: .medium, design: .monospaced))
+                .foregroundStyle(mutedColor)
+        }
+
+        // Stop button
+        if isActive || phase == .done {
+            Button(action: {
+                stopSession()
+                withAnimation(.easeInOut(duration: 0.3)) { phase = .idle }
+            }) {
+                Text(phase == .done ? "Done" : "Stop")
+                    .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                    .foregroundStyle(mutedColor)
+                    .padding(.horizontal, (10 * scale).cgFloat)
+                    .padding(.vertical, (3 * scale).cgFloat)
+                    .background(
+                        Capsule()
+                            .fill(mutedColor.opacity(0.12))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+
+        Spacer(minLength: 0)
+    }
+
+    // MARK: - Orb Animation
+
+    @ViewBuilder
+    private func orbAnimation(accentColor: Color) -> some View {
+        ZStack {
+            // Outer pulsing glow
+            Circle()
+                .fill(accentColor.opacity(0.06))
+                .frame(width: (72 * scale).cgFloat, height: (72 * scale).cgFloat)
+                .scaleEffect(circleScale * 0.9 + 0.1)
+
+            // Middle ring
+            Circle()
+                .stroke(accentColor.opacity(0.15), lineWidth: (1.5 * scale).cgFloat)
+                .frame(width: (58 * scale).cgFloat, height: (58 * scale).cgFloat)
+                .scaleEffect(circleScale * 0.85 + 0.15)
+
+            // Main breathing orb
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [accentColor.opacity(0.6), accentColor.opacity(0.12)],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: (28 * scale).cgFloat
+                    )
+                )
+                .frame(width: (54 * scale).cgFloat, height: (54 * scale).cgFloat)
+                .scaleEffect(circleScale)
+                .shadow(color: accentColor.opacity(0.3), radius: (8 * scale).cgFloat * circleScale)
+
+            // Inner bright core
+            Circle()
+                .fill(accentColor.opacity(0.9))
+                .frame(width: (8 * scale).cgFloat, height: (8 * scale).cgFloat)
+                .scaleEffect(circleScale * 0.8 + 0.2)
+        }
+    }
+
+    // MARK: - Wave Animation
+
+    @ViewBuilder
+    private func waveAnimation(accentColor: Color) -> some View {
+        let currentScale = circleScale
+        let currentOffset = waveOffset
+        let cornerR = (12 * scale).cgFloat
+        Canvas { context, size in
+            let midY = size.height / 2
+            let amp = size.height * 0.25 * currentScale
+            for w in 0..<3 {
+                let layerOff = Double(w) * 0.7
+                let opacity = 0.3 - Double(w) * 0.08
+                let path = Self.makeWavePath(
+                    width: size.width, height: size.height, midY: midY,
+                    amplitude: amp, offset: currentOffset, layerOffset: layerOff
+                )
+                context.fill(path, with: .color(accentColor.opacity(opacity)))
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerR, style: .continuous))
+    }
+
+    private static func makeWavePath(
+        width: CGFloat, height: CGFloat, midY: CGFloat,
+        amplitude: CGFloat, offset: Double, layerOffset: Double
+    ) -> Path {
+        var path = Path()
+        for x in stride(from: CGFloat(0), through: width, by: 2.0) {
+            let nx = Double(x / width)
+            let primary = sin((nx * 2.0 * .pi) + offset + layerOffset) * Double(amplitude)
+            let secondary = sin((nx * 4.0 * .pi) + offset * 1.3 + layerOffset) * Double(amplitude) * 0.3
+            let y = midY + CGFloat(primary + secondary)
+            if x == 0 { path.move(to: CGPoint(x: x, y: y)) }
+            else { path.addLine(to: CGPoint(x: x, y: y)) }
+        }
+        path.addLine(to: CGPoint(x: width, y: height))
+        path.addLine(to: CGPoint(x: 0, y: height))
+        path.closeSubpath()
+        return path
+    }
+
+    // MARK: - Pill Buttons
+
+    @ViewBuilder
+    private func durationPill(_ option: DurationOption, accentColor: Color, mutedColor: Color) -> some View {
+        let isSelected = selectedDuration == option.seconds
+        Button(action: { selectedDuration = option.seconds }) {
+            Text(option.label)
+                .font(.system(size: (8.5 * scale).cgFloat, weight: isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? .white : mutedColor)
+                .padding(.horizontal, (6 * scale).cgFloat)
+                .padding(.vertical, (3 * scale).cgFloat)
+                .background(
+                    RoundedRectangle(cornerRadius: (6 * scale).cgFloat, style: .continuous)
+                        .fill(isSelected ? accentColor : mutedColor.opacity(0.1))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func soundPill(_ sound: AmbientSoundType, accentColor: Color, mutedColor: Color) -> some View {
+        let isSelected = selectedSound == sound
+        Button(action: { selectedSound = sound }) {
+            HStack(spacing: (2 * scale).cgFloat) {
+                Image(systemName: sound.icon)
+                    .font(.system(size: (7 * scale).cgFloat))
+                Text(sound.displayName)
+                    .font(.system(size: (8 * scale).cgFloat, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(isSelected ? .white : mutedColor)
+            .padding(.horizontal, (6 * scale).cgFloat)
+            .padding(.vertical, (3 * scale).cgFloat)
+            .background(
+                RoundedRectangle(cornerRadius: (6 * scale).cgFloat, style: .continuous)
+                    .fill(isSelected ? accentColor : mutedColor.opacity(0.1))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func animationPill(_ style: BreathAnimationStyle, accentColor: Color, mutedColor: Color) -> some View {
+        let isSelected = selectedAnimation == style
+        Button(action: { selectedAnimation = style }) {
+            HStack(spacing: (2 * scale).cgFloat) {
+                Image(systemName: style.icon)
+                    .font(.system(size: (7 * scale).cgFloat))
+                Text(style.displayName)
+                    .font(.system(size: (8 * scale).cgFloat, weight: isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(isSelected ? .white : mutedColor)
+            .padding(.horizontal, (8 * scale).cgFloat)
+            .padding(.vertical, (3 * scale).cgFloat)
+            .background(
+                RoundedRectangle(cornerRadius: (6 * scale).cgFloat, style: .continuous)
+                    .fill(isSelected ? accentColor : mutedColor.opacity(0.1))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Session Control
 
     private func startSession() {
         isActive = true
         elapsed = 0
         phase = .breatheIn
 
-        AmbientRainSound.shared.start()
+        AmbientSoundPlayer.shared.start(type: selectedSound)
 
         withAnimation(.easeInOut(duration: breatheIn)) {
             circleScale = 1.0
         }
 
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            elapsed += 0.1
+        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            elapsed += 0.05
+            waveOffset += 0.03
+
             if elapsed >= sessionLength {
                 withAnimation(.easeInOut(duration: 0.5)) {
                     phase = .done
@@ -5278,7 +5736,7 @@ private struct BreathingExerciseComponentView: View {
         timer?.invalidate()
         timer = nil
         isActive = false
-        AmbientRainSound.shared.stop()
+        AmbientSoundPlayer.shared.stop()
         if phase != .done {
             withAnimation(.easeInOut(duration: 0.5)) {
                 phase = .idle
@@ -5309,13 +5767,13 @@ private struct BreathingExerciseComponentView: View {
                     circleScale = 1.0
                 }
             case .holdIn:
-                break // Stay expanded
+                break
             case .breatheOut:
                 withAnimation(.easeInOut(duration: breatheOut)) {
                     circleScale = 0.5
                 }
             case .holdOut:
-                break // Stay contracted
+                break
             default:
                 break
             }

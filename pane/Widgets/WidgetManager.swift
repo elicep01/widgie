@@ -33,15 +33,22 @@ final class WidgetManager {
     }
 
     func createOrUpdateWidget(_ config: WidgetConfig, isLocked: Bool? = nil, forceAutoFit: Bool = false, isRestore: Bool = false) {
-        let normalized = normalizedForWallpaper(config)
+        var normalized = normalizedForWallpaper(config)
 
         if let window = windows[normalized.id] {
-            window.update(config: normalized)
-            if forceAutoFit {
-                window.forceAutoSizeToContent()
+            // If the user has manually resized this widget, preserve their size
+            // instead of letting the new config override it.
+            let metadata = store.loadMetadata(for: normalized.id)
+            if metadata?.userHasManuallyResized == true {
+                normalized.size = window.config.size
             }
-            if !isRestore {
-                resolveOverlapIfNeeded(for: window)
+            // Also preserve the user's position if they manually moved it.
+            if metadata?.userHasManuallyPositioned == true {
+                normalized.position = window.config.position
+            }
+            window.update(config: normalized)
+            if forceAutoFit && metadata?.userHasManuallyResized != true {
+                window.forceAutoSizeToContent()
             }
             if let isLocked {
                 window.setLocked(isLocked)
@@ -51,11 +58,25 @@ final class WidgetManager {
             return
         }
 
+        // Check persisted metadata for user-manual flags.
+        let metadata = store.loadMetadata(for: normalized.id)
+        let userPositioned = metadata?.userHasManuallyPositioned ?? false
+        let userResized = metadata?.userHasManuallyResized ?? false
+
         let shouldAutoArrange = normalized.position == nil
+        // During restore, if the user manually resized this widget, do NOT auto-size —
+        // respect their chosen size exactly.
+        let allowAutoSize: Bool
+        if isRestore && userResized {
+            allowAutoSize = false
+        } else {
+            allowAutoSize = shouldAutoArrange || forceAutoFit
+        }
+
         let window = WidgetWindow(
             config: normalized,
             settingsStore: settingsStore,
-            shouldAutoSizeOnInitialRender: shouldAutoArrange || forceAutoFit
+            shouldAutoSizeOnInitialRender: allowAutoSize
         )
         if let isLocked {
             window.setLocked(isLocked)
@@ -76,7 +97,7 @@ final class WidgetManager {
         window.updatePosition(WidgetPosition(x: resolvedOrigin.x.double, y: resolvedOrigin.y.double))
 
         interactionController.attach(to: window)
-        wireCallbacks(for: window, isRestore: isRestore)
+        wireCallbacks(for: window, isRestore: isRestore, userPositioned: userPositioned)
         windows[normalized.id] = window
         WidgetAnimator.animateAppearance(of: window)
 
@@ -313,9 +334,16 @@ final class WidgetManager {
         guard let window = windows[id] else { return false }
         var updated = window.config
         updated.size = preset.size
+        // Ensure maxSize accommodates the chosen preset so auto-fit
+        // and minimum/maximum logic don't fight the user's choice.
+        if let maxSize = updated.maxSize {
+            updated.maxSize = WidgetSize(
+                width: max(maxSize.width, preset.size.width),
+                height: max(maxSize.height, preset.size.height)
+            )
+        }
         window.update(config: normalizedForWallpaper(updated))
-        resolveOverlapIfNeeded(for: window)
-        store.save(window.config, isLocked: window.isPositionLocked)
+        store.save(window.config, isLocked: window.isPositionLocked, userHasManuallyResized: true)
         notifyWidgetListChanged()
         return true
     }
@@ -329,7 +357,7 @@ final class WidgetManager {
         return true
     }
 
-    private func wireCallbacks(for window: WidgetWindow, isRestore: Bool = false) {
+    private func wireCallbacks(for window: WidgetWindow, isRestore: Bool = false, userPositioned: Bool = false) {
         window.onEditRequested = { [weak self, weak window] in
             guard let self, let config = window?.config else { return }
             self.onEditRequested?(config)
@@ -343,14 +371,12 @@ final class WidgetManager {
         window.onPositionChanged = { [weak self, weak window] position in
             guard let self, let window else { return }
             window.updatePosition(position)
-            self.resolveOverlapIfNeeded(for: window)
             self.store.save(window.config, isLocked: window.isPositionLocked)
             self.notifyWidgetListChanged()
         }
 
         window.onSizeChanged = { [weak self, weak window] _ in
             guard let self, let window else { return }
-            self.resolveOverlapIfNeeded(for: window)
             self.store.save(window.config, isLocked: window.isPositionLocked)
             self.notifyWidgetListChanged()
         }
@@ -382,8 +408,17 @@ final class WidgetManager {
             return feedback
         }
 
-        window.onDragEnded = { [weak self] in
+        window.onDragEnded = { [weak self, weak window] in
             self?.alignmentGuideOverlay.hide()
+            // Mark that the user has manually positioned this widget.
+            guard let self, let window else { return }
+            self.store.save(window.config, isLocked: window.isPositionLocked, userHasManuallyPositioned: true)
+        }
+
+        window.onUserResizeEnded = { [weak self, weak window] in
+            // Mark that the user has manually resized this widget.
+            guard let self, let window else { return }
+            self.store.save(window.config, isLocked: window.isPositionLocked, userHasManuallyResized: true)
         }
 
         window.onThemeChanged = { [weak self] theme in
@@ -392,20 +427,7 @@ final class WidgetManager {
 
         window.onAutoSizeCompleted = { [weak self, weak window] in
             guard let self, let window else { return }
-            // During restore, keep the saved position — only save the updated size.
-            if isRestore {
-                self.store.save(window.config, isLocked: window.isPositionLocked)
-                return
-            }
-            // After the deferred auto-size pass the window's actual rendered size is now
-            // known. Re-run placement so the widget doesn't overlap obstacles that were
-            // fine for the LLM-specified size but conflict with the real rendered size.
-            let newOrigin = self.nextAutoOrigin(for: window.frame.size, excluding: window.config.id)
-            let current = window.frame.origin
-            guard hypot(newOrigin.x - current.x, newOrigin.y - current.y) > 10 else { return }
-            window.setFrameOrigin(newOrigin)
-            let pos = WidgetPosition(x: newOrigin.x.double, y: newOrigin.y.double)
-            window.updatePosition(pos)
+            // Never reposition — just save the updated size.
             self.store.save(window.config, isLocked: window.isPositionLocked)
         }
     }
@@ -431,60 +453,96 @@ final class WidgetManager {
         config
     }
 
-    private func resolveOverlapIfNeeded(for window: WidgetWindow) {
-        let frame = screenFrame(for: window.frame)
-        let occupied = placementObstacles(in: frame, excluding: window.config.id)
-        let candidate = CGRect(origin: window.frame.origin, size: window.frame.size)
-        let collides = occupied.contains { $0.intersects(candidate) }
-        guard collides else { return }
-
-        let next = positionManager.firstAvailableOrigin(
-            for: window.frame.size,
-            in: frame,
-            occupied: occupied,
-            margin: 28,
-            scanStep: 22
-        ) ?? positionManager.bestEffortOrigin(
-            for: window.frame.size,
-            in: frame,
-            occupied: occupied,
-            margin: 28,
-            scanStep: 26
-        )
-
-        window.setFrameOrigin(next)
-        let position = WidgetPosition(x: next.x.double, y: next.y.double)
-        window.updatePosition(position)
-    }
-
     private func nextAutoOrigin(for size: CGSize, excluding id: UUID?) -> CGPoint {
-        let screens = orderedPlacementScreens()
-        let states = screens.map { screen in
-            ScreenPlacementState(
-                frame: screen.visibleFrame,
-                occupied: placementObstacles(in: screen.visibleFrame, excluding: id)
-            )
-        }
-
-        if let choice = bestPlacementChoice(for: size, states: states) {
-            return choice.origin
-        }
-
         guard let frame = NSScreen.main?.visibleFrame else {
             return CGPoint(x: 80, y: 420)
         }
 
-        // Fallback: place near top-right on a clean 40pt grid.
-        let gridStep: CGFloat = 40
-        let fallbackX = frame.maxX - size.width - 40
-        let fallbackY = frame.maxY - size.height - 40
-        let snappedX = frame.minX + ((fallbackX - frame.minX) / gridStep).rounded() * gridStep
-        let snappedY = frame.minY + ((fallbackY - frame.minY) / gridStep).rounded() * gridStep
-        return positionManager.clampedOrigin(
-            CGPoint(x: snappedX, y: snappedY),
-            size: size,
-            in: frame,
-            margin: 28
+        let existingFrames = otherFrames(excluding: id, in: frame)
+        let spacing: CGFloat = 12
+
+        if existingFrames.isEmpty {
+            // No widgets yet — start from top-right, snapped to grid.
+            let x = frame.maxX - size.width - 40
+            let y = frame.maxY - size.height - 40
+            return positionManager.clampedOrigin(
+                CGPoint(x: x, y: y), size: size, in: frame, margin: 12
+            )
+        }
+
+        // Compute bounding box of all existing widgets.
+        let clusterMinX = existingFrames.map(\.minX).min() ?? frame.minX
+        let clusterMaxX = existingFrames.map(\.maxX).max() ?? frame.maxX
+        let clusterMinY = existingFrames.map(\.minY).min() ?? frame.minY
+        let clusterMaxY = existingFrames.map(\.maxY).max() ?? frame.maxY
+
+        // Generate candidate positions adjacent to the cluster:
+        // 1. Below the cluster (same left edge, below bottom)
+        // 2. Right of the cluster (right edge, same top)
+        // 3. Left of the cluster
+        // 4. Above the cluster
+        // Then try to fit beside each individual widget too.
+        var candidates: [CGPoint] = []
+
+        // Below cluster, aligned to left edge
+        candidates.append(CGPoint(x: clusterMinX, y: clusterMinY - size.height - spacing))
+        // Right of cluster, aligned to top
+        candidates.append(CGPoint(x: clusterMaxX + spacing, y: clusterMaxY - size.height))
+        // Left of cluster
+        candidates.append(CGPoint(x: clusterMinX - size.width - spacing, y: clusterMaxY - size.height))
+        // Above cluster
+        candidates.append(CGPoint(x: clusterMinX, y: clusterMaxY + spacing))
+
+        // Also try placing beside each existing widget (right-of and below each)
+        for existing in existingFrames {
+            // Right of this widget, top-aligned
+            candidates.append(CGPoint(x: existing.maxX + spacing, y: existing.maxY - size.height))
+            // Below this widget, left-aligned
+            candidates.append(CGPoint(x: existing.minX, y: existing.minY - size.height - spacing))
+        }
+
+        // Score candidates: prefer ones that are on-screen and don't overlap existing widgets.
+        // Among valid candidates, prefer the one closest to the cluster centroid.
+        let centroidX = (clusterMinX + clusterMaxX) / 2
+        let centroidY = (clusterMinY + clusterMaxY) / 2
+        let padded = existingFrames.map { $0.insetBy(dx: -spacing / 2, dy: -spacing / 2) }
+
+        var bestCandidate: CGPoint?
+        var bestDistance: CGFloat = .greatestFiniteMagnitude
+
+        for candidate in candidates {
+            let clamped = positionManager.clampedOrigin(candidate, size: size, in: frame, margin: 8)
+            let rect = CGRect(origin: clamped, size: size)
+
+            // Must be fully on screen
+            guard frame.contains(CGPoint(x: rect.minX, y: rect.minY)),
+                  frame.contains(CGPoint(x: rect.maxX, y: rect.maxY)) else { continue }
+
+            // Must not overlap existing widgets
+            let overlaps = padded.contains { $0.intersects(rect) }
+            guard !overlaps else { continue }
+
+            let dist = hypot(rect.midX - centroidX, rect.midY - centroidY)
+            if dist < bestDistance {
+                bestDistance = dist
+                bestCandidate = clamped
+            }
+        }
+
+        if let best = bestCandidate {
+            return best
+        }
+
+        // Fallback: scan for any gap near the cluster using the position manager.
+        let occupied = existingFrames.map { $0.insetBy(dx: -spacing, dy: -spacing) }
+        if let available = positionManager.firstAvailableOrigin(
+            for: size, in: frame, occupied: occupied, margin: 12, scanStep: 20
+        ) {
+            return available
+        }
+
+        return positionManager.bestEffortOrigin(
+            for: size, in: frame, occupied: occupied, margin: 12, scanStep: 24
         )
     }
 
@@ -496,41 +554,9 @@ final class WidgetManager {
         return positionManager.clampedOrigin(original, size: size, in: frame, margin: 8)
     }
 
+    /// Clamp to screen only — never relocate a widget that has a stored position.
     private func resolvedStoredOrigin(for window: WidgetWindow) -> CGPoint {
-        let size = window.frame.size
-        let frame = screenFrame(for: window.frame)
-        let original = window.frame.origin
-        let clamped = positionManager.clampedOrigin(original, size: size, in: frame, margin: 28)
-        let offScreenDistance = hypot(original.x - clamped.x, original.y - clamped.y)
-
-        let paneOnlyObstacles = otherFrames(excluding: window.config.id, in: frame)
-            .map { $0.insetBy(dx: -12, dy: -12) }
-        let collidesWithPane = paneOnlyObstacles.contains {
-            $0.intersects(CGRect(origin: clamped, size: size))
-        }
-
-        guard offScreenDistance > 0.5 || collidesWithPane else {
-            return clamped
-        }
-
-        let occupied = placementObstacles(in: frame, excluding: window.config.id)
-        if let available = positionManager.firstAvailableOrigin(
-            for: size,
-            in: frame,
-            occupied: occupied,
-            margin: 28,
-            scanStep: 22
-        ) {
-            return available
-        }
-
-        return positionManager.bestEffortOrigin(
-            for: size,
-            in: frame,
-            occupied: occupied,
-            margin: 28,
-            scanStep: 26
-        )
+        clampedToScreen(for: window)
     }
 
     private func notifyWidgetListChanged() {
@@ -563,73 +589,6 @@ final class WidgetManager {
         }
 
         return best?.visibleFrame ?? NSScreen.main?.visibleFrame ?? frame
-    }
-
-    private func orderedPlacementScreens() -> [NSScreen] {
-        let screens = NSScreen.screens
-        guard let main = NSScreen.main else {
-            return screens
-        }
-
-        return screens.sorted { lhs, rhs in
-            if lhs == main { return true }
-            if rhs == main { return false }
-            if lhs.frame.minY == rhs.frame.minY {
-                return lhs.frame.minX < rhs.frame.minX
-            }
-            return lhs.frame.minY > rhs.frame.minY
-        }
-    }
-
-    private func bestPlacementChoice(for size: CGSize, states: [ScreenPlacementState]) -> PlacementChoice? {
-        var bestFallback: PlacementChoice?
-
-        for (index, state) in states.enumerated() {
-            if let available = positionManager.firstAvailableOrigin(
-                for: size,
-                in: state.frame,
-                occupied: state.occupied,
-                margin: 28,
-                scanStep: 22
-            ) {
-                return PlacementChoice(index: index, origin: available, overlap: 0)
-            }
-
-            let fallback = positionManager.bestEffortOrigin(
-                for: size,
-                in: state.frame,
-                occupied: state.occupied,
-                margin: 28,
-                scanStep: 26
-            )
-            let overlap = overlapScore(
-                for: CGRect(origin: fallback, size: size),
-                against: state.occupied
-            )
-
-            if bestFallback == nil || overlap < bestFallback?.overlap ?? .greatestFiniteMagnitude {
-                bestFallback = PlacementChoice(index: index, origin: fallback, overlap: overlap)
-            }
-        }
-
-        return bestFallback
-    }
-
-    private func overlapScore(for candidate: CGRect, against obstacles: [CGRect]) -> CGFloat {
-        obstacles.reduce(CGFloat(0)) { partial, obstacle in
-            partial + candidate.intersection(obstacle).area
-        }
-    }
-
-    private func placementObstacles(in screenFrame: CGRect, excluding id: UUID?) -> [CGRect] {
-        let paneWindows = otherFrames(excluding: id, in: screenFrame).map { $0.insetBy(dx: -20, dy: -20) }
-        let nativeWidgets = nativeDesktopWidgetFrames(in: screenFrame).map { $0.insetBy(dx: -16, dy: -16) }
-        let desktopIcons = desktopIconReservedFrames(in: screenFrame)
-
-        return (paneWindows + nativeWidgets + desktopIcons)
-            .filter { rect in
-                !rect.isNull && !rect.isEmpty && rect.intersects(screenFrame)
-            }
     }
 
     private func nativeDesktopWidgetFrames(in screenFrame: CGRect) -> [CGRect] {
@@ -789,17 +748,6 @@ private extension Double {
 
 private extension CGFloat {
     var double: Double { Double(self) }
-}
-
-private struct PlacementChoice {
-    let index: Int
-    let origin: CGPoint
-    let overlap: CGFloat
-}
-
-private struct ScreenPlacementState {
-    let frame: CGRect
-    var occupied: [CGRect]
 }
 
 @MainActor
