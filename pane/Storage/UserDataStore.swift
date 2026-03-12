@@ -26,14 +26,38 @@ actor UserDataStore {
     }
 
     enum PetCharacter: String, Codable, CaseIterable {
-        case fluffy         // Original round Kirby/Molang style
-        case pongoGreen     // Boxy green, happy smile, letter "D"
-        case pongoWhite     // Boxy white with bowler hat, letter "I"
-        case pongoPurple    // Boxy purple, sad face, letter "D"
-        case pongoBlue      // Boxy blue, winking, letter "O"
+        case milk           // VRM: Adorable milk carton character
+        case coolEgg        // VRM: Cute egg character
+        case coolBunny      // VRM: Sweet bunny character
+        case cuteSaurus     // VRM: Adorable baby dinosaur
+
+        // Legacy cases kept for Codable compatibility (existing saves)
+        case fluffy, pongoGreen, pongoWhite, pongoPurple, pongoBlue
+
+        /// Only the active VRM characters.
+        static var activeCharacters: [PetCharacter] {
+            [.milk, .coolEgg, .coolBunny, .cuteSaurus]
+        }
 
         static var random: PetCharacter {
-            allCases.randomElement()!
+            activeCharacters.randomElement()!
+        }
+
+        /// Whether this character uses a VRM 3D model file.
+        var isVRM: Bool { true }
+
+        /// VRM file name in Resources/Avatars.
+        var vrmFileName: String {
+            switch self {
+            case .milk: return "Milk"
+            case .coolEgg: return "CoolEgg"
+            case .coolBunny: return "CoolBunny"
+            case .cuteSaurus: return "CuteSaurus"
+            // Legacy characters map to a random VRM avatar
+            case .fluffy, .pongoWhite: return "Milk"
+            case .pongoGreen, .pongoPurple: return "CuteSaurus"
+            case .pongoBlue: return "CoolBunny"
+            }
         }
     }
 

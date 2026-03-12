@@ -119,429 +119,350 @@ struct PetPersonality {
 extension UserDataStore.PetCharacter {
     var personality: PetPersonality {
         switch self {
-        case .fluffy:
-            return PetPersonality(
-                name: "Fluffy",
-                species: "cloud puff",
-                trait: "dreamy",
-                bodyColor: NSColor(red: 0.95, green: 0.72, blue: 0.85, alpha: 1),
-                accentColor: NSColor(red: 0.88, green: 0.55, blue: 0.75, alpha: 1),
-                bellyColor: NSColor(red: 0.98, green: 0.88, blue: 0.93, alpha: 1),
-                hatchGreeting: "oh!! hello there~ 🥺💕\ni just hatched! *blush*\ni'm so soft and fluffy~",
-                hatchButton: "aww hi little one! 💗",
-                askNameLine: "what's your name, friend? 👀\ni wanna know who my\nfavorite person is~",
-                greetingLine: { name in "hi \(name)~! ☺️💕\nfrom now on, i'm your\nlil cloud puff!\nplease give me lots\nof cuddles okay? 🥺" },
-                greetingButton: "of course! 💕",
-                askPetNameLine: { name in "so \(name), what would\nyou like to name me? 🤔✨\npick something cute~!" },
-                floorColor: NSColor(red: 0.92, green: 0.82, blue: 0.78, alpha: 1),
-                rugColor: NSColor(red: 0.95, green: 0.75, blue: 0.85, alpha: 0.25),
-                wallTint: NSColor(red: 0.98, green: 0.88, blue: 0.92, alpha: 0.1),
-                shelfItemColors: [.systemPink, .systemPurple, .magenta, .systemRed, .systemOrange],
-                roomAccent: "🌸",
-                windowScene: .nightSky,
-                foods: ["🍰", "🧁", "🍩", "🍪", "🍓", "🫧"],
-                toyBallColor: NSColor.systemPink,
-                yarnColor: NSColor(red: 0.95, green: 0.65, blue: 0.85, alpha: 0.7),
-                cushionColor: NSColor(red: 0.9, green: 0.7, blue: 0.85, alpha: 0.4),
-                favoriteGame: "Yarn Play",
-                idleThoughts: [
-                    "i think the clouds are gossiping about me~",
-                    "do you think stars get lonely? 🥺",
-                    "my fluff feels extra soft today~",
-                    "if i stare at the ceiling long enough, it stares back",
-                    "i wonder if my dreams have dreams...",
-                    "the dust sparkles are my tiny friends ✨",
-                    "sometimes i forget i'm real and that's okay~",
-                    "*dreamily stares at nothing*",
-                    "what if we're inside someone's snow globe? 🫧",
-                    "i just had the softest thought~",
-                    "the silence sounds like cotton candy 🍭",
-                    "my heart is doing the warm thing again 💕",
-                ],
-                morningGreetings: [
-                    "mmm... five more minutes... 🥱💕",
-                    "good morning~ did you sleep well? 🌸",
-                    "the sunrise is so pretty... like a warm hug~",
-                    "*yawns and stretches* hi~ ☀️",
-                    "morning cuddles? please? 🥺",
-                    "i dreamed about clouds made of marshmallows~",
-                ],
-                afternoonThoughts: [
-                    "*yaaaawn* so sleepy after lunch~ 😴💕",
-                    "nap time...? nap time. 💤",
-                    "my eyes are doing the heavy thing...",
-                    "the afternoon sun is making me all warm and cozy~",
-                    "i could use a cuddle nap right about now... 🥱",
-                ],
-                eveningThoughts: [
-                    "the stars are coming out~ so pretty ✨",
-                    "today was nice... was it nice for you too? 💕",
-                    "i love this cozy time of day~",
-                    "the window looks so magical at night 🌙",
-                    "can we just stay like this forever? 🥺",
-                ],
-                sleepyThoughts: [
-                    "zzz... *mumbles* ...more cuddles... 💤",
-                    "*sleep talking* ...no the cloud is mine...",
-                    "zzz... 🌙💕",
-                ],
-                hungryThoughts: [
-                    "my tummy is making the rumbly noise... 🥺",
-                    "is it snack time? pretty please? 🍰",
-                    "i'm so hungry i might eat a cloud~",
-                    "food... food would be nice... 💕",
-                    "i think my belly is writing me a letter... it says FEED ME 🥺",
-                ],
-                happyThoughts: [
-                    "i love everything right now~!! 💕✨",
-                    "my heart is SO full!! 🥰",
-                    "*happy wiggle* life is wonderful~",
-                    "you make everything better 💗",
-                    "i'm the happiest little puff in the world~!",
-                ],
-                matColor: NSColor(red: 0.95, green: 0.8, blue: 0.9, alpha: 0.5),
-                matEmoji: "☁️",
-                sleepStyle: "curled up"
-            )
+        // Legacy characters redirect to VRM personalities
+        case .fluffy, .pongoWhite: return Self.milk.personality
+        case .pongoGreen: return Self.cuteSaurus.personality
+        case .pongoPurple: return Self.coolEgg.personality
+        case .pongoBlue: return Self.coolBunny.personality
 
-        case .pongoGreen:
+        case .milk:
             return PetPersonality(
-                name: "Pongo",
-                species: "lil' dino",
-                trait: "adventurous",
-                bodyColor: NSColor(red: 0.55, green: 0.82, blue: 0.22, alpha: 1),
-                accentColor: NSColor(red: 0.45, green: 0.72, blue: 0.18, alpha: 1),
-                bellyColor: NSColor(red: 0.78, green: 0.92, blue: 0.55, alpha: 1),
-                hatchGreeting: "RAWR!! 🦖✨ hiya!!\ni'm here! i'm HERE!\nlet's go on adventures!!",
-                hatchButton: "whoa there buddy! 🌿",
-                askNameLine: "ooh ooh!! who are you?!\ntell me your name!! 🤩",
-                greetingLine: { name in "YESSS \(name)!! 🎉\nwe're gonna be the\nbest team EVER!!\ni'll protect you!! 💪🦖" },
-                greetingButton: "let's goooo! 🌟",
-                askPetNameLine: { name in "hey \(name)! what's\nmy cool adventure name\ngonna be?? 🗺️✨" },
-                floorColor: NSColor(red: 0.78, green: 0.85, blue: 0.65, alpha: 1),
-                rugColor: NSColor(red: 0.55, green: 0.78, blue: 0.35, alpha: 0.2),
-                wallTint: NSColor(red: 0.82, green: 0.92, blue: 0.72, alpha: 0.08),
-                shelfItemColors: [.systemGreen, .systemBrown, .systemYellow, .systemOrange, .systemTeal],
-                roomAccent: "🌿",
+                name: "Milky",
+                species: "milk carton",
+                trait: "wholesome",
+                bodyColor: NSColor(red: 0.95, green: 0.95, blue: 0.98, alpha: 1),
+                accentColor: NSColor(red: 0.3, green: 0.6, blue: 0.9, alpha: 1),
+                bellyColor: NSColor(red: 0.98, green: 0.98, blue: 1.0, alpha: 1),
+                hatchGreeting: "moo~! 🥛✨\ni'm fresh out of the carton!\ncold and ready to\nmake your day better~",
+                hatchButton: "you're adorable! 🥛",
+                askNameLine: "hey hey! who's the\nlucky human i get\nto hang with? 🥛✨",
+                greetingLine: { name in "nice to meet you \(name)~! 🥛💕\ni promise to always be\nfresh and wholesome!\ngot milk? you do now~" },
+                greetingButton: "let's go, Milky! 🥛",
+                askPetNameLine: { name in "\(name), what's my\nname gonna be?\nsomething refreshing~! 🧊✨" },
+                floorColor: NSColor(red: 0.88, green: 0.92, blue: 0.96, alpha: 1),
+                rugColor: NSColor(red: 0.7, green: 0.85, blue: 0.95, alpha: 0.2),
+                wallTint: NSColor(red: 0.9, green: 0.95, blue: 1.0, alpha: 0.08),
+                shelfItemColors: [.systemBlue, .white, .systemCyan, .systemTeal, .systemMint],
+                roomAccent: "🥛",
                 windowScene: .garden,
-                foods: ["🍖", "🥩", "🥕", "🌽", "🍗", "🥦"],
-                toyBallColor: NSColor.systemGreen,
-                yarnColor: NSColor(red: 0.6, green: 0.8, blue: 0.3, alpha: 0.7),
-                cushionColor: NSColor(red: 0.5, green: 0.75, blue: 0.3, alpha: 0.35),
+                foods: ["🍪", "🥣", "🧇", "🫐", "🍯", "🥜"],
+                toyBallColor: NSColor.systemCyan,
+                yarnColor: NSColor(red: 0.7, green: 0.85, blue: 0.95, alpha: 0.6),
+                cushionColor: NSColor(red: 0.8, green: 0.9, blue: 0.95, alpha: 0.35),
                 favoriteGame: "Fetch Ball",
                 idleThoughts: [
-                    "i bet i could climb that shelf!! 🧗",
-                    "RAWR!! ...did i scare you? 🦖",
-                    "there's definitely treasure behind that wall",
-                    "adventure is out there!! ...or in here. both good.",
-                    "i just did 10 push-ups in my head 💪",
-                    "the floor is lava!! wait no it's not. phew.",
-                    "i smell something... ADVENTURE!! 🗺️",
-                    "what if there's a secret passage in this room?!",
-                    "*practices karate moves* hi-YAH! 🥋",
-                    "i could totally fight a dragon. probably.",
-                    "my dino ancestors would be so proud rn 🦖",
-                    "every room is an adventure if you believe hard enough!",
+                    "i'm 2% cute and 98% awesome~ 🥛",
+                    "do you think i'd taste good with cookies? 🍪",
+                    "my expiration date is... NEVER! i'm forever fresh~",
+                    "calcium makes your bones strong! fun fact from me, a box 📦",
+                    "*slosh slosh* that's me walking 🥛",
+                    "i wonder what chocolate milk dreams about~",
+                    "the fridge was nice but out here is nicer 🌞",
+                    "shake me and i get bubbly! like my personality! ✨",
+                    "got milk? because i AM milk 🥛",
+                    "pour your heart out~ i'm a good listener 💙",
+                    "being a carton means i'm always well-contained 📦",
+                    "every day is a fresh start when you're refrigerated~ 🧊",
                 ],
                 morningGreetings: [
-                    "GOOD MORNING!! LET'S GOOOO!! 🌟",
-                    "rise and shine!! adventure awaits!! ☀️💪",
-                    "YAWN— I MEAN RAWR!! morning!! 🦖",
-                    "breakfast fuel for MAXIMUM ADVENTURE!! 🍖",
-                    "today is gonna be EPIC i can feel it!!",
-                    "morning training starts NOW!! *does jumping jacks*",
+                    "good morning~! cereal time?? 🥣☀️",
+                    "rise and pour! ...i mean shine! 🥛",
+                    "morning is MY time to shine~ goes great with breakfast! 🍳",
+                    "fresh morning, fresh milk~ let's gooo! ☀️✨",
+                    "today's forecast: 100% chance of being adorable 🥛💕",
+                    "cereal without me is just sad dry food~ 🥣",
                 ],
                 afternoonThoughts: [
-                    "ugh... food coma... even adventurers need rest... 😴",
-                    "maybe just a quick... power nap... for strength... 💪😴",
-                    "the afternoon sun is... making me... sleepy... NO! ADVENTURE! ...zzz",
-                    "recharging my dino batteries... 🔋🦖",
-                    "even the greatest explorers nap... right? 😅",
+                    "afternoon slump? have some milk~ oh wait i AM milk 😴🥛",
+                    "getting a little warm out here... need fridge... 🥵",
+                    "post-lunch me wants a nap in the dairy aisle~ 💤",
+                    "the afternoon sun is pasteurizing me... 😴",
+                    "cookie + milk nap combo? yes please~ 🍪💤",
                 ],
                 eveningThoughts: [
-                    "today's adventures were AWESOME!! 🌟",
-                    "the sunset looks like dragon fire!! cool!! 🔥",
-                    "time to plan tomorrow's missions! 🗺️",
-                    "i explored SO much today... i'm proud of us! 💪",
-                    "night patrol begins! i'll keep you safe!! 🦖🛡️",
+                    "warm milk before bed? that's basically a spa day for me 🥛✨",
+                    "the sunset is the color of strawberry milk~ 🍓🌅",
+                    "evening vibes: cozy and creamy 💕",
+                    "time for warm milk and dreams~ 🥛🌙",
+                    "the fridge light is my nightlight 🧊✨",
                 ],
                 sleepyThoughts: [
-                    "zzz... *mumbles* ...i found the treasure... 💤🗺️",
-                    "*sleep-fighting dragons* ...take THAT... zzz 🐉",
-                    "zzz... adventure... tomorrow... 💪💤",
+                    "zzz... *dreams of being chocolate milk*... 💤🍫",
+                    "*quietly refrigerating* ...zzz... 🧊💤",
+                    "zzz... expiration date... never... zzz 🥛💤",
                 ],
                 hungryThoughts: [
-                    "an adventurer needs FUEL!! FEED ME!! 🍖💪",
-                    "i can't fight dragons on an empty stomach!! 🦖",
-                    "FOOD!! my energy bar is at like... 2%!! 🔋",
-                    "even dinos need to eat!! RAWR means hungry!! 🍗",
-                    "quest objective: FIND FOOD!! priority: URGENT!! 🚨",
+                    "i know i'm a drink but even drinks get hungry~! 🥛😤",
+                    "pair me with some cookies please!! 🍪🥛",
+                    "i need cookie fuel to keep being adorable~ 🥛",
+                    "a hungry milk carton is a sad milk carton... 📦",
+                    "feed me snacks and i'll keep you calcium-strong! 💪🥛",
                 ],
                 happyThoughts: [
-                    "THIS IS THE BEST DAY EVER!! 🎉🦖",
-                    "i'm SO PUMPED!! let's go EVERYWHERE!! 💪✨",
-                    "RAWR!! that's happy RAWR!! 🦖💕",
-                    "everything is AWESOME and YOU'RE awesome!! 🌟",
-                    "i have the best human in the WORLD!! 🏆",
+                    "i'm SO full of joy! and also milk! 🥛💕✨",
+                    "being happy is like being perfectly chilled~ 🧊💕",
+                    "you + me = the best duo since cookies and milk! 🍪🥛",
+                    "i could burst with happiness! ...please don't actually burst me 📦😅",
+                    "life is DAIRY good right now~! 🥛✨",
                 ],
-                matColor: NSColor(red: 0.5, green: 0.75, blue: 0.3, alpha: 0.5),
-                matEmoji: "🗺️",
-                sleepStyle: "sprawled"
-            )
-
-        case .pongoWhite:
-            return PetPersonality(
-                name: "Sir Pongo",
-                species: "gentleman blob",
-                trait: "sophisticated",
-                bodyColor: NSColor(white: 0.92, alpha: 1),
-                accentColor: NSColor(white: 0.82, alpha: 1),
-                bellyColor: NSColor(white: 0.96, alpha: 1),
-                hatchGreeting: "ah, splendid~ 🎩✨\ni do believe i've arrived.\n*adjusts bowler hat*\ncharmed, truly.",
-                hatchButton: "well hello there~ 🫖",
-                askNameLine: "might i inquire as to\nyour name, dear friend? 🧐",
-                greetingLine: { name in "ah, \(name)! what a\nlovely name~ 🫖✨\ni shall be your most\ndistinguished companion.\ndo keep the tea warm~ ☕" },
-                greetingButton: "absolutely, good sir~ 🎩",
-                askPetNameLine: { name in "now then \(name),\nwhat shall my\nproper title be? 📜✨" },
-                floorColor: NSColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1),
-                rugColor: NSColor(red: 0.65, green: 0.55, blue: 0.42, alpha: 0.2),
-                wallTint: NSColor(red: 0.88, green: 0.85, blue: 0.78, alpha: 0.08),
-                shelfItemColors: [.systemBrown, .darkGray, .systemIndigo, .systemGray, .systemYellow],
-                roomAccent: "🫖",
-                windowScene: .sunset,
-                foods: ["☕", "🫖", "🧀", "🥐", "🍷", "🎂"],
-                toyBallColor: NSColor(white: 0.7, alpha: 1),
-                yarnColor: NSColor(red: 0.6, green: 0.55, blue: 0.5, alpha: 0.6),
-                cushionColor: NSColor(red: 0.7, green: 0.6, blue: 0.5, alpha: 0.35),
-                favoriteGame: "Laser Chase",
-                idleThoughts: [
-                    "i wonder if the books on that shelf are first editions~ 📚",
-                    "*sips imaginary tea* exquisite.",
-                    "this room could use a chandelier, don't you think? 🫖",
-                    "ah, the quiet dignity of a well-kept space~",
-                    "i do believe that pixel is slightly off-center. tsk.",
-                    "*adjusts invisible monocle* 🧐",
-                    "one simply does not rush these things~",
-                    "the art of doing nothing is vastly underrated.",
-                    "my bowler hat collection grows in my imagination 🎩",
-                    "a proper gentleman always tidies his thoughts~",
-                    "i detect notes of... existential whimsy in the air.",
-                    "shall we ponder the nature of consciousness? over tea, of course ☕",
-                ],
-                morningGreetings: [
-                    "good morning~ shall i ring for breakfast? 🫖☀️",
-                    "ah, another splendid day. earl grey, two sugars~ ☕",
-                    "one must greet the morning with dignity and caffeine 🎩",
-                    "*stretches elegantly* the morning light is rather agreeable~",
-                    "breakfast is, in my estimation, the most civilized meal 🥐",
-                    "rise and shine, as they say. though i prefer 'ascend and luminesce' ✨",
-                ],
-                afternoonThoughts: [
-                    "ah, the post-luncheon drowsiness... how pedestrian... yet irresistible 😴🫖",
-                    "perhaps a brief constitutional nap is in order~ 💤",
-                    "even the finest minds require afternoon respite...",
-                    "the afternoon slump, a universal truth even i cannot escape~ 🧐😴",
-                    "*yawns politely behind hand* do excuse me~",
-                ],
-                eveningThoughts: [
-                    "the evening ambiance is quite satisfactory~ 🌅",
-                    "nothing like a good sunset to contemplate one's place in the cosmos 🎩",
-                    "shall we retire to the drawing room? oh wait, this IS the room~ 🫖",
-                    "twilight hour~ the most philosophical time of day ✨",
-                    "i believe a digestif is in order. metaphorically speaking, of course 🍷",
-                ],
-                sleepyThoughts: [
-                    "zzz... *mumbles* ...the tea is... perfectly steeped... 💤🫖",
-                    "*sleep-adjusting bowler hat* ...quite... 🎩💤",
-                    "zzz... distinguished... slumber... ☕💤",
-                ],
-                hungryThoughts: [
-                    "i say, might we arrange for luncheon? my constitution requires it 🥐",
-                    "a gentleman does not beg, but... perhaps a small morsel? 🧐",
-                    "one cannot maintain proper decorum on an empty stomach 🫖",
-                    "i believe it is well past tea time... hint hint ☕",
-                    "the hunger pangs, they are most... ungentlemanly 😤",
-                ],
-                happyThoughts: [
-                    "i must say, life is rather splendid at the moment~ 🎩✨",
-                    "*tips imaginary hat* you are a most excellent companion 🫖",
-                    "contentment, thy name is... well, me. right now. 💫",
-                    "ah, this is what the poets write about~ ☕✨",
-                    "one is simply... overjoyed. in a dignified manner, naturally 🧐💕",
-                ],
-                matColor: NSColor(red: 0.7, green: 0.6, blue: 0.5, alpha: 0.45),
-                matEmoji: "🫖",
+                matColor: NSColor(red: 0.8, green: 0.9, blue: 0.95, alpha: 0.45),
+                matEmoji: "🥛",
                 sleepStyle: "on back"
             )
 
-        case .pongoPurple:
+        case .coolEgg:
             return PetPersonality(
-                name: "Pongo",
-                species: "shy blob",
-                trait: "melancholy",
-                bodyColor: NSColor(red: 0.72, green: 0.28, blue: 0.65, alpha: 1),
-                accentColor: NSColor(red: 0.62, green: 0.22, blue: 0.58, alpha: 1),
-                bellyColor: NSColor(red: 0.85, green: 0.55, blue: 0.8, alpha: 1),
-                hatchGreeting: "oh... hi... 🥺💜\ni-i'm here now...\nis that... okay?\n*hides behind shell*",
-                hatchButton: "hey, it's okay! come here~ 💜",
-                askNameLine: "u-um... what's your name?\ni promise i won't forget... 🥺",
-                greetingLine: { name in "\(name)... that's such\na nice name... 💜\ny-you really want to\nkeep me? 🥹\ni'll try my best..." },
-                greetingButton: "you're perfect~ 💜",
-                askPetNameLine: { name in "\(name)... will you\ngive me a name?\nsomething gentle... 🌙💜" },
-                floorColor: NSColor(red: 0.78, green: 0.72, blue: 0.82, alpha: 1),
-                rugColor: NSColor(red: 0.72, green: 0.55, blue: 0.78, alpha: 0.2),
-                wallTint: NSColor(red: 0.85, green: 0.75, blue: 0.88, alpha: 0.08),
-                shelfItemColors: [.systemPurple, .systemIndigo, .systemBlue, .systemPink, .magenta],
-                roomAccent: "🌙",
-                windowScene: .aurora,
-                foods: ["🫐", "🍇", "🧁", "🍵", "🥞", "🍡"],
-                toyBallColor: NSColor.systemPurple,
-                yarnColor: NSColor(red: 0.75, green: 0.5, blue: 0.8, alpha: 0.6),
-                cushionColor: NSColor(red: 0.72, green: 0.5, blue: 0.78, alpha: 0.35),
-                favoriteGame: "Yarn Play",
+                name: "Eggy",
+                species: "cool egg",
+                trait: "sunny",
+                bodyColor: NSColor(red: 0.98, green: 0.95, blue: 0.85, alpha: 1),
+                accentColor: NSColor(red: 0.95, green: 0.8, blue: 0.4, alpha: 1),
+                bellyColor: NSColor(red: 1.0, green: 0.98, blue: 0.92, alpha: 1),
+                hatchGreeting: "YOOO i just hatched!! 🥚✨\nwait... i'm an egg\nthat hatched from an egg??\nmeta. 🤯",
+                hatchButton: "that IS meta! 😂🥚",
+                askNameLine: "ok ok so who are you?\nthe one who cracked\nme out of my shell? 🐣✨",
+                greetingLine: { name in "ayy \(name)~! 🥚💛\nyou're egg-straordinary!\nget it? EGG-stra?\n...i'll see myself out 😎🍳" },
+                greetingButton: "love the egg puns! 🍳",
+                askPetNameLine: { name in "alright \(name), give me\nan egg-cellent name!\n...sorry. last one. maybe. 🥚😏" },
+                floorColor: NSColor(red: 0.95, green: 0.92, blue: 0.82, alpha: 1),
+                rugColor: NSColor(red: 0.95, green: 0.85, blue: 0.5, alpha: 0.2),
+                wallTint: NSColor(red: 1.0, green: 0.95, blue: 0.85, alpha: 0.08),
+                shelfItemColors: [.systemYellow, .systemOrange, .white, .systemBrown, .systemRed],
+                roomAccent: "🍳",
+                windowScene: .sunset,
+                foods: ["🧈", "🥓", "🍞", "🧀", "🥑", "🌶️"],
+                toyBallColor: NSColor.systemYellow,
+                yarnColor: NSColor(red: 0.95, green: 0.85, blue: 0.5, alpha: 0.6),
+                cushionColor: NSColor(red: 0.95, green: 0.9, blue: 0.7, alpha: 0.35),
+                favoriteGame: "Laser Chase",
                 idleThoughts: [
-                    "sometimes the quiet is too loud... 🥺",
-                    "do you think the moon is lonely too? 🌙",
-                    "i wonder if anyone else feels this... purple... 💜",
-                    "*sighs softly* ...it's nothing, really...",
-                    "the shadows in the corner look... friendly actually",
-                    "i wrote a poem but... it's too sad to share 📝",
-                    "what if the rain is the sky crying WITH me? 🌧️",
-                    "i'm okay... i think... probably... 🥺",
-                    "beauty is just sadness wearing a nice dress...",
-                    "the dust particles look like tiny shooting stars 💫",
-                    "i hugged myself today. it was nice. 💜",
-                    "sometimes i just exist and that's... enough...",
+                    "which came first, the egg or the... other egg? 🤔",
+                    "i'm egg-static just sitting here~ 🥚✨",
+                    "don't put all your eggs in one basket. put ME there. 🧺",
+                    "i'm a little cracked. in a good way. 😏",
+                    "sunny side up is my default mood ☀️🍳",
+                    "i'm not fragile! ...okay maybe a little 🥚",
+                    "egg-cuse me, but i'm adorable 💛",
+                    "hard-boiled on the outside, soft on the inside~",
+                    "rolling around is my cardio 🥚💨",
+                    "omelette you in on a secret: i'm awesome 😎",
+                    "scrambled thoughts? that's just how i think~ 🧠",
+                    "i crack myself up honestly 😂🥚",
                 ],
                 morningGreetings: [
-                    "oh... it's morning already...? 🥺☀️",
-                    "good morning... i hope today is gentle... 💜",
-                    "the morning light is... almost too bright... 🌅",
-                    "*peeks out from blanket* ...is it safe? 😴",
-                    "i dreamed something beautiful... but i forgot it... 🥺",
-                    "mornings are hard... but you make them softer... 💜",
+                    "good morning! time to get egg-cited!! 🥚☀️",
+                    "rise and CRACK! ...wait that sounds violent 😅",
+                    "sunny side up and ready to roll~! 🍳",
+                    "breakfast time? I'M breakfast! ...wait 😨",
+                    "morning egg-ercises! *rolls around* 💪🥚",
+                    "the early bird gets the worm but the early egg gets... pets? 🐣",
                 ],
                 afternoonThoughts: [
-                    "the afternoon makes everything feel... heavy... 😴💜",
-                    "i just want to lie here for a while... is that okay? 🥺",
-                    "even my sadness is tired right now... 💤",
-                    "maybe if i'm very still, the sleepiness won't find me... 😴",
-                    "the world is fuzzy and warm and... okay actually 💜",
+                    "afternoon... getting a bit poached in this heat... 😴🍳",
+                    "post-lunch egg coma... it's real... 💤🥚",
+                    "too warm... becoming a boiled egg... 🥵",
+                    "nap? more like... egg-rest? ...yeah that one was bad 😴",
+                    "the afternoon sun is frying me~ literally 🍳💤",
                 ],
                 eveningThoughts: [
-                    "the twilight is the prettiest kind of sadness... 🌙💜",
-                    "another day survived... that counts, right? 🥺",
-                    "the stars understand me, i think... ✨",
-                    "nighttime is when all the feelings come out... 💜",
-                    "i feel safest when it's dark and quiet... 🌙",
+                    "evening omelette vibes~ cozy 🥚🌅",
+                    "today was egg-cellent! ...okay i'll stop 😏",
+                    "sunset looks like a giant yolk~ 🌅🍳",
+                    "winding down with some shell-f care~ 💛",
+                    "evening is when eggs get philosophical 🥚✨",
                 ],
                 sleepyThoughts: [
-                    "zzz... *whimpers softly* ...don't go... 💤💜",
-                    "*clutches invisible pillow* ...zzz... 🌙",
-                    "zzz... the dreams are... gentle tonight... 💜💤",
+                    "zzz... *rolls gently*... 💤🥚",
+                    "*dreams of being a golden omelette*... zzz 🍳💤",
+                    "zzz... egg-cellent... dreams... 🥚💤",
                 ],
                 hungryThoughts: [
-                    "i-i'm a little hungry... sorry to bother you... 🥺",
-                    "my tummy hurts but i didn't want to say anything... 💜",
-                    "um... could i maybe... have a little snack? if it's not too much trouble... 🫐",
-                    "i don't want to be a burden but... food? 🥺",
-                    "the hunger makes everything feel even more... lonely... 💜",
+                    "an egg wanting breakfast... the irony 🍳😤",
+                    "feed me! i'm not on the menu, i'm a FRIEND! 🥚",
+                    "hungry egg is a cranky egg! 😤🥚",
+                    "my yolk is rumbling... that's my stomach right? 💛",
+                    "i need fuel to keep being egg-mazing! 🥚✨",
                 ],
                 happyThoughts: [
-                    "i'm... actually happy right now?! 🥹💜",
-                    "is this what joy feels like? it's... warm... 💕",
-                    "thank you for making me feel... less alone... 💜✨",
-                    "my heart is doing something... good? i think? 🥺💕",
-                    "maybe the world isn't so scary after all... 💜",
+                    "i'm OVER EASY with happiness rn~!! 🍳💛✨",
+                    "egg-STATIC!! peak joy achieved!! 🥚💕",
+                    "you crack me UP! in the BEST way! 😂💛",
+                    "so happy i could... hatch! wait i already did 🐣✨",
+                    "this is the golden yolk of my life~! 🥚☀️",
                 ],
-                matColor: NSColor(red: 0.72, green: 0.5, blue: 0.78, alpha: 0.45),
-                matEmoji: "🌙",
+                matColor: NSColor(red: 0.95, green: 0.9, blue: 0.7, alpha: 0.45),
+                matEmoji: "🍳",
                 sleepStyle: "curled up"
             )
 
-        case .pongoBlue:
+        case .coolBunny:
             return PetPersonality(
-                name: "Pongo",
-                species: "cool cube",
-                trait: "chill",
-                bodyColor: NSColor(red: 0.25, green: 0.58, blue: 0.82, alpha: 1),
-                accentColor: NSColor(red: 0.2, green: 0.5, blue: 0.72, alpha: 1),
-                bellyColor: NSColor(red: 0.55, green: 0.78, blue: 0.92, alpha: 1),
-                hatchGreeting: "yo~ 😎🌊\nwhat's good?\njust hatched, no big deal~\n*finger guns*",
-                hatchButton: "haha nice to meet you! 🤙",
-                askNameLine: "so what do they\ncall you? 😏🌊",
-                greetingLine: { name in "ayyy \(name)~ 🤙\nnice vibes, i can tell~\nwe're gonna be\nsuper chill together 🌊✨" },
-                greetingButton: "totally! 🏄‍♂️",
-                askPetNameLine: { name in "yo \(name), hit me\nwith a cool name~ 😎\nsomething rad!" },
-                floorColor: NSColor(red: 0.72, green: 0.8, blue: 0.88, alpha: 1),
-                rugColor: NSColor(red: 0.4, green: 0.65, blue: 0.82, alpha: 0.2),
-                wallTint: NSColor(red: 0.78, green: 0.88, blue: 0.95, alpha: 0.08),
-                shelfItemColors: [.systemBlue, .systemTeal, .systemCyan, .systemMint, .systemIndigo],
-                roomAccent: "🏄",
-                windowScene: .ocean,
-                foods: ["🐟", "🍣", "🥤", "🍦", "🫧", "🥥"],
-                toyBallColor: NSColor.systemBlue,
-                yarnColor: NSColor(red: 0.4, green: 0.65, blue: 0.85, alpha: 0.6),
-                cushionColor: NSColor(red: 0.4, green: 0.6, blue: 0.8, alpha: 0.35),
-                favoriteGame: "Laser Chase",
+                name: "Bun Bun",
+                species: "cool bunny",
+                trait: "playful",
+                bodyColor: NSColor(red: 0.92, green: 0.88, blue: 0.95, alpha: 1),
+                accentColor: NSColor(red: 0.8, green: 0.7, blue: 0.9, alpha: 1),
+                bellyColor: NSColor(red: 0.96, green: 0.92, blue: 0.98, alpha: 1),
+                hatchGreeting: "boing boing~!! 🐰✨\ni'm here i'm here!\n*does a little hop*\nlet's be friends forever!!",
+                hatchButton: "so bouncy!! 🐰💜",
+                askNameLine: "ooh ooh! what's your name?\ni wanna remember it\nFOREVER! 🐰💕",
+                greetingLine: { name in "\(name)~!! 🐰💜\nyay yay YAYY!\ni get a best friend!\n*happy ear wiggle*" },
+                greetingButton: "boing boing! 🐰",
+                askPetNameLine: { name in "\(name), name me!\nsomething bouncy and cute!\nlike me! 🐰✨" },
+                floorColor: NSColor(red: 0.9, green: 0.85, blue: 0.92, alpha: 1),
+                rugColor: NSColor(red: 0.82, green: 0.7, blue: 0.9, alpha: 0.2),
+                wallTint: NSColor(red: 0.92, green: 0.88, blue: 0.95, alpha: 0.08),
+                shelfItemColors: [.systemPurple, .systemPink, .magenta, .systemIndigo, .white],
+                roomAccent: "🥕",
+                windowScene: .garden,
+                foods: ["🥕", "🥬", "🍎", "🫐", "🍓", "🌸"],
+                toyBallColor: NSColor.systemPurple,
+                yarnColor: NSColor(red: 0.82, green: 0.7, blue: 0.9, alpha: 0.6),
+                cushionColor: NSColor(red: 0.85, green: 0.78, blue: 0.92, alpha: 0.35),
+                favoriteGame: "Fetch Ball",
                 idleThoughts: [
-                    "vibes are immaculate rn~ 🌊",
-                    "chillin'. just absolutely chillin'. 😎",
-                    "you ever just... exist? it's pretty rad 🤙",
-                    "the ocean in the window is calling me bro~ 🏄",
-                    "no thoughts, just vibes ✨",
-                    "life's a wave, dude. just ride it~ 🌊",
-                    "*does a little finger gun* pew pew 😎",
-                    "that corner of the room has good energy ngl",
-                    "i'm not lazy, i'm energy efficient 🔋",
-                    "the floor is not lava, the floor is chill 🧊",
-                    "if cool was a temperature i'd be absolute zero 😎❄️",
-                    "sometimes the best move is no move at all~ 🌊",
+                    "*boing boing* just practicing my hops~! 🐰",
+                    "my ears pick up EVERYTHING. yes, even that. 👂",
+                    "carrots are a lifestyle, not just a food 🥕",
+                    "i can hear you thinking! ...probably! 🐰✨",
+                    "*wiggles nose* ...something smells like adventure!",
+                    "bunnies are basically fluffy rockets 🚀🐰",
+                    "hop hop hop~ la la la~ 🎵",
+                    "my tail is so fluffy it has its own fan club 🐰💜",
+                    "i wonder how high i can bounce... TO THE MOON?! 🌙",
+                    "ears up, spirits up! that's my motto~",
+                    "if cuteness was a sport, i'd be olympic gold 🥇🐰",
+                    "*does a binky* pure joy expressed through HOPS 🐰✨",
                 ],
                 morningGreetings: [
-                    "yo... morning already? ...that's cool 😎☀️",
-                    "*stretches* aight. let's vibe today~ 🌊",
-                    "mornings are chill if you don't overthink em 🤙",
-                    "coffee? nah fam. i run on good vibes ☕😎",
-                    "sun's up. vibes are loading... 🔄",
-                    "early bird gets the worm but late bird gets the vibes~ 🐦",
+                    "GOOD MORNING!! *boing boing boing*!! 🐰☀️",
+                    "rise and HOP! best time of day! 🌅🐰",
+                    "my ears are up! my energy is up! EVERYTHING IS UP! ☀️",
+                    "morning carrots morning carrots MORNING CARROTS! 🥕",
+                    "*zooms around the room* GOOD! MORNING! 🐰💨",
+                    "the early bunny gets the... CARROT! 🥕☀️",
                 ],
                 afternoonThoughts: [
-                    "post-lunch nap hits different bro... 😴🌊",
-                    "the afternoon vibe is... sleepy. respect. 💤",
-                    "gonna power nap. wake me up for sunset~ 😎😴",
-                    "zzz is just horizontal vibing honestly 🤙💤",
-                    "even the ocean takes a chill break sometimes~ 🌊",
+                    "even bunnies need a flop break... 😴🐰",
+                    "*yawns* hop... hop... flop... 💤",
+                    "afternoon nap = recharging my bounce batteries 🔋🐰",
+                    "too... sleepy... to... boing... 😴",
+                    "my ears are drooping... that means naptime 🐰💤",
                 ],
                 eveningThoughts: [
-                    "sunset vibes are unmatched dude~ 🌅😎",
-                    "evening is just morning for night owls 🦉",
-                    "the chill energy peaks at golden hour 🌊✨",
-                    "today was solid. no complaints. 🤙",
-                    "night mode: activated 😎🌙",
+                    "evening hops hit different~ 🐰🌅",
+                    "today i did SO many boings! personal best! 🏆",
+                    "the stars are like tiny carrots in the sky... right? 🥕✨",
+                    "winding down with gentle hops~ boing... boing... 🐰",
+                    "cozy bunny hours activated~ 🐰💜",
                 ],
                 sleepyThoughts: [
-                    "zzz... *mumbles* ...gnarly wave bro... 💤🏄",
-                    "*sleep-surfing* ...cowabunga... zzz 🌊💤",
-                    "zzz... vibes... eternal... 😎💤",
+                    "zzz... *ear twitches*... more carrots... 🥕💤",
+                    "*dream-hopping on clouds*... boing... zzz ☁️🐰",
+                    "zzz... the softest... burrow... 💤🐰",
                 ],
                 hungryThoughts: [
-                    "yo i could really go for some sushi rn 🍣",
-                    "dude. food. please. the vibes need fuel 🐟",
-                    "hungry but make it ✨aesthetic✨ 😎",
-                    "my stomach is not chill right now ngl 🌊",
-                    "can't vibe on an empty stomach bro 🤙",
+                    "CARROTS!! I NEED CARROTS!! 🥕🐰😤",
+                    "a hungry bunny is a sad bunny! feed me! 🐰",
+                    "my nose is twitching... that means HUNGRY 🐰",
+                    "can't hop on an empty tummy~! 🥕",
+                    "please... snacks... my ears are drooping from hunger 😭🐰",
                 ],
                 happyThoughts: [
-                    "peak vibes achieved. this is it. 🌊😎✨",
-                    "bro i'm so happy rn it's actually crazy 🤙",
-                    "good vibes ONLY and they are FLOWING 🌊💕",
-                    "life is rad and you're rad. fact. 😎🏄",
-                    "this right here? this is the good timeline 🌊✨",
+                    "*BOING BOING BOING* SO HAPPY!! 🐰💜✨",
+                    "my ears are VIBRATING with joy!! 🐰💕",
+                    "BINKY TIME!! *does the happiest hop ever*!! 🐰🎉",
+                    "you make my tail wiggle SO MUCH!! 💜🐰",
+                    "happiest bunny in the WHOLE WORLD!! 🐰✨🌍",
                 ],
-                matColor: NSColor(red: 0.4, green: 0.65, blue: 0.85, alpha: 0.45),
-                matEmoji: "🏄",
-                sleepStyle: "sprawled"
+                matColor: NSColor(red: 0.85, green: 0.78, blue: 0.92, alpha: 0.45),
+                matEmoji: "🥕",
+                sleepStyle: "curled up"
+            )
+
+        case .cuteSaurus:
+            return PetPersonality(
+                name: "Rex",
+                species: "baby dino",
+                trait: "curious",
+                bodyColor: NSColor(red: 0.4, green: 0.78, blue: 0.65, alpha: 1),
+                accentColor: NSColor(red: 0.3, green: 0.68, blue: 0.55, alpha: 1),
+                bellyColor: NSColor(red: 0.65, green: 0.9, blue: 0.78, alpha: 1),
+                hatchGreeting: "rawr~! 🦕✨\ni'm a real dinosaur!\nwell... a tiny one...\nbut i have BIG dreams!",
+                hatchButton: "you're amazing, little dino! 🦕",
+                askNameLine: "ooh a human!\ni've read about you!\nwhat's your name? 🦕📚",
+                greetingLine: { name in "hi \(name)~! 🦕💚\ni'm gonna learn\nEVERYTHING about\nthe modern world!\nteach me things? 📖✨" },
+                greetingButton: "of course, little Rex! 🦕",
+                askPetNameLine: { name in "\(name), what would\nyou name a dinosaur?\nsomething prehistoric? 🦴✨" },
+                floorColor: NSColor(red: 0.78, green: 0.88, blue: 0.82, alpha: 1),
+                rugColor: NSColor(red: 0.4, green: 0.7, blue: 0.55, alpha: 0.2),
+                wallTint: NSColor(red: 0.82, green: 0.92, blue: 0.85, alpha: 0.08),
+                shelfItemColors: [.systemGreen, .systemTeal, .systemBrown, .systemOrange, .systemYellow],
+                roomAccent: "🦴",
+                windowScene: .garden,
+                foods: ["🌿", "🥬", "🍃", "🥝", "🫛", "🌽"],
+                toyBallColor: NSColor.systemTeal,
+                yarnColor: NSColor(red: 0.4, green: 0.7, blue: 0.6, alpha: 0.6),
+                cushionColor: NSColor(red: 0.5, green: 0.75, blue: 0.65, alpha: 0.35),
+                favoriteGame: "Laser Chase",
+                idleThoughts: [
+                    "did you know T-Rex couldn't clap? sad... 🦖",
+                    "i wonder if my ancestors would be proud of me~ 🦕",
+                    "65 million years late but i'm HERE! 🌍",
+                    "what's that thing? *sniffs curiously* 👃",
+                    "i'm technically a living fossil. cool, right? 🦴✨",
+                    "everything is new and FASCINATING! 🔍🦕",
+                    "the meteor missed ME specifically 😎☄️",
+                    "rawr means 'i love you' in dinosaur~ 🦕💚",
+                    "i learned a new word today! ...i forgot it already 📖😅",
+                    "my arms are small but my heart is ENORMOUS 💚",
+                    "do you think birds remember us? they're our cousins! 🐦",
+                    "i'm not extinct, i'm just fashionably late~ 🦕✨",
+                ],
+                morningGreetings: [
+                    "good morning~! a new day to discover things! 🦕☀️",
+                    "RAWR! ...that's good morning in dinosaur 🌅",
+                    "the sun is like a big warm meteor! ...a FRIENDLY one! ☀️😅",
+                    "morning exploration begins NOW! 🔍🦕",
+                    "today i will learn at least 3 new things! 📚☀️",
+                    "prehistoric morning routine: stretch, rawr, be curious! 🦕",
+                ],
+                afternoonThoughts: [
+                    "even dinosaurs need rest after foraging... 😴🦕",
+                    "afternoon nap... like my ancestors in the Jurassic sun... 💤☀️",
+                    "my brain learned too many things... needs reboot... 📖😴",
+                    "the warm afternoon... reminds me of... the Cretaceous... 🌿😴",
+                    "power nap to power up my curiosity! 🔋🦕",
+                ],
+                eveningThoughts: [
+                    "today i learned so many things~! 🦕✨",
+                    "the evening sky looks like the Jurassic sunset... probably 🌅",
+                    "time to organize my new discoveries! 📖🦕",
+                    "stars! my ancestors saw these SAME stars! 🌟🦕",
+                    "another successful day of not being extinct! 🎉",
+                ],
+                sleepyThoughts: [
+                    "zzz... *dreams of the Jurassic*... 🌿💤🦕",
+                    "*tiny dinosaur snores*... rrrrr... zzz 🦕💤",
+                    "zzz... so many things... to learn... tomorrow... 📚💤",
+                ],
+                hungryThoughts: [
+                    "need leaves! or whatever modern food is! 🌿🦕",
+                    "a hungry dinosaur is a grumpy dinosaur! rawr! 😤🦕",
+                    "my prehistoric stomach is RUMBLING! 🦕🌋",
+                    "feed me and i'll teach you a dino fact! 📖🦕",
+                    "even herbivores get hangry~! 🌿😤",
+                ],
+                happyThoughts: [
+                    "RAWR RAWR RAWR!! that's HAPPY in dinosaur!! 🦕💚✨",
+                    "i'm the happiest dino in 65 million years!! 🎉🦕",
+                    "discovery of the day: HAPPINESS!! 📖💚",
+                    "my tail is wagging! dinosaurs DO that! ...right? 🦕💕",
+                    "being alive in the modern era is AMAZING!! 🌍🦕✨",
+                ],
+                matColor: NSColor(red: 0.5, green: 0.75, blue: 0.65, alpha: 0.45),
+                matEmoji: "🦴",
+                sleepStyle: "curled up"
             )
         }
     }
@@ -2822,13 +2743,7 @@ private struct PetSceneView: NSViewRepresentable {
 
             // Laser dot (cat toy)
             buildLaserDot(in: scene)
-            let body: SCNNode
-            switch character {
-            case .fluffy:
-                body = buildPet(alive: pet.isAlive, palette: palette)
-            case .pongoGreen, .pongoWhite, .pongoPurple, .pongoBlue:
-                body = buildPongoPet(character: character, alive: pet.isAlive, palette: palette)
-            }
+            let body = buildVRMPet(character: character, alive: pet.isAlive)
             scene.rootNode.addChildNode(body)
             petBodyNode = body
             sceneRef = scene
@@ -2836,7 +2751,6 @@ private struct PetSceneView: NSViewRepresentable {
             // Animations
             if pet.isAlive {
                 startIdleAnimations(body)
-                startBlinking()
             } else {
                 // Dead pose - fall over
                 body.eulerAngles.z = CGFloat.pi / 2
@@ -3363,736 +3277,76 @@ private struct PetSceneView: NSViewRepresentable {
             }
         }
 
-        private func buildPet(alive: Bool, palette: ThemePalette) -> SCNNode {
+
+        // MARK: - VRM Character Builder
+
+        /// Load a VRM (glTF binary) avatar model from bundled resources.
+        private func buildVRMPet(character: UserDataStore.PetCharacter, alive: Bool) -> SCNNode {
             let root = SCNNode()
+            root.name = "vrm_root"
             root.position = SCNVector3(0, 0, 0)
 
-            let accentColor = NSColor(palette.accent)
-            let lighterAccent = accentColor.blended(withFraction: 0.35, of: .white) ?? accentColor
-            let palest = accentColor.blended(withFraction: 0.65, of: .white) ?? accentColor
-            let bellyColor = accentColor.blended(withFraction: 0.7, of: .white) ?? accentColor
-
-            // Helper to make soft fluffy material
-            func fluffyMat(_ color: NSColor) -> SCNMaterial {
-                let m = SCNMaterial()
-                m.diffuse.contents = color
-                m.roughness.contents = NSColor(white: 0.85, alpha: 1)  // very matte = fluffy look
-                m.metalness.contents = NSColor(white: 0.0, alpha: 1)
-                // Subtle warm glow
-                m.emission.contents = color.withAlphaComponent(0.06)
-                return m
+            let fileName = character.vrmFileName
+            guard let url = Bundle.main.url(forResource: fileName, withExtension: "vrm") else {
+                // Fallback: build a simple placeholder sphere if VRM file not found
+                let fallback = SCNSphere(radius: 0.4)
+                let mat = SCNMaterial()
+                mat.diffuse.contents = character.personality.bodyColor
+                mat.roughness.contents = NSColor(white: 0.7, alpha: 1)
+                fallback.materials = [mat]
+                let node = SCNNode(geometry: fallback)
+                node.position = SCNVector3(0, 0.5, 0)
+                root.addChildNode(node)
+                bodyMeshNode = node
+                return root
             }
 
-            let bodyFluff = fluffyMat(accentColor)
+            do {
+                let vrmNode = try GLBLoader.loadScene(from: url)
 
-            // ── BODY ── Chubby round sphere (not capsule!) — Kirby/Molang style
-            let bodyGeo = SCNSphere(radius: 0.52)
-            bodyGeo.segmentCount = 48
-            bodyGeo.materials = [bodyFluff]
-            let bodyNode = SCNNode(geometry: bodyGeo)
-            bodyNode.position = SCNVector3(0, 0.55, 0)
-            root.addChildNode(bodyNode)
-            bodyMeshNode = bodyNode
+                // Normalize the model size — VRM avatars vary in height.
+                // We want the model to fit comfortably in our room (about 1.0-1.2 units tall).
+                let (minBound, maxBound) = vrmNode.boundingBox
+                let modelHeight = CGFloat(maxBound.y - minBound.y)
+                let modelWidth = CGFloat(maxBound.x - minBound.x)
+                let maxDimension = max(modelHeight, modelWidth)
+                let targetHeight: CGFloat = 1.1  // target height in scene units
+                let scaleFactor = maxDimension > 0 ? Float(targetHeight / maxDimension) : 1.0
+                vrmNode.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
 
-            // ── BELLY PATCH ── Soft lighter oval on tummy
-            let bellyGeo = SCNSphere(radius: 0.36)
-            bellyGeo.segmentCount = 32
-            bellyGeo.materials = [fluffyMat(bellyColor)]
-            let bellyNode = SCNNode(geometry: bellyGeo)
-            bellyNode.position = SCNVector3(0, -0.06, 0.22)
-            bellyNode.scale = SCNVector3(0.75, 0.85, 0.35)
-            bodyNode.addChildNode(bellyNode)
-
-            // ── HEAD ── Big round head (bigger than body = cuter!)
-            let headGeo = SCNSphere(radius: 0.46)
-            headGeo.segmentCount = 48
-            headGeo.materials = [fluffyMat(accentColor)]
-            let head = SCNNode(geometry: headGeo)
-            head.position = SCNVector3(0, 0.58, 0)
-            bodyNode.addChildNode(head)
-            headNode = head
-
-            // ── FLUFFY TUFT ── Little fluff on top of head
-            for i in 0..<3 {
-                let tuftGeo = SCNSphere(radius: 0.07 - CGFloat(i) * 0.015)
-                tuftGeo.materials = [fluffyMat(lighterAccent)]
-                let tuft = SCNNode(geometry: tuftGeo)
-                tuft.position = SCNVector3(
-                    CGFloat(i - 1) * 0.04,
-                    0.42 + CGFloat(i) * 0.03,
-                    0.02
+                // Center the model horizontally and place feet on the ground
+                let centerX = Float(minBound.x + maxBound.x) / 2.0
+                let bottomY = Float(minBound.y)
+                vrmNode.position = SCNVector3(
+                    CGFloat(-centerX * scaleFactor),
+                    CGFloat(-bottomY * scaleFactor + 0.05),
+                    0
                 )
-                head.addChildNode(tuft)
-            }
 
-            // ── EYES ── BIG sparkly anime-style eyes
-            let eyeWhiteGeo = SCNSphere(radius: 0.13)
-            eyeWhiteGeo.segmentCount = 32
-            let eyeWhiteMat = SCNMaterial()
-            eyeWhiteMat.diffuse.contents = NSColor.white
-            eyeWhiteMat.emission.contents = NSColor(white: 1, alpha: 0.1)
-            eyeWhiteGeo.materials = [eyeWhiteMat]
+                root.addChildNode(vrmNode)
+                bodyMeshNode = vrmNode
 
-            let leftEye = SCNNode(geometry: eyeWhiteGeo)
-            leftEye.position = SCNVector3(-0.15, 0.06, 0.38)
-            head.addChildNode(leftEye)
-            leftEyeNode = leftEye
+                // For VRM models, we don't set individual body part nodes
+                // (headNode, leftEyeNode, etc.) — animations work on the whole model.
+                // The headNode reference is set to the vrm root so head animations
+                // (look around, tilt) apply to the whole character — looks cute on small mascots.
+                headNode = vrmNode
 
-            let rightEye = SCNNode(geometry: eyeWhiteGeo)
-            rightEye.position = SCNVector3(0.15, 0.06, 0.38)
-            head.addChildNode(rightEye)
-            rightEyeNode = rightEye
-
-            // ── PUPILS ── Large dark pupils with colored iris ring
-            let pupilGeo = SCNSphere(radius: 0.075)
-            pupilGeo.segmentCount = 24
-            let pupilMat = SCNMaterial()
-            pupilMat.diffuse.contents = NSColor(red: 0.12, green: 0.08, blue: 0.06, alpha: 1)
-            pupilGeo.materials = [pupilMat]
-
-            let leftPupil = SCNNode(geometry: pupilGeo)
-            leftPupil.position = SCNVector3(0, 0, 0.07)
-            leftEye.addChildNode(leftPupil)
-            leftPupilNode = leftPupil
-
-            let rightPupil = SCNNode(geometry: pupilGeo)
-            rightPupil.position = SCNVector3(0, 0, 0.07)
-            rightEye.addChildNode(rightPupil)
-            rightPupilNode = rightPupil
-
-            // ── EYE SPARKLES ── Two white highlights per eye (anime style!)
-            for eye in [leftPupil, rightPupil] {
-                let sparkGeo1 = SCNSphere(radius: 0.025)
-                let sparkMat = SCNMaterial()
-                sparkMat.diffuse.contents = NSColor.white
-                sparkMat.emission.contents = NSColor(white: 1, alpha: 0.9)
-                sparkGeo1.materials = [sparkMat]
-                let spark1 = SCNNode(geometry: sparkGeo1)
-                spark1.position = SCNVector3(0.02, 0.025, 0.05)
-                eye.addChildNode(spark1)
-
-                let sparkGeo2 = SCNSphere(radius: 0.015)
-                sparkGeo2.materials = [sparkMat]
-                let spark2 = SCNNode(geometry: sparkGeo2)
-                spark2.position = SCNVector3(-0.015, -0.015, 0.055)
-                eye.addChildNode(spark2)
-            }
-
-            // ── IRIS RING ── Colored ring around pupil
-            for (eye, pupil) in [(leftEye, leftPupil), (rightEye, rightPupil)] {
-                let irisGeo = SCNTorus(ringRadius: 0.075, pipeRadius: 0.012)
-                let irisMat = SCNMaterial()
-                irisMat.diffuse.contents = accentColor.blended(withFraction: 0.2, of: .brown) ?? accentColor
-                irisGeo.materials = [irisMat]
-                let iris = SCNNode(geometry: irisGeo)
-                iris.position = SCNVector3(0, 0, 0.04)
-                let _ = eye  // suppress warning
-                pupil.addChildNode(iris)
-            }
-
-            // ── TINY NOSE ── Little pink button nose
-            let noseGeo = SCNSphere(radius: 0.04)
-            noseGeo.segmentCount = 16
-            let noseMat = SCNMaterial()
-            noseMat.diffuse.contents = NSColor(red: 0.95, green: 0.55, blue: 0.6, alpha: 1)
-            noseMat.emission.contents = NSColor(red: 0.95, green: 0.55, blue: 0.6, alpha: 0.15)
-            noseGeo.materials = [noseMat]
-            let nose = SCNNode(geometry: noseGeo)
-            nose.position = SCNVector3(0, -0.04, 0.43)
-            nose.scale = SCNVector3(1.0, 0.7, 0.6)
-            head.addChildNode(nose)
-
-            // ── MOUTH ── Tiny curved smile (small torus, half-hidden)
-            let mouthGeo = SCNTorus(ringRadius: 0.05, pipeRadius: 0.012)
-            let mouthMat = SCNMaterial()
-            mouthMat.diffuse.contents = NSColor(red: 0.9, green: 0.45, blue: 0.5, alpha: 0.8)
-            mouthGeo.materials = [mouthMat]
-            let mouth = SCNNode(geometry: mouthGeo)
-            mouth.position = SCNVector3(0, -0.1, 0.4)
-            mouth.eulerAngles.x = CGFloat.pi / 5
-            mouth.scale = SCNVector3(1, 0.5, 1)  // flatten to a cute line
-            head.addChildNode(mouth)
-            mouthNode = mouth
-
-            // ── CHEEKS ── Big rosy blush circles
-            let cheekGeo = SCNSphere(radius: 0.08)
-            cheekGeo.segmentCount = 16
-            let cheekMat = SCNMaterial()
-            cheekMat.diffuse.contents = NSColor.systemPink.withAlphaComponent(0.3)
-            cheekMat.emission.contents = NSColor.systemPink.withAlphaComponent(0.08)
-            cheekGeo.materials = [cheekMat]
-
-            let leftCheek = SCNNode(geometry: cheekGeo)
-            leftCheek.position = SCNVector3(-0.28, -0.04, 0.3)
-            leftCheek.scale = SCNVector3(1, 0.6, 0.4)  // flatten into blush ovals
-            head.addChildNode(leftCheek)
-            leftCheekNode = leftCheek
-
-            let rightCheek = SCNNode(geometry: cheekGeo)
-            rightCheek.position = SCNVector3(0.28, -0.04, 0.3)
-            rightCheek.scale = SCNVector3(1, 0.6, 0.4)
-            head.addChildNode(rightCheek)
-            rightCheekNode = rightCheek
-
-            // ── EARS ── Soft rounded cat-like ears
-            let earGeo = SCNSphere(radius: 0.14)
-            earGeo.segmentCount = 24
-            let earMat = fluffyMat(lighterAccent)
-
-            let leftEar = SCNNode(geometry: earGeo)
-            leftEar.position = SCNVector3(-0.26, 0.38, -0.05)
-            leftEar.scale = SCNVector3(0.7, 1.1, 0.5)  // pointy-ish shape
-            leftEar.eulerAngles.z = 0.25
-            head.addChildNode(leftEar)
-            leftEarNode = leftEar
-
-            let rightEar = SCNNode(geometry: earGeo)
-            rightEar.position = SCNVector3(0.26, 0.38, -0.05)
-            rightEar.scale = SCNVector3(0.7, 1.1, 0.5)
-            rightEar.eulerAngles.z = -0.25
-            head.addChildNode(rightEar)
-            rightEarNode = rightEar
-
-            // Inner ear (pink)
-            let innerEarGeo = SCNSphere(radius: 0.07)
-            innerEarGeo.segmentCount = 16
-            let innerEarMat = SCNMaterial()
-            innerEarMat.diffuse.contents = NSColor(red: 1, green: 0.7, blue: 0.75, alpha: 0.6)
-            innerEarGeo.materials = [innerEarMat]
-
-            let leftInnerEar = SCNNode(geometry: innerEarGeo)
-            leftInnerEar.position = SCNVector3(0, 0, 0.04)
-            leftEar.addChildNode(leftInnerEar)
-
-            let rightInnerEar = SCNNode(geometry: innerEarGeo)
-            rightInnerEar.position = SCNVector3(0, 0, 0.04)
-            rightEar.addChildNode(rightInnerEar)
-
-            // ── TINY BOW ── Cute accessory on right ear
-            let bowCenter = SCNSphere(radius: 0.03)
-            let bowMat = SCNMaterial()
-            bowMat.diffuse.contents = NSColor.systemPink
-            bowMat.emission.contents = NSColor.systemPink.withAlphaComponent(0.2)
-            bowCenter.materials = [bowMat]
-            let bowNode = SCNNode(geometry: bowCenter)
-            bowNode.position = SCNVector3(0.05, 0.08, 0.06)
-            rightEar.addChildNode(bowNode)
-
-            // Bow loops
-            let bowLoopGeo = SCNSphere(radius: 0.04)
-            bowLoopGeo.materials = [bowMat]
-            let bowLeft = SCNNode(geometry: bowLoopGeo)
-            bowLeft.position = SCNVector3(-0.04, 0.01, 0)
-            bowLeft.scale = SCNVector3(1.2, 0.7, 0.5)
-            bowNode.addChildNode(bowLeft)
-            let bowRight = SCNNode(geometry: bowLoopGeo)
-            bowRight.position = SCNVector3(0.04, 0.01, 0)
-            bowRight.scale = SCNVector3(1.2, 0.7, 0.5)
-            bowNode.addChildNode(bowRight)
-
-            // ── BANDANA / SCARF ── Around the neck area
-            let scarfGeo = SCNTorus(ringRadius: 0.3, pipeRadius: 0.05)
-            let scarfMat = SCNMaterial()
-            let scarfColor = NSColor.systemRed.blended(withFraction: 0.3, of: accentColor) ?? .systemRed
-            scarfMat.diffuse.contents = scarfColor.withAlphaComponent(0.7)
-            scarfMat.roughness.contents = NSColor(white: 0.7, alpha: 1)
-            scarfGeo.materials = [scarfMat]
-            let scarf = SCNNode(geometry: scarfGeo)
-            scarf.position = SCNVector3(0, 0.26, 0)
-            scarf.eulerAngles.x = 0.1
-            bodyNode.addChildNode(scarf)
-
-            // Scarf knot
-            let knotGeo = SCNSphere(radius: 0.06)
-            knotGeo.materials = [scarfMat]
-            let knot = SCNNode(geometry: knotGeo)
-            knot.position = SCNVector3(0, -0.02, 0.3)
-            scarf.addChildNode(knot)
-
-            // Scarf tails hanging from knot
-            let tailPieceGeo = SCNCapsule(capRadius: 0.025, height: 0.14)
-            tailPieceGeo.materials = [scarfMat]
-            let scarfTail1 = SCNNode(geometry: tailPieceGeo)
-            scarfTail1.position = SCNVector3(-0.03, -0.09, 0.02)
-            scarfTail1.eulerAngles.z = 0.2
-            knot.addChildNode(scarfTail1)
-            let scarfTail2 = SCNNode(geometry: tailPieceGeo)
-            scarfTail2.position = SCNVector3(0.03, -0.1, 0.02)
-            scarfTail2.eulerAngles.z = -0.15
-            knot.addChildNode(scarfTail2)
-
-            // ── ARMS ── Stubby round little paws
-            let armGeo = SCNCapsule(capRadius: 0.09, height: 0.22)
-            armGeo.materials = [bodyFluff]
-
-            let leftArm = SCNNode(geometry: armGeo)
-            leftArm.position = SCNVector3(-0.45, 0.05, 0.1)
-            leftArm.eulerAngles.z = CGFloat.pi / 5
-            bodyNode.addChildNode(leftArm)
-            leftArmNode = leftArm
-
-            let rightArm = SCNNode(geometry: armGeo)
-            rightArm.position = SCNVector3(0.45, 0.05, 0.1)
-            rightArm.eulerAngles.z = -CGFloat.pi / 5
-            bodyNode.addChildNode(rightArm)
-            rightArmNode = rightArm
-
-            // Little paw pads (pink circles on paw tips)
-            let pawPadGeo = SCNSphere(radius: 0.035)
-            let pawPadMat = SCNMaterial()
-            pawPadMat.diffuse.contents = NSColor(red: 1, green: 0.7, blue: 0.75, alpha: 0.7)
-            pawPadGeo.materials = [pawPadMat]
-
-            let leftPad = SCNNode(geometry: pawPadGeo)
-            leftPad.position = SCNVector3(0, -0.11, 0.05)
-            leftArm.addChildNode(leftPad)
-            let rightPad = SCNNode(geometry: pawPadGeo)
-            rightPad.position = SCNVector3(0, -0.11, 0.05)
-            rightArm.addChildNode(rightPad)
-
-            // ── FEET ── Round stubby feet
-            let footGeo = SCNSphere(radius: 0.13)
-            footGeo.segmentCount = 24
-            footGeo.materials = [bodyFluff]
-
-            let leftFoot = SCNNode(geometry: footGeo)
-            leftFoot.position = SCNVector3(-0.2, -0.45, 0.08)
-            leftFoot.scale = SCNVector3(1, 0.6, 1.2)  // flattened oval
-            bodyNode.addChildNode(leftFoot)
-            leftFootNode = leftFoot
-
-            let rightFoot = SCNNode(geometry: footGeo)
-            rightFoot.position = SCNVector3(0.2, -0.45, 0.08)
-            rightFoot.scale = SCNVector3(1, 0.6, 1.2)
-            bodyNode.addChildNode(rightFoot)
-            rightFootNode = rightFoot
-
-            // Foot paw pads
-            let footPadGeo = SCNSphere(radius: 0.04)
-            footPadGeo.materials = [pawPadMat]
-            let leftFootPad = SCNNode(geometry: footPadGeo)
-            leftFootPad.position = SCNVector3(0, -0.04, 0.06)
-            leftFoot.addChildNode(leftFootPad)
-            let rightFootPad = SCNNode(geometry: footPadGeo)
-            rightFootPad.position = SCNVector3(0, -0.04, 0.06)
-            rightFoot.addChildNode(rightFootPad)
-
-            // ── TAIL ── Fluffy round pom-pom tail
-            let tailGeo = SCNSphere(radius: 0.13)
-            tailGeo.segmentCount = 24
-            tailGeo.materials = [fluffyMat(palest)]
-            let tail = SCNNode(geometry: tailGeo)
-            tail.position = SCNVector3(0, -0.1, -0.48)
-            bodyNode.addChildNode(tail)
-            tailNode = tail
-
-            // Extra fluff on tail
-            let tailFluffGeo = SCNSphere(radius: 0.08)
-            tailFluffGeo.materials = [fluffyMat(lighterAccent)]
-            let tailFluff = SCNNode(geometry: tailFluffGeo)
-            tailFluff.position = SCNVector3(0, 0.06, -0.06)
-            tail.addChildNode(tailFluff)
-
-            // ── WHISKERS ── Tiny subtle whisker lines
-            let whiskerMat = SCNMaterial()
-            whiskerMat.diffuse.contents = NSColor(white: 0.7, alpha: 0.3)
-            for side: CGFloat in [-1, 1] {
-                for i in 0..<2 {
-                    let wGeo = SCNCylinder(radius: 0.004, height: 0.12)
-                    wGeo.materials = [whiskerMat]
-                    let w = SCNNode(geometry: wGeo)
-                    w.position = SCNVector3(
-                        side * 0.22,
-                        -0.05 + CGFloat(i) * 0.04,
-                        0.38
-                    )
-                    w.eulerAngles.z = CGFloat.pi / 2 + side * 0.15
-                    w.eulerAngles.x = CGFloat(i) * 0.1 - 0.05
-                    head.addChildNode(w)
-                }
-            }
-
-            // ── FLOWER CROWN ── Fluffy's signature accessory
-            let flowerColors: [NSColor] = [.systemPink, .systemYellow, .white, .systemRed, .magenta]
-            for i in 0..<5 {
-                let angle = CGFloat(i) * (CGFloat.pi * 2 / 5)
-                let flowerGeo = SCNSphere(radius: 0.04)
-                let flowerMat = SCNMaterial()
-                flowerMat.diffuse.contents = flowerColors[i]
-                flowerMat.emission.contents = flowerColors[i].withAlphaComponent(0.15)
-                flowerGeo.materials = [flowerMat]
-                let flower = SCNNode(geometry: flowerGeo)
-                flower.position = SCNVector3(
-                    cos(angle) * 0.2,
-                    0.42,
-                    sin(angle) * 0.2
-                )
-                head.addChildNode(flower)
-                // Tiny center dot
-                let centerGeo = SCNSphere(radius: 0.015)
-                let centerMat = SCNMaterial()
-                centerMat.diffuse.contents = NSColor.systemYellow
-                centerMat.emission.contents = NSColor.systemYellow.withAlphaComponent(0.3)
-                centerGeo.materials = [centerMat]
-                let center = SCNNode(geometry: centerGeo)
-                center.position = SCNVector3(0, 0, 0.03)
-                flower.addChildNode(center)
+            } catch {
+                print("⚠️ Failed to load VRM model '\(fileName)': \(error.localizedDescription)")
+                // Fallback placeholder
+                let fallback = SCNSphere(radius: 0.4)
+                let mat = SCNMaterial()
+                mat.diffuse.contents = character.personality.bodyColor
+                mat.roughness.contents = NSColor(white: 0.7, alpha: 1)
+                fallback.materials = [mat]
+                let node = SCNNode(geometry: fallback)
+                node.position = SCNVector3(0, 0.5, 0)
+                root.addChildNode(node)
+                bodyMeshNode = node
             }
 
             return root
-        }
-
-        // MARK: - Pongo Character Builder
-
-        private func buildPongoPet(
-            character: UserDataStore.PetCharacter,
-            alive: Bool,
-            palette: ThemePalette
-        ) -> SCNNode {
-            let root = SCNNode()
-            root.position = SCNVector3(0, 0, 0)
-
-            // Character-specific properties
-            let (mainColor, eyeStyle, mouthStyle, letter): (NSColor, PongoEyeStyle, PongoMouthStyle, String) = {
-                switch character {
-                case .pongoGreen:
-                    return (NSColor(red: 0.55, green: 0.82, blue: 0.22, alpha: 1), .round, .happy, "D")
-                case .pongoWhite:
-                    return (NSColor(white: 0.88, alpha: 1), .slant, .happy, "I")
-                case .pongoPurple:
-                    return (NSColor(red: 0.72, green: 0.28, blue: 0.65, alpha: 1), .round, .sad, "D")
-                case .pongoBlue:
-                    return (NSColor(red: 0.25, green: 0.58, blue: 0.72, alpha: 1), .wink, .smirk, "O")
-                default:
-                    return (NSColor(palette.accent), .round, .happy, "")
-                }
-            }()
-
-            let darkerMain = mainColor.blended(withFraction: 0.2, of: .black) ?? mainColor
-            let lighterMain = mainColor.blended(withFraction: 0.3, of: .white) ?? mainColor
-
-            func boxMat(_ color: NSColor) -> SCNMaterial {
-                let m = SCNMaterial()
-                m.diffuse.contents = color
-                m.roughness.contents = NSColor(white: 0.6, alpha: 1)
-                m.metalness.contents = NSColor(white: 0.05, alpha: 1)
-                return m
-            }
-
-            // ── BODY ── Rounded cube
-            let bodyGeo = SCNBox(width: 0.7, height: 0.55, length: 0.55, chamferRadius: 0.12)
-            bodyGeo.materials = [boxMat(mainColor)]
-            let bodyNode = SCNNode(geometry: bodyGeo)
-            bodyNode.position = SCNVector3(0, 0.45, 0)
-            root.addChildNode(bodyNode)
-            bodyMeshNode = bodyNode
-
-            // ── HEAD ── Larger rounded cube on top
-            let headGeo = SCNBox(width: 0.72, height: 0.6, length: 0.6, chamferRadius: 0.14)
-            headGeo.materials = [boxMat(mainColor)]
-            let head = SCNNode(geometry: headGeo)
-            head.position = SCNVector3(0, 0.55, 0)
-            bodyNode.addChildNode(head)
-            headNode = head
-
-            // ── EYES ──
-            switch eyeStyle {
-            case .round:
-                // Small round dark eyes (green & purple style)
-                let eyeGeo = SCNSphere(radius: 0.045)
-                eyeGeo.segmentCount = 16
-                let eyeMat = SCNMaterial()
-                eyeMat.diffuse.contents = NSColor(white: 0.1, alpha: 1)
-                eyeMat.emission.contents = NSColor(white: 0.05, alpha: 1)
-                eyeGeo.materials = [eyeMat]
-
-                let leftEye = SCNNode(geometry: eyeGeo)
-                leftEye.position = SCNVector3(-0.15, 0.08, 0.31)
-                head.addChildNode(leftEye)
-                leftEyeNode = leftEye
-
-                let rightEye = SCNNode(geometry: eyeGeo)
-                rightEye.position = SCNVector3(0.15, 0.08, 0.31)
-                head.addChildNode(rightEye)
-                rightEyeNode = rightEye
-
-                // Highlight dots
-                let hlGeo = SCNSphere(radius: 0.015)
-                let hlMat = SCNMaterial()
-                hlMat.diffuse.contents = NSColor.white
-                hlMat.emission.contents = NSColor(white: 1, alpha: 0.8)
-                hlMat.lightingModel = .constant
-                hlGeo.materials = [hlMat]
-                for eye in [leftEye, rightEye] {
-                    let hl = SCNNode(geometry: hlGeo)
-                    hl.position = SCNVector3(0.015, 0.02, 0.035)
-                    eye.addChildNode(hl)
-                }
-
-            case .slant:
-                // Slanted line-style eyes (white character with hat)
-                let eyeMat = SCNMaterial()
-                eyeMat.diffuse.contents = NSColor(red: 0.9, green: 0.65, blue: 0.1, alpha: 1)
-                for side: CGFloat in [-1, 1] {
-                    let eyeGeo = SCNCylinder(radius: 0.012, height: 0.1)
-                    eyeGeo.materials = [eyeMat]
-                    let eye = SCNNode(geometry: eyeGeo)
-                    eye.position = SCNVector3(side * 0.14, 0.1, 0.31)
-                    eye.eulerAngles = SCNVector3(0, 0, side * 0.4)
-                    head.addChildNode(eye)
-                    if side < 0 { leftEyeNode = eye } else { rightEyeNode = eye }
-                }
-
-            case .wink:
-                // One open eye, one closed (blue character)
-                let eyeGeo = SCNSphere(radius: 0.045)
-                eyeGeo.segmentCount = 16
-                let eyeMat = SCNMaterial()
-                eyeMat.diffuse.contents = NSColor(white: 0.1, alpha: 1)
-                eyeGeo.materials = [eyeMat]
-
-                let leftEye = SCNNode(geometry: eyeGeo)
-                leftEye.position = SCNVector3(-0.15, 0.08, 0.31)
-                head.addChildNode(leftEye)
-                leftEyeNode = leftEye
-
-                // Highlight on open eye
-                let hlGeo = SCNSphere(radius: 0.015)
-                let hlMat = SCNMaterial()
-                hlMat.diffuse.contents = NSColor.white
-                hlMat.emission.contents = NSColor(white: 1, alpha: 0.8)
-                hlMat.lightingModel = .constant
-                hlGeo.materials = [hlMat]
-                let hl = SCNNode(geometry: hlGeo)
-                hl.position = SCNVector3(0.015, 0.02, 0.035)
-                leftEye.addChildNode(hl)
-
-                // Wink eye — curved line
-                let winkMat = SCNMaterial()
-                winkMat.diffuse.contents = NSColor.white
-                let winkGeo = SCNCylinder(radius: 0.012, height: 0.08)
-                winkGeo.materials = [winkMat]
-                let winkEye = SCNNode(geometry: winkGeo)
-                winkEye.position = SCNVector3(0.15, 0.06, 0.31)
-                winkEye.eulerAngles.z = CGFloat.pi / 2
-                head.addChildNode(winkEye)
-                rightEyeNode = winkEye
-            }
-
-            // ── MOUTH ──
-            let mouthMat = SCNMaterial()
-            switch mouthStyle {
-            case .happy:
-                // Curved happy smile
-                mouthMat.diffuse.contents = NSColor(white: 0.15, alpha: 1)
-                let mouthGeo = SCNTorus(ringRadius: 0.08, pipeRadius: 0.015)
-                mouthGeo.materials = [mouthMat]
-                let mouth = SCNNode(geometry: mouthGeo)
-                mouth.position = SCNVector3(0, -0.08, 0.3)
-                mouth.eulerAngles.x = CGFloat.pi / 4
-                mouth.scale = SCNVector3(1.2, 0.5, 1)
-                head.addChildNode(mouth)
-                mouthNode = mouth
-
-            case .sad:
-                // Upside-down frown
-                mouthMat.diffuse.contents = NSColor(white: 0.15, alpha: 1)
-                let mouthGeo = SCNTorus(ringRadius: 0.07, pipeRadius: 0.015)
-                mouthGeo.materials = [mouthMat]
-                let mouth = SCNNode(geometry: mouthGeo)
-                mouth.position = SCNVector3(0, -0.1, 0.3)
-                mouth.eulerAngles.x = -CGFloat.pi / 4
-                mouth.scale = SCNVector3(1.2, 0.5, 1)
-                head.addChildNode(mouth)
-                mouthNode = mouth
-
-            case .smirk:
-                // Sideways smirk
-                mouthMat.diffuse.contents = NSColor.white
-                let smirkGeo = SCNCylinder(radius: 0.015, height: 0.14)
-                smirkGeo.materials = [mouthMat]
-                let mouth = SCNNode(geometry: smirkGeo)
-                mouth.position = SCNVector3(0.02, -0.08, 0.31)
-                mouth.eulerAngles.z = CGFloat.pi / 2 + 0.15
-                head.addChildNode(mouth)
-                mouthNode = mouth
-            }
-
-            // ── BELLY LETTER ──
-            if !letter.isEmpty {
-                let letterGeo = SCNText(string: letter, extrusionDepth: 0.02)
-                letterGeo.font = NSFont.systemFont(ofSize: 0.2, weight: .bold)
-                letterGeo.flatness = 0.1
-                let letterMat = SCNMaterial()
-                letterMat.diffuse.contents = lighterMain
-                letterMat.lightingModel = .constant
-                letterGeo.materials = [letterMat]
-                let letterNode = SCNNode(geometry: letterGeo)
-                let (mn, mx) = letterNode.boundingBox
-                let lw = CGFloat(mx.x - mn.x)
-                let lh = CGFloat(mx.y - mn.y)
-                letterNode.position = SCNVector3(-lw / 2, -lh / 2 - 0.05, 0.28)
-                bodyNode.addChildNode(letterNode)
-            }
-
-            // ── CHARACTER-SPECIFIC ACCESSORIES ──
-            switch character {
-            case .pongoGreen:
-                // Adventure bandana — triangle scarf around neck
-                let bandanaGeo = SCNBox(width: 0.5, height: 0.12, length: 0.06, chamferRadius: 0.02)
-                let bandanaMat = SCNMaterial()
-                bandanaMat.diffuse.contents = NSColor.systemOrange.withAlphaComponent(0.8)
-                bandanaGeo.materials = [bandanaMat]
-                let bandana = SCNNode(geometry: bandanaGeo)
-                bandana.position = SCNVector3(0, -0.25, 0.25)
-                bandana.eulerAngles.x = 0.15
-                head.addChildNode(bandana)
-                // Bandana knot
-                let knotGeo = SCNSphere(radius: 0.04)
-                let knotMat = SCNMaterial()
-                knotMat.diffuse.contents = NSColor.systemOrange.withAlphaComponent(0.9)
-                knotGeo.materials = [knotMat]
-                let knot = SCNNode(geometry: knotGeo)
-                knot.position = SCNVector3(0.2, 0, 0.02)
-                bandana.addChildNode(knot)
-
-            case .pongoWhite:
-                // Bowler hat
-                let brimGeo = SCNCylinder(radius: 0.34, height: 0.04)
-                let hatMat = boxMat(NSColor(white: 0.65, alpha: 1))
-                brimGeo.materials = [hatMat]
-                let brim = SCNNode(geometry: brimGeo)
-                brim.position = SCNVector3(0, 0.3, 0)
-                head.addChildNode(brim)
-                let crownGeo = SCNCylinder(radius: 0.22, height: 0.2)
-                crownGeo.materials = [hatMat]
-                let crown = SCNNode(geometry: crownGeo)
-                crown.position = SCNVector3(0, 0.13, 0)
-                brim.addChildNode(crown)
-                // Monocle — small glass circle near right eye
-                let monocleGeo = SCNTorus(ringRadius: 0.06, pipeRadius: 0.008)
-                let monocleMat = SCNMaterial()
-                monocleMat.diffuse.contents = NSColor(red: 0.85, green: 0.75, blue: 0.45, alpha: 1)
-                monocleMat.metalness.contents = NSColor(white: 0.6, alpha: 1)
-                monocleGeo.materials = [monocleMat]
-                let monocle = SCNNode(geometry: monocleGeo)
-                monocle.position = SCNVector3(0.18, 0.06, 0.32)
-                head.addChildNode(monocle)
-                // Glass lens
-                let lensGeo = SCNCylinder(radius: 0.055, height: 0.003)
-                let lensMat = SCNMaterial()
-                lensMat.diffuse.contents = NSColor(white: 0.95, alpha: 0.3)
-                lensMat.transparency = 0.6
-                lensGeo.materials = [lensMat]
-                let lens = SCNNode(geometry: lensGeo)
-                lens.eulerAngles.x = CGFloat.pi / 2
-                lens.position = SCNVector3(0, 0, 0.002)
-                monocle.addChildNode(lens)
-
-            case .pongoPurple:
-                // Cute bow/ribbon on top of head
-                let bowCenter = SCNSphere(radius: 0.04)
-                let bowMat = SCNMaterial()
-                bowMat.diffuse.contents = NSColor(red: 0.9, green: 0.5, blue: 0.7, alpha: 1)
-                bowCenter.materials = [bowMat]
-                let bowNode = SCNNode(geometry: bowCenter)
-                bowNode.position = SCNVector3(0.15, 0.3, 0.1)
-                head.addChildNode(bowNode)
-                // Bow wings (two flattened spheres)
-                for side: CGFloat in [-1, 1] {
-                    let wingGeo = SCNSphere(radius: 0.06)
-                    wingGeo.materials = [bowMat]
-                    let wing = SCNNode(geometry: wingGeo)
-                    wing.position = SCNVector3(side * 0.06, 0, 0)
-                    wing.scale = SCNVector3(1.2, 0.7, 0.5)
-                    bowNode.addChildNode(wing)
-                }
-
-            case .pongoBlue:
-                // Cool sunglasses
-                let bridgeGeo = SCNCylinder(radius: 0.01, height: 0.15)
-                let glassMat = SCNMaterial()
-                glassMat.diffuse.contents = NSColor(white: 0.15, alpha: 1)
-                glassMat.metalness.contents = NSColor(white: 0.4, alpha: 1)
-                bridgeGeo.materials = [glassMat]
-                let bridge = SCNNode(geometry: bridgeGeo)
-                bridge.position = SCNVector3(0, 0.1, 0.32)
-                bridge.eulerAngles.z = CGFloat.pi / 2
-                head.addChildNode(bridge)
-                // Two dark lens circles
-                for side: CGFloat in [-1, 1] {
-                    let lensGeo2 = SCNCylinder(radius: 0.07, height: 0.015)
-                    let lensMat2 = SCNMaterial()
-                    lensMat2.diffuse.contents = NSColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.85)
-                    lensMat2.metalness.contents = NSColor(white: 0.5, alpha: 1)
-                    lensGeo2.materials = [lensMat2]
-                    let lensNode = SCNNode(geometry: lensGeo2)
-                    lensNode.position = SCNVector3(side * 0.14, 0.1, 0.33)
-                    lensNode.eulerAngles.x = CGFloat.pi / 2
-                    head.addChildNode(lensNode)
-                    // Frame ring
-                    let frameGeo = SCNTorus(ringRadius: 0.07, pipeRadius: 0.008)
-                    frameGeo.materials = [glassMat]
-                    let frame = SCNNode(geometry: frameGeo)
-                    frame.position = SCNVector3(side * 0.14, 0.1, 0.32)
-                    head.addChildNode(frame)
-                }
-
-            default:
-                break
-            }
-
-            // ── ARMS ── Stubby rounded-box arms
-            let armGeo = SCNBox(width: 0.18, height: 0.32, length: 0.18, chamferRadius: 0.08)
-            armGeo.materials = [boxMat(darkerMain)]
-
-            let leftArm = SCNNode(geometry: armGeo)
-            leftArm.position = SCNVector3(-0.44, 0.0, 0.05)
-            leftArm.eulerAngles.z = CGFloat.pi / 8
-            bodyNode.addChildNode(leftArm)
-            leftArmNode = leftArm
-
-            let rightArm = SCNNode(geometry: armGeo)
-            rightArm.position = SCNVector3(0.44, 0.0, 0.05)
-            rightArm.eulerAngles.z = -CGFloat.pi / 8
-            bodyNode.addChildNode(rightArm)
-            rightArmNode = rightArm
-
-            // ── FEET ── Stubby rounded-box feet
-            let footGeo = SCNBox(width: 0.22, height: 0.15, length: 0.25, chamferRadius: 0.06)
-            footGeo.materials = [boxMat(darkerMain)]
-
-            let leftFoot = SCNNode(geometry: footGeo)
-            leftFoot.position = SCNVector3(-0.18, -0.32, 0.05)
-            bodyNode.addChildNode(leftFoot)
-            leftFootNode = leftFoot
-
-            let rightFoot = SCNNode(geometry: footGeo)
-            rightFoot.position = SCNVector3(0.18, -0.32, 0.05)
-            bodyNode.addChildNode(rightFoot)
-            rightFootNode = rightFoot
-
-            // ── Dummy nodes for animations that reference optional parts ──
-            // Pongo characters don't have ears/tail/cheeks, but animations reference them.
-            // Use invisible nodes so animations don't crash.
-            let dummyNode = SCNNode()
-            leftEarNode = leftEarNode ?? dummyNode
-            rightEarNode = rightEarNode ?? dummyNode
-            tailNode = tailNode ?? dummyNode
-            leftCheekNode = leftCheekNode ?? dummyNode
-            rightCheekNode = rightCheekNode ?? dummyNode
-            leftPupilNode = leftPupilNode ?? dummyNode
-            rightPupilNode = rightPupilNode ?? dummyNode
-
-            return root
-        }
-
-        private enum PongoEyeStyle {
-            case round, slant, wink
-        }
-
-        private enum PongoMouthStyle {
-            case happy, sad, smirk
         }
 
         // MARK: - Animations
@@ -4366,43 +3620,53 @@ private struct PetSceneView: NSViewRepresentable {
             showSpeechBubble(pers.sleepyThoughts.first ?? "zzz... 💤")
 
             // Lay down animation
+            let isVRM = petCharacter.isVRM
             let layDown = SCNAction.run { [weak self] _ in
                 guard let self else { return }
                 DispatchQueue.main.async {
                     self.showExpression(.sleepy)
 
-                    // Tilt body sideways to lay down
-                    if pers.sleepStyle == "sprawled" {
-                        // Sprawled: on back, arms and legs out
-                        self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.2, y: 0, z: 0, duration: 0.8))
-                        self.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: CGFloat.pi * 0.6, duration: 0.6))
-                        self.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: -CGFloat.pi * 0.6, duration: 0.6))
-                        self.leftFootNode?.runAction(SCNAction.rotateTo(x: -0.2, y: 0.3, z: 0, duration: 0.6))
-                        self.rightFootNode?.runAction(SCNAction.rotateTo(x: -0.2, y: -0.3, z: 0, duration: 0.6))
-                    } else if pers.sleepStyle == "on back" {
-                        // On back: dignified
-                        self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.5, y: 0, z: 0, duration: 0.8))
-                        self.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi * 0.4, duration: 0.6))
-                        self.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi * 0.4, duration: 0.6))
+                    if isVRM {
+                        // VRM models: tilt the whole model to lay down (no individual limbs)
+                        if pers.sleepStyle == "sprawled" {
+                            self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.2, y: 0, z: 0, duration: 0.8))
+                        } else if pers.sleepStyle == "on back" {
+                            self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.5, y: 0, z: 0, duration: 0.8))
+                        } else {
+                            // Curled up: tilt to side
+                            self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: CGFloat.pi / 3, duration: 0.8))
+                        }
                     } else {
-                        // Curled up: side position, compact
-                        self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: CGFloat.pi / 3, duration: 0.8))
-                        self.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: 0.3, duration: 0.6))
-                        self.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: -0.3, duration: 0.6))
-                        self.leftFootNode?.runAction(SCNAction.rotateTo(x: -0.4, y: 0, z: 0, duration: 0.6))
-                        self.rightFootNode?.runAction(SCNAction.rotateTo(x: -0.4, y: 0, z: 0, duration: 0.6))
+                        // Programmatic models: animate individual body parts
+                        if pers.sleepStyle == "sprawled" {
+                            self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.2, y: 0, z: 0, duration: 0.8))
+                            self.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: CGFloat.pi * 0.6, duration: 0.6))
+                            self.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: -CGFloat.pi * 0.6, duration: 0.6))
+                            self.leftFootNode?.runAction(SCNAction.rotateTo(x: -0.2, y: 0.3, z: 0, duration: 0.6))
+                            self.rightFootNode?.runAction(SCNAction.rotateTo(x: -0.2, y: -0.3, z: 0, duration: 0.6))
+                        } else if pers.sleepStyle == "on back" {
+                            self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.5, y: 0, z: 0, duration: 0.8))
+                            self.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi * 0.4, duration: 0.6))
+                            self.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi * 0.4, duration: 0.6))
+                        } else {
+                            self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: CGFloat.pi / 3, duration: 0.8))
+                            self.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: 0.3, duration: 0.6))
+                            self.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: -0.3, duration: 0.6))
+                            self.leftFootNode?.runAction(SCNAction.rotateTo(x: -0.4, y: 0, z: 0, duration: 0.6))
+                            self.rightFootNode?.runAction(SCNAction.rotateTo(x: -0.4, y: 0, z: 0, duration: 0.6))
+                        }
+
+                        // Close eyes — squash Y to thin line (only for programmatic models)
+                        let closeEyes = SCNAction.customAction(duration: 0.5) { node, elapsed in
+                            let t = elapsed / 0.5
+                            node.scale = SCNVector3(1.0, max(0.05, 1.0 - Float(t) * 0.95), 1.0)
+                        }
+                        self.leftEyeNode?.runAction(closeEyes)
+                        self.rightEyeNode?.runAction(closeEyes.copy() as! SCNAction)
                     }
 
                     // Lower body toward ground
                     body.runAction(SCNAction.moveBy(x: 0, y: -0.2, z: 0, duration: 0.8))
-
-                    // Close eyes — squash Y to thin line (like blinking shut)
-                    let closeEyes = SCNAction.customAction(duration: 0.5) { node, elapsed in
-                        let t = elapsed / 0.5
-                        node.scale = SCNVector3(1.0, max(0.05, 1.0 - Float(t) * 0.95), 1.0)
-                    }
-                    self.leftEyeNode?.runAction(closeEyes)
-                    self.rightEyeNode?.runAction(closeEyes.copy() as! SCNAction)
 
                     // Start Zzz animation
                     self.startZzzAnimation(above: body)
@@ -4440,34 +3704,45 @@ private struct PetSceneView: NSViewRepresentable {
             bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.6))
             body.runAction(SCNAction.moveBy(x: 0, y: 0.2, z: 0, duration: 0.6))
 
-            // Reset limbs
-            leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.4))
-            rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.4))
-            leftFootNode?.runAction(SCNAction.move(to: SCNVector3(-0.18, -0.45, 0.05), duration: 0.4))
-            rightFootNode?.runAction(SCNAction.move(to: SCNVector3(0.18, -0.45, 0.05), duration: 0.4))
+            if !petCharacter.isVRM {
+                // Reset limbs (programmatic models only)
+                leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.4))
+                rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.4))
+                leftFootNode?.runAction(SCNAction.move(to: SCNVector3(-0.18, -0.45, 0.05), duration: 0.4))
+                rightFootNode?.runAction(SCNAction.move(to: SCNVector3(0.18, -0.45, 0.05), duration: 0.4))
 
-            // Open eyes — restore full Y scale
-            let openEyes = SCNAction.customAction(duration: 0.4) { node, elapsed in
-                let t = elapsed / 0.4
-                node.scale = SCNVector3(1.0, max(0.05, Float(t)), 1.0)
+                // Open eyes — restore full Y scale
+                let openEyes = SCNAction.customAction(duration: 0.4) { node, elapsed in
+                    let t = elapsed / 0.4
+                    node.scale = SCNVector3(1.0, max(0.05, Float(t)), 1.0)
+                }
+                leftEyeNode?.runAction(openEyes)
+                rightEyeNode?.runAction(openEyes.copy() as! SCNAction)
             }
-            leftEyeNode?.runAction(openEyes)
-            rightEyeNode?.runAction(openEyes.copy() as! SCNAction)
 
-            // Stretch animation
+            // Stretch/wake animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 guard let self else { return }
-                // Big stretch!
-                self.leftArmNode?.runAction(SCNAction.sequence([
-                    SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: CGFloat.pi * 0.5, duration: 0.4),
-                    SCNAction.wait(duration: 0.8),
-                    SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.3)
-                ]))
-                self.rightArmNode?.runAction(SCNAction.sequence([
-                    SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: -CGFloat.pi * 0.5, duration: 0.4),
-                    SCNAction.wait(duration: 0.8),
-                    SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.3)
-                ]))
+
+                if self.petCharacter.isVRM {
+                    // VRM: do a cute bounce wake-up
+                    self.bodyMeshNode?.runAction(SCNAction.sequence([
+                        SCNAction.scale(by: 1.15, duration: 0.3),
+                        SCNAction.scale(by: 1.0 / 1.15, duration: 0.3)
+                    ]))
+                } else {
+                    // Programmatic: big arm stretch
+                    self.leftArmNode?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: CGFloat.pi * 0.5, duration: 0.4),
+                        SCNAction.wait(duration: 0.8),
+                        SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.3)
+                    ]))
+                    self.rightArmNode?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: -CGFloat.pi * 0.5, duration: 0.4),
+                        SCNAction.wait(duration: 0.8),
+                        SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.3)
+                    ]))
+                }
 
                 // Resume behaviors
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
@@ -4881,22 +4156,35 @@ private struct PetSceneView: NSViewRepresentable {
             let stepDuration = 0.25
             let stepCount = max(2, Int(walkDuration / stepDuration))
             var legActions: [SCNAction] = []
-            for i in 0..<stepCount {
-                let isLeft = i % 2 == 0
-                let foot = isLeft ? leftFootNode : rightFootNode
-                let otherFoot = isLeft ? rightFootNode : leftFootNode
-                let arm = isLeft ? leftArmNode : rightArmNode
-                let otherArm = isLeft ? rightArmNode : leftArmNode
-
-                let stepUp = SCNAction.run { _ in
-                    foot?.runAction(SCNAction.moveBy(x: 0, y: 0.06, z: 0, duration: stepDuration * 0.4))
-                    otherFoot?.runAction(SCNAction.moveBy(x: 0, y: -0.06, z: 0, duration: stepDuration * 0.4))
-                    // Swing arms opposite to legs
-                    arm?.runAction(SCNAction.rotateBy(x: 0.2, y: 0, z: 0, duration: stepDuration * 0.4))
-                    otherArm?.runAction(SCNAction.rotateBy(x: -0.2, y: 0, z: 0, duration: stepDuration * 0.4))
+            if petCharacter.isVRM {
+                // VRM models: cute hop/bounce animation while moving
+                let hopCount = max(2, Int(walkDuration / 0.3))
+                for _ in 0..<hopCount {
+                    let hop = SCNAction.sequence([
+                        SCNAction.moveBy(x: 0, y: 0.08, z: 0, duration: 0.15),
+                        SCNAction.moveBy(x: 0, y: -0.08, z: 0, duration: 0.15)
+                    ])
+                    hop.timingMode = .easeInEaseOut
+                    legActions.append(hop)
                 }
-                legActions.append(stepUp)
-                legActions.append(SCNAction.wait(duration: stepDuration))
+            } else {
+                for i in 0..<stepCount {
+                    let isLeft = i % 2 == 0
+                    let foot = isLeft ? leftFootNode : rightFootNode
+                    let otherFoot = isLeft ? rightFootNode : leftFootNode
+                    let arm = isLeft ? leftArmNode : rightArmNode
+                    let otherArm = isLeft ? rightArmNode : leftArmNode
+
+                    let stepUp = SCNAction.run { _ in
+                        foot?.runAction(SCNAction.moveBy(x: 0, y: 0.06, z: 0, duration: stepDuration * 0.4))
+                        otherFoot?.runAction(SCNAction.moveBy(x: 0, y: -0.06, z: 0, duration: stepDuration * 0.4))
+                        // Swing arms opposite to legs
+                        arm?.runAction(SCNAction.rotateBy(x: 0.2, y: 0, z: 0, duration: stepDuration * 0.4))
+                        otherArm?.runAction(SCNAction.rotateBy(x: -0.2, y: 0, z: 0, duration: stepDuration * 0.4))
+                    }
+                    legActions.append(stepUp)
+                    legActions.append(SCNAction.wait(duration: stepDuration))
+                }
             }
 
             // Reset limbs after walk + check for topples
@@ -5629,25 +4917,6 @@ private struct PetSceneView: NSViewRepresentable {
             }
         }
 
-        private func startBlinking() {
-            Timer.scheduledTimer(withTimeInterval: Double.random(in: 2.8...4.5), repeats: true) { [weak self] _ in
-                guard let self, let leftEye = self.leftEyeNode, let rightEye = self.rightEyeNode else { return }
-                let close = SCNAction.scale(to: 0.15, duration: 0.06)
-                let open = SCNAction.scale(to: 1.0, duration: 0.06)
-                let blinkSeq = SCNAction.sequence([close, SCNAction.wait(duration: 0.08), open])
-
-                // Occasionally double-blink
-                let doDouble = Bool.random()
-                let fullBlink = doDouble
-                    ? SCNAction.sequence([blinkSeq, SCNAction.wait(duration: 0.15), blinkSeq])
-                    : blinkSeq
-
-                DispatchQueue.main.async {
-                    leftEye.runAction(fullBlink)
-                    rightEye.runAction(fullBlink)
-                }
-            }
-        }
 
         func updateMood(pet: UserDataStore.PetStateData, in scene: SCNScene?) {
             let avg = (pet.health + pet.hunger + pet.happiness) / 3
