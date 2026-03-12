@@ -73,7 +73,15 @@ final class GLBLoader {
                 binData = data.subdata(in: chunkStart..<chunkEnd)
             }
             offset = chunkEnd
-            offset = (offset + 3) & ~3
+            // Only align if the next 8 bytes don't look like a valid chunk header.
+            // Some VRM exporters don't pad JSON chunks to 4-byte boundaries.
+            let aligned = (offset + 3) & ~3
+            if aligned != offset, aligned + 8 <= data.count {
+                let typeAtAligned = data.readUInt32(at: aligned + 4)
+                if typeAtAligned == 0x4E4F534A || typeAtAligned == 0x004E4942 {
+                    offset = aligned
+                }
+            }
         }
 
         guard let json = jsonData else { throw GLBError.missingJSONChunk }

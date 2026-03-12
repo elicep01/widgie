@@ -598,20 +598,14 @@ struct VirtualPetComponentView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .animation(.easeInOut(duration: 0.2), value: petModeActive)
 
-            // Polaroid bottom — name with heart
-            HStack(spacing: 0) {
-                Text("\u{2764}\u{FE0F}")
-                    .font(.system(size: max(10, geo.size.width * 0.04)))
-                Text(" \(petName) ")
-                    .font(.system(size: max(11, min(geo.size.width * 0.055, 16)), weight: .bold, design: .rounded))
-                    .foregroundStyle(tc("primary"))
-                    .italic()
-                Text("\u{2764}\u{FE0F}")
-                    .font(.system(size: max(10, geo.size.width * 0.04)))
-            }
-            .lineLimit(1)
-            .padding(.top, 5)
-            .padding(.bottom, 2)
+            // Polaroid bottom — pet name
+            Text(petName)
+                .font(.system(size: max(11, min(geo.size.width * 0.055, 16)), weight: .bold, design: .rounded))
+                .foregroundStyle(tc("primary"))
+                .italic()
+                .lineLimit(1)
+                .padding(.top, 5)
+                .padding(.bottom, 2)
 
             if pet.isAlive {
                 // Stats row — compact health/hunger/happiness
