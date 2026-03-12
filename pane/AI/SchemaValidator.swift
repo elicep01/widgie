@@ -1830,6 +1830,17 @@ struct SchemaValidator {
         case .periodTracker, .moodTracker, .breathingExercise, .virtualPet:
             break
 
+        case .dailyQuote, .joke, .nasaApod, .wordOfDay, .trendingMovies:
+            break
+
+        case .exchangeRate:
+            guard let currency = component.currency, !currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw AIWidgetServiceError.schemaValidationFailed("exchange_rate.currency (base) is required at \(path).")
+            }
+
+        case .sportsScores:
+            break
+
         case .divider, .spacer:
             break
         }

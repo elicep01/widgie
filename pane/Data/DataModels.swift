@@ -111,3 +111,99 @@ struct GitHubRepoSnapshot: Codable {
     var language: String?
     var updatedAt: Date
 }
+
+// MARK: - Quote
+
+struct QuoteSnapshot: Codable {
+    var text: String
+    var author: String
+    var tags: [String]
+    var updatedAt: Date
+}
+
+// MARK: - Joke
+
+struct JokeSnapshot: Codable {
+    var text: String
+    var category: String
+    var type: String
+    var updatedAt: Date
+}
+
+// MARK: - Exchange Rate
+
+struct ExchangeRateEntry: Codable {
+    var currency: String
+    var rate: Double
+}
+
+struct ExchangeRateSnapshot: Codable {
+    var base: String
+    var rates: [ExchangeRateEntry]
+    var updatedAt: Date
+}
+
+// MARK: - Movie / TV
+
+struct MovieSnapshot: Codable, Identifiable {
+    var id: String
+    var title: String
+    var overview: String
+    var rating: Double
+    var releaseDate: String
+    var posterPath: String?
+    var mediaType: String
+    var updatedAt: Date
+}
+
+// MARK: - Sports
+
+struct SportsScoreSnapshot: Codable, Identifiable {
+    var id: String
+    var league: String
+    var homeTeam: String
+    var awayTeam: String
+    var homeScore: Int?
+    var awayScore: Int?
+    var status: String
+    var dateEvent: String
+    var sport: String
+    var updatedAt: Date
+}
+
+struct SportsTeamSnapshot: Codable {
+    var id: String
+    var name: String
+    var sport: String
+    var league: String
+    var country: String
+    var badgeURL: String?
+    var updatedAt: Date
+}
+
+// MARK: - NASA APOD
+
+struct NASAAPODSnapshot: Codable {
+    var title: String
+    var explanation: String
+    var imageURL: String
+    var date: String
+    var mediaType: String
+    var copyright: String?
+    var updatedAt: Date
+}
+
+// MARK: - Dictionary / Word
+
+struct WordDefinition: Codable {
+    var partOfSpeech: String
+    var definition: String
+    var example: String?
+}
+
+struct WordSnapshot: Codable {
+    var word: String
+    var phonetic: String?
+    var definitions: [WordDefinition]
+    var updatedAt: Date
+}

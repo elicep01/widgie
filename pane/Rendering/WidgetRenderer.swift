@@ -261,6 +261,34 @@ struct WidgetRenderer: View {
         case .virtualPet:
             return AnyView(VirtualPetComponentView(widgetID: config.id, component: component, theme: config.theme))
 
+        case .dailyQuote:
+            return AnyView(DailyQuoteComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
+        case .joke:
+            return AnyView(JokeComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
+        case .exchangeRate:
+            return AnyView(ExchangeRateComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
+        case .trendingMovies:
+            return AnyView(TrendingMoviesComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
+        case .sportsScores:
+            return AnyView(SportsScoresComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
+        case .nasaApod:
+            return AnyView(NASAAPODComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
+        case .wordOfDay:
+            return AnyView(WordOfDayComponentView(component: component, theme: config.theme)
+                .id(component.dataFingerprint))
+
         case .vstack:
             let children = component.children ?? []
             return AnyView(
@@ -5802,6 +5830,406 @@ private struct BreathingExerciseComponentView: View {
                 break
             default:
                 break
+            }
+        }
+    }
+}
+
+// MARK: - Daily Quote (API)
+
+private struct DailyQuoteComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var snapshot: QuoteSnapshot?
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && snapshot == nil {
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && snapshot == nil {
+                DataErrorFallbackView(message: "Couldn't load quote", theme: theme)
+            } else if let snapshot {
+                VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
+                    if component.showQuotationMarks ?? true {
+                        Text("\"\(snapshot.text)\"")
+                            .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .regular, design: .serif))
+                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(snapshot.text)
+                            .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .regular, design: .serif))
+                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("— \(snapshot.author)")
+                        .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                        .foregroundStyle(ThemeResolver.color(for: component.authorColor ?? "muted", theme: theme))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 60 * 60) {
+            await MainActor.run { if snapshot == nil { loadState = .loading } }
+            let value = await DataServiceManager.shared.dailyQuote()
+            await MainActor.run {
+                snapshot = value
+                loadState = value == nil ? .failed : .ready
+            }
+        }
+    }
+}
+
+// MARK: - Joke
+
+private struct JokeComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var snapshot: JokeSnapshot?
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && snapshot == nil {
+                LoadingShimmerView(theme: theme, lines: 2, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && snapshot == nil {
+                DataErrorFallbackView(message: "Couldn't load joke", theme: theme)
+            } else if let snapshot {
+                VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
+                    HStack(spacing: (4 * scale).cgFloat) {
+                        Image(systemName: "face.smiling")
+                            .font(.system(size: (12 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        Text(snapshot.category)
+                            .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                    Text(snapshot.text)
+                        .font(.system(size: ((component.size ?? 13) * scale).cgFloat, weight: .regular))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "secondary", theme: theme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 5 * 60) {
+            await MainActor.run { if snapshot == nil { loadState = .loading } }
+            let cat = component.category ?? "Any"
+            let value = await DataServiceManager.shared.joke(category: cat)
+            await MainActor.run {
+                snapshot = value
+                loadState = value == nil ? .failed : .ready
+            }
+        }
+    }
+}
+
+// MARK: - Exchange Rate
+
+private struct ExchangeRateComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var snapshot: ExchangeRateSnapshot?
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && snapshot == nil {
+                LoadingShimmerView(theme: theme, lines: 2, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && snapshot == nil {
+                DataErrorFallbackView(message: "Couldn't load rates", theme: theme)
+            } else if let snapshot {
+                VStack(alignment: .leading, spacing: (4 * scale).cgFloat) {
+                    HStack(spacing: (4 * scale).cgFloat) {
+                        Image(systemName: "arrow.left.arrow.right")
+                            .font(.system(size: (11 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        Text(snapshot.base)
+                            .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
+                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                    }
+                    ForEach(snapshot.rates, id: \.currency) { entry in
+                        HStack {
+                            Text(entry.currency)
+                                .font(.system(size: (12 * scale).cgFloat, weight: .medium))
+                                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                            Spacer()
+                            Text(String(format: "%.4f", entry.rate))
+                                .font(.system(size: (12 * scale).cgFloat, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 30 * 60) {
+            await MainActor.run { if snapshot == nil { loadState = .loading } }
+            let base = component.currency ?? "USD"
+            let targets = component.symbol.map { [$0] } ?? ["EUR", "GBP", "JPY"]
+            let value = await DataServiceManager.shared.exchangeRate(base: base, targets: targets)
+            await MainActor.run {
+                snapshot = value
+                loadState = value == nil ? .failed : .ready
+            }
+        }
+    }
+}
+
+// MARK: - Trending Movies
+
+private struct TrendingMoviesComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var movies: [MovieSnapshot] = []
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && movies.isEmpty {
+                LoadingShimmerView(theme: theme, lines: 4, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && movies.isEmpty {
+                DataErrorFallbackView(message: "Couldn't load movies", theme: theme)
+            } else {
+                VStack(alignment: .leading, spacing: (6 * scale).cgFloat) {
+                    if component.showTitle ?? true {
+                        HStack(spacing: (4 * scale).cgFloat) {
+                            Image(systemName: "film")
+                                .font(.system(size: (11 * scale).cgFloat))
+                            Text("Trending")
+                                .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
+                        }
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                    ForEach(movies.prefix(component.maxItems ?? 5)) { movie in
+                        HStack(alignment: .top, spacing: (6 * scale).cgFloat) {
+                            VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                                Text(movie.title)
+                                    .font(.system(size: (12 * scale).cgFloat, weight: .medium))
+                                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                                    .lineLimit(1)
+                                Text(movie.overview)
+                                    .font(.system(size: (10 * scale).cgFloat))
+                                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                                    .lineLimit(2)
+                            }
+                            Spacer(minLength: 0)
+                            HStack(spacing: (2 * scale).cgFloat) {
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: (8 * scale).cgFloat))
+                                    .foregroundStyle(.yellow)
+                                Text(String(format: "%.1f", movie.rating))
+                                    .font(.system(size: (10 * scale).cgFloat, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 60 * 60) {
+            await MainActor.run { if movies.isEmpty { loadState = .loading } }
+            let value = await DataServiceManager.shared.trendingMovies()
+            await MainActor.run {
+                movies = value
+                loadState = value.isEmpty ? .failed : .ready
+            }
+        }
+    }
+}
+
+// MARK: - Sports Scores
+
+private struct SportsScoresComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var scores: [SportsScoreSnapshot] = []
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && scores.isEmpty {
+                LoadingShimmerView(theme: theme, lines: 4, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && scores.isEmpty {
+                DataErrorFallbackView(message: "Couldn't load scores", theme: theme)
+            } else {
+                VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+                    if component.showTitle ?? true {
+                        HStack(spacing: (4 * scale).cgFloat) {
+                            Image(systemName: "sportscourt")
+                                .font(.system(size: (11 * scale).cgFloat))
+                            Text(scores.first?.league ?? (component.source ?? "Sports"))
+                                .font(.system(size: (11 * scale).cgFloat, weight: .semibold))
+                        }
+                        .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                    ForEach(scores.prefix(component.maxItems ?? 5)) { score in
+                        HStack(spacing: (4 * scale).cgFloat) {
+                            VStack(alignment: .leading, spacing: (1 * scale).cgFloat) {
+                                Text(score.homeTeam)
+                                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                                    .lineLimit(1)
+                                Text(score.awayTeam)
+                                    .font(.system(size: (11 * scale).cgFloat, weight: .medium))
+                                    .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                                    .lineLimit(1)
+                            }
+                            Spacer(minLength: 0)
+                            VStack(alignment: .trailing, spacing: (1 * scale).cgFloat) {
+                                Text("\(score.homeScore.map(String.init) ?? "-")")
+                                    .font(.system(size: (12 * scale).cgFloat, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                                Text("\(score.awayScore.map(String.init) ?? "-")")
+                                    .font(.system(size: (12 * scale).cgFloat, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(ThemeResolver.color(for: "primary", theme: theme))
+                            }
+                            Text(score.status)
+                                .font(.system(size: (9 * scale).cgFloat, weight: .medium))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                                .frame(width: (28 * scale).cgFloat)
+                        }
+                        if score.id != scores.prefix(component.maxItems ?? 5).last?.id {
+                            Divider().opacity(0.3)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 5 * 60) {
+            await MainActor.run { if scores.isEmpty { loadState = .loading } }
+            let sport = component.source ?? "soccer"
+            let value = await DataServiceManager.shared.sportsScores(sport: sport)
+            await MainActor.run {
+                scores = value
+                loadState = value.isEmpty ? .failed : .ready
+            }
+        }
+    }
+}
+
+// MARK: - NASA APOD
+
+private struct NASAAPODComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var snapshot: NASAAPODSnapshot?
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && snapshot == nil {
+                LoadingShimmerView(theme: theme, lines: 4, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && snapshot == nil {
+                DataErrorFallbackView(message: "Couldn't load NASA APOD", theme: theme)
+            } else if let snapshot {
+                VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+                    HStack(spacing: (4 * scale).cgFloat) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: (11 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        Text("NASA — \(snapshot.date)")
+                            .font(.system(size: (10 * scale).cgFloat, weight: .medium))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                    Text(snapshot.title)
+                        .font(.system(size: ((component.size ?? 14) * scale).cgFloat, weight: .semibold))
+                        .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                    Text(snapshot.explanation)
+                        .font(.system(size: (11 * scale).cgFloat))
+                        .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                        .lineLimit(component.maxLines ?? 4)
+                    if let copyright = snapshot.copyright {
+                        Text("© \(copyright)")
+                            .font(.system(size: (9 * scale).cgFloat))
+                            .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 6 * 60 * 60) {
+            await MainActor.run { if snapshot == nil { loadState = .loading } }
+            let value = await DataServiceManager.shared.nasaApod()
+            await MainActor.run {
+                snapshot = value
+                loadState = value == nil ? .failed : .ready
+            }
+        }
+    }
+}
+
+// MARK: - Word of the Day
+
+private struct WordOfDayComponentView: View {
+    let component: ComponentConfig
+    let theme: WidgetTheme
+
+    @State private var snapshot: WordSnapshot?
+    @State private var loadState: DataLoadState = .loading
+    @Environment(\.widgetScaleFactor) private var scale
+
+    var body: some View {
+        Group {
+            if loadState == .loading && snapshot == nil {
+                LoadingShimmerView(theme: theme, lines: 3, lineHeight: (12 * scale).cgFloat)
+            } else if loadState == .failed && snapshot == nil {
+                DataErrorFallbackView(message: "Couldn't load word", theme: theme)
+            } else if let snapshot {
+                VStack(alignment: .leading, spacing: (5 * scale).cgFloat) {
+                    HStack(alignment: .firstTextBaseline, spacing: (6 * scale).cgFloat) {
+                        Text(snapshot.word)
+                            .font(.system(size: ((component.size ?? 18) * scale).cgFloat, weight: .bold))
+                            .foregroundStyle(ThemeResolver.color(for: component.color ?? "primary", theme: theme))
+                        if let phonetic = snapshot.phonetic {
+                            Text(phonetic)
+                                .font(.system(size: (11 * scale).cgFloat, weight: .regular, design: .serif))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                        }
+                    }
+                    ForEach(snapshot.definitions.indices, id: \.self) { idx in
+                        let def = snapshot.definitions[idx]
+                        VStack(alignment: .leading, spacing: (2 * scale).cgFloat) {
+                            Text(def.partOfSpeech)
+                                .font(.system(size: (9 * scale).cgFloat, weight: .semibold))
+                                .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                                .italic()
+                            Text(def.definition)
+                                .font(.system(size: (11 * scale).cgFloat))
+                                .foregroundStyle(ThemeResolver.color(for: "secondary", theme: theme))
+                                .lineLimit(3)
+                            if let example = def.example {
+                                Text("\"\(example)\"")
+                                    .font(.system(size: (10 * scale).cgFloat, design: .serif))
+                                    .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
+                                    .lineLimit(2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .polling(every: 24 * 60 * 60) {
+            await MainActor.run { if snapshot == nil { loadState = .loading } }
+            let value = await DataServiceManager.shared.wordOfDay()
+            await MainActor.run {
+                snapshot = value
+                loadState = value == nil ? .failed : .ready
             }
         }
     }

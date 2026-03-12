@@ -36,6 +36,13 @@ enum ComponentType: String, Codable {
     case linkBookmarks = "link_bookmarks"
     case fileClipboard = "file_clipboard"
     case githubRepoStats = "github_repo_stats"
+    case dailyQuote = "daily_quote"
+    case joke
+    case exchangeRate = "exchange_rate"
+    case trendingMovies = "trending_movies"
+    case sportsScores = "sports_scores"
+    case nasaApod = "nasa_apod"
+    case wordOfDay = "word_of_day"
     case periodTracker = "period_tracker"
     case moodTracker = "mood_tracker"
     case breathingExercise = "breathing_exercise"

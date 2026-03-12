@@ -267,6 +267,46 @@ struct PromptBuilder {
         - NEVER invent types like `github_stats`, `api_fetch`, `data_source`, `http_widget`, `repo_tracker` — they do not exist.
         - For non-GitHub URLs, use `link_bookmarks`.
 
+        Daily quote requests:
+        - `daily_quote` fetches a random inspirational quote from the Quotable API (free, no key).
+        - Refreshes every hour. Shows quote text + author.
+        - Optional `category` to filter (e.g., "technology", "wisdom", "love").
+        - Example: {"type":"daily_quote","category":"wisdom"}
+
+        Joke requests:
+        - `joke` fetches a random joke from JokeAPI (free, no key, safe content only).
+        - Optional `category`: "Programming", "Misc", "Pun", "Spooky", "Christmas", or "Any" (default).
+        - Supports single-line and setup/punchline formats.
+        - Example: {"type":"joke","category":"Programming"}
+
+        Exchange rate requests:
+        - `exchange_rate` fetches live currency exchange rates (free, no key).
+        - Requires `currency` for base currency (e.g., "USD") and `symbol` for target (e.g., "EUR").
+        - For multiple currencies, use multiple `exchange_rate` components in a vstack.
+        - Example: {"type":"exchange_rate","currency":"USD","symbol":"EUR"}
+
+        Trending movies/TV requests:
+        - `trending_movies` fetches trending movies and TV shows from TMDB (free API).
+        - Shows title, rating, overview, release date.
+        - Example: {"type":"trending_movies"}
+
+        Sports scores requests:
+        - `sports_scores` fetches recent game results from TheSportsDB (free, no key).
+        - Set `source` to the sport/league: "soccer", "nba", "nfl", "mlb", "nhl", "f1", "la liga", "bundesliga", "serie a", "ligue 1", "champions league", "mls".
+        - Shows home/away teams, scores, status.
+        - Example: {"type":"sports_scores","source":"nba"}
+
+        NASA Astronomy Picture of the Day:
+        - `nasa_apod` fetches NASA's Astronomy Picture of the Day (free DEMO_KEY).
+        - Shows title, explanation, date, copyright. Refreshes every 6 hours.
+        - Example: {"type":"nasa_apod"}
+
+        Word of the Day requests:
+        - `word_of_day` fetches a random interesting word with definitions from the Free Dictionary API.
+        - Shows word, phonetic pronunciation, part of speech, definitions, and examples.
+        - Refreshes daily.
+        - Example: {"type":"word_of_day"}
+
         Stock ticker rules:
         - If user requests multiple symbols, include one `stock` component per symbol.
         - Use `vstack` of `stock` components for clean vertical lists. Use `hstack` only for 2-3 symbols in a compact row.
@@ -301,6 +341,13 @@ struct PromptBuilder {
         - Weather → {"type":"weather","location":"City, Country"}
         - Crypto price → {"type":"crypto","symbol":"BTC","currency":"USD"}
         - Stock price → {"type":"stock","symbol":"AAPL"}
+        - Daily quote → {"type":"daily_quote"}
+        - Joke → {"type":"joke","category":"Programming"}
+        - Exchange rate → {"type":"exchange_rate","currency":"USD","symbol":"EUR"}
+        - Trending movies → {"type":"trending_movies"}
+        - Sports scores → {"type":"sports_scores","source":"nba"}
+        - NASA APOD → {"type":"nasa_apod"}
+        - Word of day → {"type":"word_of_day"}
         The pattern library's `Text + dataSource:"currentTime:..."` notation is CONCEPTUAL ONLY and does not exist in the schema. Always emit a real `clock` component instead.
 
         \(patternLibrary)
@@ -419,6 +466,13 @@ struct PromptBuilder {
         - `stock`/`crypto`: Need valid ticker symbols. Made-up symbols show no data.
         - `github_repo_stats`: Needs a valid "owner/repo" string. Invalid repos show no data.
         - `calendar_next`/`reminders`: Depend on user's local calendar/reminders data — may be empty if user has none.
+        - `daily_quote`: Always works (free API). Use for any inspirational/motivational quote request.
+        - `joke`: Always works (free API, safe content). Use for humor/fun widget requests.
+        - `exchange_rate`: Needs valid ISO currency codes (USD, EUR, GBP, JPY, etc.). Always works for major currencies.
+        - `trending_movies`: Always works (TMDB free API). Shows current trending films/TV.
+        - `sports_scores`: Needs a valid sport/league name. See supported list above.
+        - `nasa_apod`: Always works (NASA free API). Shows daily astronomy content.
+        - `word_of_day`: Always works (free dictionary API). Educational/vocabulary widget.
         - RULE: Never generate a widget that you suspect might render empty. If a data component might fail, compose a FALLBACK alongside it (e.g., `link_bookmarks` with relevant URLs, or a `note` explaining the limitation). An empty widget is the WORST possible outcome.
 
         SMART FALLBACK STRATEGIES — WHEN NATIVE COMPONENTS DON'T FIT:
@@ -462,7 +516,7 @@ struct PromptBuilder {
           file_clipboard accepts drag-and-drop files, stores them, and lets users drag them back out.
         - Omit minSize/maxSize unless explicitly needed.
         - If user asks for data, prefer available data components:
-          weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time, github_repo_stats.
+          weather, stock, crypto, calendar_next, reminders, battery, system_stats, music_now_playing, news_headlines, screen_time, github_repo_stats, daily_quote, joke, exchange_rate, trending_movies, sports_scores, nasa_apod, word_of_day.
         - If data request is outside available components, use `text` or `note` fallback instead of failing.
         - NEVER produce a widget that will render as blank/empty. If in doubt, include visible static content alongside any data component.
 
@@ -933,7 +987,7 @@ struct PromptBuilder {
     private static func loadComponentSchema() -> String {
         guard let url = Bundle.main.url(forResource: "ComponentSchema", withExtension: "json"),
               let text = try? String(contentsOf: url, encoding: .utf8) else {
-            return "{\"types\":[\"text\",\"icon\",\"divider\",\"spacer\",\"progress_ring\",\"progress_bar\",\"chart\",\"clock\",\"analog_clock\",\"date\",\"countdown\",\"timer\",\"stopwatch\",\"world_clocks\",\"pomodoro\",\"day_progress\",\"year_progress\",\"weather\",\"stock\",\"crypto\",\"calendar_next\",\"reminders\",\"battery\",\"system_stats\",\"music_now_playing\",\"news_headlines\",\"screen_time\",\"checklist\",\"habit_tracker\",\"quote\",\"note\",\"shortcut_launcher\",\"link_bookmarks\",\"file_clipboard\",\"vstack\",\"hstack\",\"container\"]}"
+            return "{\"types\":[\"text\",\"icon\",\"divider\",\"spacer\",\"progress_ring\",\"progress_bar\",\"chart\",\"clock\",\"analog_clock\",\"date\",\"countdown\",\"timer\",\"stopwatch\",\"world_clocks\",\"pomodoro\",\"day_progress\",\"year_progress\",\"weather\",\"stock\",\"crypto\",\"calendar_next\",\"reminders\",\"battery\",\"system_stats\",\"music_now_playing\",\"news_headlines\",\"screen_time\",\"checklist\",\"habit_tracker\",\"quote\",\"note\",\"shortcut_launcher\",\"link_bookmarks\",\"file_clipboard\",\"github_repo_stats\",\"daily_quote\",\"joke\",\"exchange_rate\",\"trending_movies\",\"sports_scores\",\"nasa_apod\",\"word_of_day\",\"vstack\",\"hstack\",\"container\"]}"
         }
 
         return text

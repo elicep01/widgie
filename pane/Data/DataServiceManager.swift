@@ -13,6 +13,13 @@ actor DataServiceManager {
     private let rssProvider = RSSProvider()
     private let screenTimeProvider = ScreenTimeProvider.shared
     private let gitHubProvider = GitHubProvider()
+    private let quoteProvider = QuoteProvider()
+    private let jokeProvider = JokeProvider()
+    private let exchangeRateProvider = ExchangeRateProvider()
+    private let movieProvider = MovieProvider()
+    private let sportsProvider = SportsProvider()
+    private let nasaProvider = NASAProvider()
+    private let dictionaryProvider = DictionaryProvider()
 
     func weather(location: String, fahrenheit: Bool, forceRefresh: Bool = false) async -> WeatherSnapshot? {
         let normalizedLocation = location
@@ -198,5 +205,135 @@ actor DataServiceManager {
         let value = screenTimeProvider.fetch(maxApps: maxApps)
         await cache.store(value, key: key, ttl: 30)
         return value
+    }
+
+    func dailyQuote(forceRefresh: Bool = false) async -> QuoteSnapshot? {
+        let key = "daily_quote"
+        if !forceRefresh, let cached = await cache.load(QuoteSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await quoteProvider.fetch()
+            await cache.store(value, key: key, ttl: 60 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Quote fetch failed: \(error)")
+            return await cache.load(QuoteSnapshot.self, key: key)
+        }
+    }
+
+    func joke(category: String = "Any", forceRefresh: Bool = false) async -> JokeSnapshot? {
+        let key = "joke_\(category.lowercased())"
+        if !forceRefresh, let cached = await cache.load(JokeSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await jokeProvider.fetch(category: category)
+            await cache.store(value, key: key, ttl: 5 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Joke fetch failed: \(error)")
+            return await cache.load(JokeSnapshot.self, key: key)
+        }
+    }
+
+    func exchangeRate(base: String, targets: [String], forceRefresh: Bool = false) async -> ExchangeRateSnapshot? {
+        let normalizedBase = base.uppercased()
+        let normalizedTargets = targets.map { $0.uppercased() }.sorted()
+        let key = "exchange_\(normalizedBase)_\(normalizedTargets.joined(separator: ","))"
+        if !forceRefresh, let cached = await cache.load(ExchangeRateSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await exchangeRateProvider.fetch(base: normalizedBase, targets: normalizedTargets)
+            await cache.store(value, key: key, ttl: 30 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Exchange rate fetch failed: \(error)")
+            return await cache.load(ExchangeRateSnapshot.self, key: key)
+        }
+    }
+
+    func trendingMovies(forceRefresh: Bool = false) async -> [MovieSnapshot] {
+        let key = "trending_movies"
+        if !forceRefresh, let cached = await cache.load([MovieSnapshot].self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await movieProvider.fetchTrending()
+            await cache.store(value, key: key, ttl: 60 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Trending movies fetch failed: \(error)")
+            return await cache.load([MovieSnapshot].self, key: key) ?? []
+        }
+    }
+
+    func sportsScores(sport: String, forceRefresh: Bool = false) async -> [SportsScoreSnapshot] {
+        let key = "sports_\(sport.lowercased())"
+        if !forceRefresh, let cached = await cache.load([SportsScoreSnapshot].self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await sportsProvider.fetchLiveScores(sport: sport)
+            await cache.store(value, key: key, ttl: 5 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Sports scores fetch failed: \(error)")
+            return await cache.load([SportsScoreSnapshot].self, key: key) ?? []
+        }
+    }
+
+    func nasaApod(forceRefresh: Bool = false) async -> NASAAPODSnapshot? {
+        let key = "nasa_apod"
+        if !forceRefresh, let cached = await cache.load(NASAAPODSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await nasaProvider.fetchAPOD()
+            await cache.store(value, key: key, ttl: 6 * 60 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] NASA APOD fetch failed: \(error)")
+            return await cache.load(NASAAPODSnapshot.self, key: key)
+        }
+    }
+
+    func wordOfDay(forceRefresh: Bool = false) async -> WordSnapshot? {
+        let key = "word_of_day"
+        if !forceRefresh, let cached = await cache.load(WordSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await dictionaryProvider.randomWord()
+            await cache.store(value, key: key, ttl: 24 * 60 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Word of day fetch failed: \(error)")
+            return await cache.load(WordSnapshot.self, key: key)
+        }
+    }
+
+    func dictionaryLookup(word: String, forceRefresh: Bool = false) async -> WordSnapshot? {
+        let key = "dict_\(word.lowercased())"
+        if !forceRefresh, let cached = await cache.load(WordSnapshot.self, key: key) {
+            return cached
+        }
+
+        do {
+            let value = try await dictionaryProvider.lookup(word: word)
+            await cache.store(value, key: key, ttl: 24 * 60 * 60)
+            return value
+        } catch {
+            print("[DataServiceManager] Dictionary lookup failed for '\(word)': \(error)")
+            return await cache.load(WordSnapshot.self, key: key)
+        }
     }
 }

@@ -283,6 +283,13 @@ struct PromptClarifier {
         - Screen time → `screen_time` (lists running apps — NOTE: only app names, no duration data due to macOS sandbox)
         - General news → `news_headlines` (RSS feeds ONLY — must use known valid URLs, CANNOT filter by topic)
         - GitHub repos → `github_repo_stats` (needs owner/repo format)
+        - Inspirational quotes → `daily_quote` (free Quotable API, auto-refreshes hourly)
+        - Jokes/humor → `joke` (free JokeAPI, safe content, multiple categories)
+        - Currency exchange → `exchange_rate` (free API, live rates for any currency pair)
+        - Trending movies/TV → `trending_movies` (TMDB free API, current popular films)
+        - Sports scores → `sports_scores` (TheSportsDB free API — soccer, NBA, NFL, MLB, NHL, F1, etc.)
+        - Space/astronomy → `nasa_apod` (NASA free API, daily astronomy picture + explanation)
+        - Vocabulary/words → `word_of_day` (free dictionary API, daily interesting word with definitions)
 
         ### INTERACTIVE / EDITABLE (user can click/type/toggle/drag):
         - To-do lists → `checklist` with `interactive: true` (add/remove/check items)
@@ -333,7 +340,13 @@ struct PromptClarifier {
         - **Project management** → `checklist` for tasks + `countdown` for deadlines + `text` for status
         - **Budgeting/expenses** → `checklist` for budget items + `text` for totals + `progress_bar` for spending
         - **Travel planning** → `world_clocks` for destinations + `weather` for locations + `countdown` to trip + `link_bookmarks` for booking sites
-        - **Motivational/affirmation** → `quote` with custom quotes + `text` for personal mantras
+        - **Motivational/affirmation** → `daily_quote` for API-sourced quotes, or `quote` with custom quotes + `text` for personal mantras
+        - **Currency/forex** → `exchange_rate` for live currency pairs (USD/EUR/GBP/JPY etc.)
+        - **Movies/entertainment** → `trending_movies` for current popular films and TV shows
+        - **Sports** → `sports_scores` for recent game results (soccer, NBA, NFL, MLB, NHL, F1)
+        - **Space/science** → `nasa_apod` for daily astronomy picture and explanation
+        - **Learning/vocabulary** → `word_of_day` for daily word with definitions and examples
+        - **Humor/fun** → `joke` for random jokes (programming, puns, misc)
         - **Pet care** → `habit_tracker` for feeding/walking + `countdown` for vet visits
         - **Plant care** → `habit_tracker` for watering schedule + `note` for plant info
         - **Arbitrary URL/API data** → `link_bookmarks` with the URL + `note` explaining what it tracks
