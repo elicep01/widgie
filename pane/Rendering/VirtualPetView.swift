@@ -1081,7 +1081,7 @@ struct VirtualPetComponentView: View {
 
     private func interact(_ action: PetAction) {
         guard var p = pet, p.isAlive else { return }
-        let now = ISO8601DateFormatter().string(from: Date())
+        let now = Self.isoFormatter.string(from: Date())
 
         switch action {
         case .feed:
@@ -1165,14 +1165,16 @@ struct VirtualPetComponentView: View {
             p.health = 0
         }
 
-        p.lastDecayAt = ISO8601DateFormatter().string(from: now)
+        p.lastDecayAt = Self.isoFormatter.string(from: now)
         pet = p
         await UserDataStore.shared.setPetState(p, for: componentKey)
     }
 
+    private static let isoFormatter = ISO8601DateFormatter()
+
     private func parseISO(_ string: String?) -> Date? {
         guard let string else { return nil }
-        return ISO8601DateFormatter().date(from: string)
+        return Self.isoFormatter.date(from: string)
     }
 }
 
@@ -3825,28 +3827,18 @@ private struct PetSceneView: NSViewRepresentable {
         private func dimLights() {
             guard let scene = sceneRef else { return }
             let nightColor = NSColor(red: 0.4, green: 0.45, blue: 0.7, alpha: 1)
-            if let key = scene.rootNode.childNode(withName: "keyLight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                key.light?.intensity = 150
-                key.light?.color = nightColor
-                SCNTransaction.commit()
-            }
-            if let fill = scene.rootNode.childNode(withName: "fillLight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                fill.light?.intensity = 80
-                SCNTransaction.commit()
-            }
-            if let amb = scene.rootNode.childNode(withName: "ambientLight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                amb.light?.intensity = 80
-                amb.light?.color = nightColor
-                SCNTransaction.commit()
-            }
-            // Add nightlight if not present
-            if scene.rootNode.childNode(withName: "nightlight", recursively: false) == nil {
+            let root = scene.rootNode
+
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 2.0
+            root.childNode(withName: "keyLight", recursively: false)?.light?.intensity = 150
+            root.childNode(withName: "keyLight", recursively: false)?.light?.color = nightColor
+            root.childNode(withName: "fillLight", recursively: false)?.light?.intensity = 80
+            root.childNode(withName: "ambientLight", recursively: false)?.light?.intensity = 80
+            root.childNode(withName: "ambientLight", recursively: false)?.light?.color = nightColor
+            SCNTransaction.commit()
+
+            if root.childNode(withName: "nightlight", recursively: false) == nil {
                 let nightlight = SCNNode()
                 nightlight.name = "nightlight"
                 nightlight.light = SCNLight()
@@ -3856,7 +3848,7 @@ private struct PetSceneView: NSViewRepresentable {
                 nightlight.light?.attenuationStartDistance = 0.5
                 nightlight.light?.attenuationEndDistance = 3.0
                 nightlight.position = SCNVector3(-0.5, 1.0, -0.2)
-                scene.rootNode.addChildNode(nightlight)
+                root.addChildNode(nightlight)
                 SCNTransaction.begin()
                 SCNTransaction.animationDuration = 2.0
                 nightlight.light?.intensity = 120
@@ -3866,32 +3858,19 @@ private struct PetSceneView: NSViewRepresentable {
 
         private func brightenLights() {
             guard let scene = sceneRef else { return }
-            if let key = scene.rootNode.childNode(withName: "keyLight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                key.light?.intensity = 800
-                key.light?.color = NSColor.white
-                SCNTransaction.commit()
-            }
-            if let fill = scene.rootNode.childNode(withName: "fillLight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                fill.light?.intensity = 250
-                SCNTransaction.commit()
-            }
-            if let amb = scene.rootNode.childNode(withName: "ambientLight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                amb.light?.intensity = 300
-                amb.light?.color = NSColor.white
-                SCNTransaction.commit()
-            }
-            // Remove nightlight
-            if let nl = scene.rootNode.childNode(withName: "nightlight", recursively: false) {
-                SCNTransaction.begin()
-                SCNTransaction.animationDuration = 2.0
-                nl.light?.intensity = 0
-                SCNTransaction.commit()
+            let root = scene.rootNode
+
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = 2.0
+            root.childNode(withName: "keyLight", recursively: false)?.light?.intensity = 800
+            root.childNode(withName: "keyLight", recursively: false)?.light?.color = NSColor.white
+            root.childNode(withName: "fillLight", recursively: false)?.light?.intensity = 250
+            root.childNode(withName: "ambientLight", recursively: false)?.light?.intensity = 300
+            root.childNode(withName: "ambientLight", recursively: false)?.light?.color = NSColor.white
+            root.childNode(withName: "nightlight", recursively: false)?.light?.intensity = 0
+            SCNTransaction.commit()
+
+            if let nl = root.childNode(withName: "nightlight", recursively: false) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                     nl.removeFromParentNode()
                 }

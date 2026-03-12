@@ -99,12 +99,24 @@ final class GLBLoader {
 
     private let gltf: [String: Any]
     private let bin: Data
+    // Pre-cached top-level arrays to avoid repeated dictionary lookups
+    private let accessors: [[String: Any]]
+    private let bufferViews: [[String: Any]]
+    private let meshDefs: [[String: Any]]
+    private let materialDefs: [[String: Any]]
+    private let allNodes: [[String: Any]]
     private var textureCache: [Int: Any] = [:]
+    private var bufferViewCache: [Int: Data] = [:]
     private var builtNodes: [Int: SCNNode] = [:]  // glTF node index → SCNNode
 
     private init(gltf: [String: Any], bin: Data) {
         self.gltf = gltf
         self.bin = bin
+        self.accessors = gltf["accessors"] as? [[String: Any]] ?? []
+        self.bufferViews = gltf["bufferViews"] as? [[String: Any]] ?? []
+        self.meshDefs = gltf["meshes"] as? [[String: Any]] ?? []
+        self.materialDefs = gltf["materials"] as? [[String: Any]] ?? []
+        self.allNodes = gltf["nodes"] as? [[String: Any]] ?? []
     }
 
     // MARK: - Scene building
@@ -113,7 +125,6 @@ final class GLBLoader {
         let root = SCNNode()
         root.name = "glb_root"
 
-        let allNodes = gltf["nodes"] as? [[String: Any]] ?? []
         let scenes = gltf["scenes"] as? [[String: Any]] ?? []
         let sceneIndex = gltf["scene"] as? Int ?? 0
         guard sceneIndex < scenes.count else {
@@ -125,7 +136,7 @@ final class GLBLoader {
 
         // Phase 1: Build all nodes (without skinning yet)
         for nodeIndex in rootNodeIndices {
-            if let node = try buildNode(index: nodeIndex, allNodes: allNodes) {
+            if let node = try buildNode(index: nodeIndex) {
                 root.addChildNode(node)
             }
         }
@@ -143,8 +154,8 @@ final class GLBLoader {
             let skin = skins[skinIndex]
             let jointIndices = skin["joints"] as? [Int] ?? []
 
-            // Build bone array in joint-index order
             var bones: [SCNNode] = []
+            bones.reserveCapacity(jointIndices.count)
             for ji in jointIndices {
                 if let boneNode = builtNodes[ji] {
                     bones.append(boneNode)
@@ -154,21 +165,18 @@ final class GLBLoader {
                 }
             }
 
-            // Find skeleton root
             if let skelIdx = skin["skeleton"] as? Int, let skelNode = builtNodes[skelIdx] {
                 skeletonRoot = skelNode
             } else if let firstJoint = jointIndices.first, let firstNode = builtNodes[firstJoint] {
                 skeletonRoot = firstNode
             }
 
-            // Read inverse bind matrices
             var ibms: [NSValue] = []
             if let ibmAccessor = skin["inverseBindMatrices"] as? Int {
                 let matrices = try readAccessorMat4(index: ibmAccessor)
                 ibms = matrices.map { NSValue(scnMatrix4: $0) }
             }
 
-            // Apply skinning to all mesh geometry nodes under this scene node
             applySkinning(to: sceneNode, bones: bones, ibms: ibms, skeletonRoot: skeletonRoot)
         }
 
@@ -176,60 +184,60 @@ final class GLBLoader {
         var morpherNode: SCNNode?
         var blendShapeMap: [String: Int] = [:]
 
-        // Find the node that has a morpher (mesh with targets)
-        let meshes = gltf["meshes"] as? [[String: Any]] ?? []
         for (nodeIndex, nodeDef) in allNodes.enumerated() {
             guard let meshIndex = nodeDef["mesh"] as? Int,
-                  meshIndex < meshes.count else { continue }
+                  meshIndex < meshDefs.count else { continue }
 
-            let meshDef = meshes[meshIndex]
+            let meshDef = meshDefs[meshIndex]
             let primitives = meshDef["primitives"] as? [[String: Any]] ?? []
             guard let firstPrim = primitives.first,
                   let targets = firstPrim["targets"] as? [[String: Any]],
                   !targets.isEmpty else { continue }
 
-            // Build morph targets
             guard let sceneNode = builtNodes[nodeIndex] else { continue }
             let geomNode = findFirstGeometryNode(in: sceneNode)
             guard let baseGeom = geomNode?.geometry else { continue }
 
             let basePositions = try readAccessorFloat3(index: (firstPrim["attributes"] as? [String: Int])?["POSITION"] ?? 0)
 
+            // Cache base normals once (read from geometry, reused for all targets)
+            var cachedBaseNormals: [SCNVector3]?
+            if let bn = baseGeom.sources(for: .normal).first {
+                var normals: [SCNVector3] = []
+                normals.reserveCapacity(bn.vectorCount)
+                let stride = bn.dataStride
+                let normOffset = bn.dataOffset
+                bn.data.withUnsafeBytes { ptr in
+                    for i in 0..<bn.vectorCount {
+                        let off = normOffset + i * stride
+                        normals.append(SCNVector3(
+                            ptr.load(fromByteOffset: off, as: Float.self),
+                            ptr.load(fromByteOffset: off + 4, as: Float.self),
+                            ptr.load(fromByteOffset: off + 8, as: Float.self)
+                        ))
+                    }
+                }
+                cachedBaseNormals = normals
+            }
+
             var morphTargets: [SCNGeometry] = []
+            morphTargets.reserveCapacity(targets.count)
             for target in targets {
                 guard let posAccessor = target["POSITION"] as? Int else { continue }
                 let deltas = try readAccessorFloat3(index: posAccessor)
 
-                // Morph target = base + delta
                 let morphedPositions = zip(basePositions, deltas).map { base, delta in
                     SCNVector3(base.x + delta.x, base.y + delta.y, base.z + delta.z)
                 }
 
-                // Create target geometry with same topology
                 var sources = [SCNGeometrySource(vertices: morphedPositions)]
-                // Copy normals from base if available
-                if let normAccessor = target["NORMAL"] as? Int {
-                    let baseNormals = baseGeom.sources(for: .normal).first
+                if let normAccessor = target["NORMAL"] as? Int,
+                   let baseNorms = cachedBaseNormals {
                     let normDeltas = try readAccessorFloat3(index: normAccessor)
-                    if let bn = baseNormals {
-                        var baseNormData: [SCNVector3] = []
-                        let vertCount = bn.vectorCount
-                        let stride = bn.dataStride
-                        let normOffset = bn.dataOffset
-                        bn.data.withUnsafeBytes { ptr in
-                            for i in 0..<vertCount {
-                                let off = normOffset + i * stride
-                                let x = ptr.load(fromByteOffset: off, as: Float.self)
-                                let y = ptr.load(fromByteOffset: off + 4, as: Float.self)
-                                let z = ptr.load(fromByteOffset: off + 8, as: Float.self)
-                                baseNormData.append(SCNVector3(x, y, z))
-                            }
-                        }
-                        let morphedNormals = zip(baseNormData, normDeltas).map { b, d in
-                            SCNVector3(b.x + d.x, b.y + d.y, b.z + d.z)
-                        }
-                        sources.append(SCNGeometrySource(normals: morphedNormals))
+                    let morphedNormals = zip(baseNorms, normDeltas).map { b, d in
+                        SCNVector3(b.x + d.x, b.y + d.y, b.z + d.z)
                     }
+                    sources.append(SCNGeometrySource(normals: morphedNormals))
                 }
 
                 let targetGeom = SCNGeometry(sources: sources, elements: baseGeom.elements)
@@ -241,18 +249,15 @@ final class GLBLoader {
                 let morpher = SCNMorpher()
                 morpher.targets = morphTargets
                 morpher.calculationMode = .additive
-                // Set all weights to 0 initially
                 for i in 0..<morphTargets.count {
                     morpher.setWeight(0, forTargetAt: i)
                 }
                 geomNode?.morpher = morpher
                 morpherNode = geomNode
 
-                // Map blend shape names from VRM extension
                 let vrmExt = gltf["extensions"] as? [String: Any]
                 let vrm = vrmExt?["VRM"] as? [String: Any]
-                let bsMaster = vrm?["blendShapeMaster"] as? [String: Any]
-                let groups = bsMaster?["blendShapeGroups"] as? [[String: Any]] ?? []
+                let groups = (vrm?["blendShapeMaster"] as? [String: Any])?["blendShapeGroups"] as? [[String: Any]] ?? []
                 for group in groups {
                     guard let name = group["name"] as? String,
                           let binds = group["binds"] as? [[String: Any]],
@@ -262,7 +267,7 @@ final class GLBLoader {
                     blendShapeMap[name] = idx
                 }
             }
-            break // Only process first mesh with targets
+            break
         }
 
         return GLBLoadResult(
@@ -274,7 +279,7 @@ final class GLBLoader {
         )
     }
 
-    private func buildNode(index: Int, allNodes: [[String: Any]]) throws -> SCNNode? {
+    private func buildNode(index: Int) throws -> SCNNode? {
         if let cached = builtNodes[index] { return cached }
         guard index < allNodes.count else { return nil }
         let nodeDef = allNodes[index]
@@ -307,7 +312,7 @@ final class GLBLoader {
         // Recurse into children
         if let children = nodeDef["children"] as? [Int] {
             for childIndex in children {
-                if let child = try buildNode(index: childIndex, allNodes: allNodes) {
+                if let child = try buildNode(index: childIndex) {
                     node.addChildNode(child)
                 }
             }
@@ -350,10 +355,9 @@ final class GLBLoader {
     // MARK: - Mesh building
 
     private func buildMesh(index: Int) throws -> SCNNode {
-        let meshes = gltf["meshes"] as? [[String: Any]] ?? []
-        guard index < meshes.count else { throw GLBError.missingData("mesh \(index)") }
+        guard index < meshDefs.count else { throw GLBError.missingData("mesh \(index)") }
 
-        let meshDef = meshes[index]
+        let meshDef = meshDefs[index]
         let primitives = meshDef["primitives"] as? [[String: Any]] ?? []
         let meshNode = SCNNode()
         meshNode.name = meshDef["name"] as? String ?? "mesh_\(index)"
@@ -429,14 +433,13 @@ final class GLBLoader {
     // MARK: - Material building
 
     private func buildMaterial(index: Int) throws -> SCNMaterial {
-        let materials = gltf["materials"] as? [[String: Any]] ?? []
-        guard index < materials.count else {
+        guard index < materialDefs.count else {
             let mat = SCNMaterial()
             mat.diffuse.contents = NSColor.white
             return mat
         }
 
-        let matDef = materials[index]
+        let matDef = materialDefs[index]
         let mat = SCNMaterial()
         mat.name = matDef["name"] as? String
         mat.lightingModel = .physicallyBased
@@ -519,7 +522,6 @@ final class GLBLoader {
     // MARK: - Accessor reading
 
     private func readAccessorFloat3(index: Int) throws -> [SCNVector3] {
-        let accessors = gltf["accessors"] as? [[String: Any]] ?? []
         guard index < accessors.count else { throw GLBError.missingData("accessor \(index)") }
 
         let acc = accessors[index]
@@ -528,8 +530,7 @@ final class GLBLoader {
         let byteOffset = acc["byteOffset"] as? Int ?? 0
 
         let bvData = try readBufferView(index: bvIndex)
-        let bufferViews = gltf["bufferViews"] as? [[String: Any]] ?? []
-        let byteStride = (bvIndex < bufferViews.count ? bufferViews[bvIndex]["byteStride"] as? Int : nil) ?? (3 * 4)
+        let byteStride = (bvIndex < bufferViews.count ? bufferViews[bvIndex]["byteStride"] as? Int : nil) ?? 12
 
         var result: [SCNVector3] = []
         result.reserveCapacity(count)
@@ -547,7 +548,6 @@ final class GLBLoader {
     }
 
     private func readAccessorFloat2(index: Int) throws -> [SIMD2<Float>] {
-        let accessors = gltf["accessors"] as? [[String: Any]] ?? []
         guard index < accessors.count else { throw GLBError.missingData("accessor \(index)") }
 
         let acc = accessors[index]
@@ -556,8 +556,7 @@ final class GLBLoader {
         let byteOffset = acc["byteOffset"] as? Int ?? 0
 
         let bvData = try readBufferView(index: bvIndex)
-        let bufferViews = gltf["bufferViews"] as? [[String: Any]] ?? []
-        let byteStride = (bvIndex < bufferViews.count ? bufferViews[bvIndex]["byteStride"] as? Int : nil) ?? (2 * 4)
+        let byteStride = (bvIndex < bufferViews.count ? bufferViews[bvIndex]["byteStride"] as? Int : nil) ?? 8
 
         var result: [SIMD2<Float>] = []
         result.reserveCapacity(count)
@@ -574,7 +573,6 @@ final class GLBLoader {
     }
 
     private func readAccessorMat4(index: Int) throws -> [SCNMatrix4] {
-        let accessors = gltf["accessors"] as? [[String: Any]] ?? []
         guard index < accessors.count else { throw GLBError.missingData("accessor \(index)") }
 
         let acc = accessors[index]
@@ -617,7 +615,6 @@ final class GLBLoader {
 
     /// Read JOINTS_0 accessor as SCNGeometrySource with .boneIndices semantic.
     private func readJointsAccessor(index: Int, vertexCount: Int) throws -> SCNGeometrySource {
-        let accessors = gltf["accessors"] as? [[String: Any]] ?? []
         guard index < accessors.count else { throw GLBError.missingData("accessor \(index)") }
 
         let acc = accessors[index]
@@ -628,13 +625,10 @@ final class GLBLoader {
 
         let bvData = try readBufferView(index: bvIndex)
 
-        // Component type: 5121=UInt8 (4 bytes/vertex), 5123=UInt16 (8 bytes/vertex)
         let bytesPerComponent = componentType == 5123 ? 2 : 1
         let stride = bytesPerComponent * 4
 
-        // Extract raw joint index data
         var jointData = Data(capacity: count * stride)
-        let bufferViews = gltf["bufferViews"] as? [[String: Any]] ?? []
         let bvStride = (bvIndex < bufferViews.count ? bufferViews[bvIndex]["byteStride"] as? Int : nil) ?? stride
 
         for i in 0..<count {
@@ -675,7 +669,6 @@ final class GLBLoader {
 
     /// Read WEIGHTS_0 accessor as SCNGeometrySource with .boneWeights semantic.
     private func readWeightsAccessor(index: Int, vertexCount: Int) throws -> SCNGeometrySource {
-        let accessors = gltf["accessors"] as? [[String: Any]] ?? []
         guard index < accessors.count else { throw GLBError.missingData("accessor \(index)") }
 
         let acc = accessors[index]
@@ -684,7 +677,6 @@ final class GLBLoader {
         let byteOffset = acc["byteOffset"] as? Int ?? 0
 
         let bvData = try readBufferView(index: bvIndex)
-        let bufferViews = gltf["bufferViews"] as? [[String: Any]] ?? []
         let bvStride = (bvIndex < bufferViews.count ? bufferViews[bvIndex]["byteStride"] as? Int : nil) ?? 16
 
         var weightData = Data(capacity: count * 16)
@@ -707,7 +699,6 @@ final class GLBLoader {
     }
 
     private func readIndices(accessorIndex: Int) throws -> SCNGeometryElement {
-        let accessors = gltf["accessors"] as? [[String: Any]] ?? []
         guard accessorIndex < accessors.count else { throw GLBError.missingData("accessor \(accessorIndex)") }
 
         let acc = accessors[accessorIndex]
@@ -754,7 +745,7 @@ final class GLBLoader {
     // MARK: - Buffer reading
 
     private func readBufferView(index: Int) throws -> Data {
-        let bufferViews = gltf["bufferViews"] as? [[String: Any]] ?? []
+        if let cached = bufferViewCache[index] { return cached }
         guard index < bufferViews.count else { throw GLBError.missingData("bufferView \(index)") }
 
         let bv = bufferViews[index]
@@ -765,7 +756,9 @@ final class GLBLoader {
             throw GLBError.missingData("bufferView \(index) out of range")
         }
 
-        return bin.subdata(in: byteOffset..<(byteOffset + byteLength))
+        let result = bin.subdata(in: byteOffset..<(byteOffset + byteLength))
+        bufferViewCache[index] = result
+        return result
     }
 }
 
