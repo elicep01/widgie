@@ -651,9 +651,30 @@ struct VirtualPetComponentView: View {
                     floatingParticle(text: "\u{1F356}")
                         .offset(x: -30)
                 }
+
+                // Pet mode instruction overlay
+                if petModeActive {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Image(systemName: "hand.point.up.left.fill")
+                                .font(.system(size: 10))
+                            Text("move mouse over pet to pet~")
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.black.opacity(0.5)))
+                        .padding(.bottom, 6)
+                    }
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
             }
             .frame(maxWidth: .infinity)
             .frame(height: geo.size.height * 0.6)
+            .animation(.easeInOut(duration: 0.2), value: petModeActive)
 
             Spacer(minLength: 3)
 
@@ -683,9 +704,8 @@ struct VirtualPetComponentView: View {
                         actionCircle(icon: "fork.knife", size: geo.size.width) {
                             interact(.feed)
                         }
-                        actionCircle(icon: petModeActive ? "hand.raised.fill" : "hand.wave.fill", size: geo.size.width) {
-                            petModeActive.toggle()
-                        }
+                        // Pet button — highlighted when active
+                        petButton(size: geo.size.width)
                         actionCircle(
                             icon: activeGame != nil ? "stop.fill" : "gamecontroller.fill",
                             size: geo.size.width
@@ -1085,6 +1105,31 @@ struct VirtualPetComponentView: View {
     }
 
     // MARK: - Action Circle Button
+
+    @ViewBuilder
+    private func petButton(size: CGFloat) -> some View {
+        let dim = max(20, min(size * 0.09, 28))
+        Button {
+            petModeActive.toggle()
+        } label: {
+            Image(systemName: petModeActive ? "hand.raised.fill" : "hand.point.up.left.fill")
+                .font(.system(size: dim * 0.4, weight: .medium))
+                .foregroundStyle(petModeActive ? Color.white : tc("secondary"))
+                .frame(width: dim, height: dim)
+                .background(
+                    Circle()
+                        .fill(petModeActive ? tc("accent") : tc("accent").opacity(0.1))
+                )
+                .overlay(
+                    // Pulsing ring when active
+                    petModeActive ? Circle()
+                        .stroke(tc("accent").opacity(0.4), lineWidth: 1.5)
+                        .scaleEffect(1.3) : nil
+                )
+        }
+        .buttonStyle(.plain)
+        .help(petModeActive ? "Click pet to stop petting" : "Pet mode — hover over your pet to pet them!")
+    }
 
     private func actionCircle(icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
         let dim = max(20, min(size * 0.09, 28))
@@ -4351,9 +4396,13 @@ private struct PetSceneView: NSViewRepresentable {
                     // Lower body toward ground
                     body.runAction(SCNAction.moveBy(x: 0, y: -0.2, z: 0, duration: 0.8))
 
-                    // Close eyes
-                    self.leftEyeNode?.runAction(SCNAction.scale(to: 0.1, duration: 0.5))
-                    self.rightEyeNode?.runAction(SCNAction.scale(to: 0.1, duration: 0.5))
+                    // Close eyes — squash Y to thin line (like blinking shut)
+                    let closeEyes = SCNAction.customAction(duration: 0.5) { node, elapsed in
+                        let t = elapsed / 0.5
+                        node.scale = SCNVector3(1.0, max(0.05, 1.0 - Float(t) * 0.95), 1.0)
+                    }
+                    self.leftEyeNode?.runAction(closeEyes)
+                    self.rightEyeNode?.runAction(closeEyes.copy() as! SCNAction)
 
                     // Start Zzz animation
                     self.startZzzAnimation(above: body)
@@ -4397,9 +4446,13 @@ private struct PetSceneView: NSViewRepresentable {
             leftFootNode?.runAction(SCNAction.move(to: SCNVector3(-0.18, -0.45, 0.05), duration: 0.4))
             rightFootNode?.runAction(SCNAction.move(to: SCNVector3(0.18, -0.45, 0.05), duration: 0.4))
 
-            // Open eyes
-            leftEyeNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
-            rightEyeNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+            // Open eyes — restore full Y scale
+            let openEyes = SCNAction.customAction(duration: 0.4) { node, elapsed in
+                let t = elapsed / 0.4
+                node.scale = SCNVector3(1.0, max(0.05, Float(t)), 1.0)
+            }
+            leftEyeNode?.runAction(openEyes)
+            rightEyeNode?.runAction(openEyes.copy() as! SCNAction)
 
             // Stretch animation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in

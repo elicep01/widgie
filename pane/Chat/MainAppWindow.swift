@@ -63,6 +63,8 @@ final class MainAppWindow {
     }
 
     func openConversationForWidget(_ widgetID: UUID, widgetName: String) {
+        // Switch to My Widgets tab so the chat is visible
+        viewModel.sidebarTab = .myWidgets
         if let existing = viewModel.conversationStore.conversationForWidget(widgetID) {
             viewModel.selectConversation(existing.id)
         } else {

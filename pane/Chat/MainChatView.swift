@@ -74,11 +74,12 @@ struct MainChatView: View {
             .padding(.bottom, 12)
 
             // Segmented control
-            Picker("View", selection: $viewModel.sidebarTab) {
+            Picker("", selection: $viewModel.sidebarTab) {
                 Text("My Widgets").tag(ChatSidebarTab.myWidgets)
                 Text("Gallery").tag(ChatSidebarTab.gallery)
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
             .accessibilityLabel("Switch between My Widgets and Gallery")
