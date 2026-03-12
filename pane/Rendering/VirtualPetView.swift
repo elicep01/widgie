@@ -2340,7 +2340,7 @@ private struct PetSceneView: NSViewRepresentable {
             if let orig = petOriginalPosition {
                 petBodyNode?.runAction(SCNAction.move(to: orig, duration: 0.2))
             }
-            petBodyNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
+            petBodyNode?.runAction(SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.2))
             petOriginalPosition = nil
             // Reset mouth
             mouthNode?.runAction(SCNAction.run { n in
@@ -2435,7 +2435,7 @@ private struct PetSceneView: NSViewRepresentable {
             }
 
             // Face the laser
-            let angle = atan2(dx, dz)
+            let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
             let faceAction = SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.15)
 
             // Run to laser (faster than walk)
@@ -2461,7 +2461,7 @@ private struct PetSceneView: NSViewRepresentable {
                 SCNAction.moveBy(x: 0, y: -0.08, z: 0, duration: 0.06)
             ])
 
-            let faceCamera = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+            let faceCamera = SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.3)
 
             let chase = SCNAction.sequence([
                 faceAction,
@@ -2544,7 +2544,7 @@ private struct PetSceneView: NSViewRepresentable {
                 let dx = x - CGFloat(body.position.x)
                 let dz = z - CGFloat(body.position.z)
                 let distance = sqrt(dx * dx + dz * dz)
-                let angle = atan2(dx, dz)
+                let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
 
                 let chase = SCNAction.sequence([
                     SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.15),
@@ -2552,7 +2552,7 @@ private struct PetSceneView: NSViewRepresentable {
                     // Pounce on ball
                     SCNAction.moveBy(x: 0, y: 0.2, z: 0, duration: 0.1),
                     SCNAction.moveBy(x: 0, y: -0.2, z: 0, duration: 0.08),
-                    SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+                    SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.3)
                 ])
 
                 body.removeAction(forKey: "behavior")
@@ -2600,7 +2600,7 @@ private struct PetSceneView: NSViewRepresentable {
                 let dx = x - CGFloat(body.position.x)
                 let dz = z - CGFloat(body.position.z)
                 let distance = sqrt(dx * dx + dz * dz)
-                let angle = atan2(dx, dz)
+                let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
 
                 // Crouch down first (stalking)
                 self.bodyMeshNode?.runAction(SCNAction.sequence([
@@ -2629,7 +2629,7 @@ private struct PetSceneView: NSViewRepresentable {
                             SCNAction.moveBy(x: 0, y: -0.35, z: 0, duration: Double(distance) * 0.15)
                         ])
                     ]),
-                    SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2)
+                    SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.2)
                 ])
 
                 body.removeAction(forKey: "behavior")
@@ -3612,7 +3612,8 @@ private struct PetSceneView: NSViewRepresentable {
 
         private func startIdleAnimations(_ root: SCNNode) {
             // Ensure avatar always faces the camera (towards user)
-            root.eulerAngles.y = 0
+            // VRM/glTF models face -Z by default; camera is at +Z, so rotate 180°
+            root.eulerAngles.y = petCharacter.isVRM ? CGFloat.pi : 0
 
             if petCharacter.isVRM, !vrmBones.isEmpty {
                 // VRM bone-based breathing: subtle spine sway
@@ -3919,12 +3920,12 @@ private struct PetSceneView: NSViewRepresentable {
             let dx = CGFloat(matPos.x) - CGFloat(body.position.x)
             let dz = CGFloat(matPos.z) - CGFloat(body.position.z)
             let dist = sqrt(dx * dx + dz * dz)
-            let angle = atan2(dx, dz)
+            let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
 
             let walkToMat = SCNAction.sequence([
                 SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.3),
                 SCNAction.moveBy(x: dx, y: 0, z: dz, duration: Double(dist) * 1.0),
-                SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+                SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.3)
             ])
 
             // Show sleepy speech
@@ -4516,7 +4517,8 @@ private struct PetSceneView: NSViewRepresentable {
             let walkDuration = Double(distance) * 1.2  // speed
 
             // Face the direction of movement
-            let angle = atan2(dx, dz)
+            // VRM models face -Z, so add pi offset for correct walk facing
+            let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
             let faceDirection = SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.3)
 
             // Leg movement (alternate feet up/down)
@@ -4612,7 +4614,7 @@ private struct PetSceneView: NSViewRepresentable {
             moveToTarget.timingMode = .easeInEaseOut
 
             // Face back to camera after arriving
-            let faceCamera = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4)
+            let faceCamera = SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.4)
 
             return SCNAction.sequence([
                 faceDirection,
@@ -4744,7 +4746,7 @@ private struct PetSceneView: NSViewRepresentable {
             let distance = sqrt(dx * dx + dz * dz)
             let walkDuration = Double(distance) * 0.8
 
-            let angle = atan2(dx, dz)
+            let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
             let face = SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.2)
             let walkTo = SCNAction.moveBy(x: dx, y: 0, z: dz, duration: walkDuration)
             walkTo.timingMode = .easeInEaseOut
@@ -4808,7 +4810,7 @@ private struct PetSceneView: NSViewRepresentable {
                 }
             }
 
-            let faceCamera = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+            let faceCamera = SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.3)
 
             return SCNAction.sequence([
                 face,
@@ -4841,7 +4843,7 @@ private struct PetSceneView: NSViewRepresentable {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                     let dx = newX - CGFloat(body.position.x)
                     let dz = newZ - CGFloat(body.position.z)
-                    let angle = atan2(dx, dz)
+                    let angle = atan2(dx, dz) + (self.petCharacter.isVRM ? CGFloat.pi : 0)
                     let dist = sqrt(dx * dx + dz * dz)
 
                     let chase = SCNAction.sequence([
@@ -5050,7 +5052,7 @@ private struct PetSceneView: NSViewRepresentable {
                             let returnZ = CGFloat.random(in: 0...0.5)
                             let dx = returnX - CGFloat(body.position.x)
                             let dz = returnZ - CGFloat(body.position.z)
-                            let angle = atan2(dx, dz)
+                            let angle = atan2(dx, dz) + (self.petCharacter.isVRM ? CGFloat.pi : 0)
                             let dist = sqrt(dx * dx + dz * dz)
 
                             body.runAction(SCNAction.sequence([
@@ -5121,7 +5123,7 @@ private struct PetSceneView: NSViewRepresentable {
 
             let dx = CGFloat(node.position.x) - CGFloat(body.position.x)
             let dz = CGFloat(node.position.z) - CGFloat(body.position.z)
-            let angle = atan2(dx, dz)
+            let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
             let dist = sqrt(dx * dx + dz * dz)
 
             let walkToIt = SCNAction.sequence([
@@ -5163,7 +5165,7 @@ private struct PetSceneView: NSViewRepresentable {
                 self?.toppledObjects.removeAll { $0 === node }
             }
 
-            let faceCamera = SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+            let faceCamera = SCNAction.rotateTo(x: 0, y: petCharacter.isVRM ? CGFloat.pi : 0, z: 0, duration: 0.3)
 
             body.runAction(SCNAction.sequence([walkToIt, fixIt, SCNAction.wait(duration: 1.2), faceCamera]), forKey: "fixTopple")
         }
@@ -5448,7 +5450,7 @@ private struct PetSceneView: NSViewRepresentable {
                 // Face food
                 let dx = dropX - CGFloat(body.position.x)
                 let dz = dropZ - CGFloat(body.position.z)
-                let angle = atan2(dx, dz)
+                let angle = atan2(dx, dz) + (petCharacter.isVRM ? CGFloat.pi : 0)
                 let faceFood = SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.2)
 
                 // Walk to food
