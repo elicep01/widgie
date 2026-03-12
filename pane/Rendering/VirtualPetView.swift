@@ -548,8 +548,9 @@ struct VirtualPetComponentView: View {
 
     @ViewBuilder
     private func normalPetView(pet: UserDataStore.PetStateData, geo: GeometryProxy) -> some View {
+        let petName = pet.petName ?? component.content ?? "Pixel"
         VStack(spacing: 0) {
-            // 3D Scene
+            // Polaroid "photo" — the 3D scene
             ZStack(alignment: .topTrailing) {
                 PetSceneView(
                     pet: pet,
@@ -562,7 +563,6 @@ struct VirtualPetComponentView: View {
                     onPlay: { interact(.play) },
                     onPetModeEnd: { petModeActive = false }
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 // Floating particles
                 if showHeart {
@@ -594,53 +594,52 @@ struct VirtualPetComponentView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: geo.size.height * 0.6)
+            .frame(height: geo.size.height * 0.55)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .animation(.easeInOut(duration: 0.2), value: petModeActive)
 
-            Spacer(minLength: 3)
+            // Polaroid bottom — name with heart
+            HStack(spacing: 0) {
+                Text("\u{2764}\u{FE0F}")
+                    .font(.system(size: max(10, geo.size.width * 0.04)))
+                Text(" \(petName) ")
+                    .font(.system(size: max(11, min(geo.size.width * 0.055, 16)), weight: .bold, design: .rounded))
+                    .foregroundStyle(tc("primary"))
+                    .italic()
+                Text("\u{2764}\u{FE0F}")
+                    .font(.system(size: max(10, geo.size.width * 0.04)))
+            }
+            .lineLimit(1)
+            .padding(.top, 5)
+            .padding(.bottom, 2)
 
             if pet.isAlive {
-                // Bottom bar: name + stat circles + action buttons
-                HStack(spacing: 0) {
-                    // Name
-                    Text(pet.petName ?? component.content ?? "Pixel")
-                        .font(.system(size: max(10, min(geo.size.width * 0.048, 14)), weight: .bold, design: .rounded))
-                        .foregroundStyle(tc("primary"))
-                        .lineLimit(1)
-                        .frame(maxWidth: geo.size.width * 0.28, alignment: .leading)
+                // Stats row — compact health/hunger/happiness
+                HStack(spacing: max(6, geo.size.width * 0.025)) {
+                    statCircle(icon: "heart.fill", value: pet.health, color: petHealthColor(pet.health), size: geo.size.width)
+                    statCircle(icon: "leaf.fill", value: pet.hunger, color: .orange, size: geo.size.width)
+                    statCircle(icon: "star.fill", value: pet.happiness, color: .pink, size: geo.size.width)
+                }
+                .padding(.bottom, 3)
 
-                    Spacer(minLength: 4)
-
-                    // Stat circles
-                    HStack(spacing: max(4, geo.size.width * 0.02)) {
-                        statCircle(icon: "heart.fill", value: pet.health, color: petHealthColor(pet.health), size: geo.size.width)
-                        statCircle(icon: "leaf.fill", value: pet.hunger, color: .orange, size: geo.size.width)
-                        statCircle(icon: "star.fill", value: pet.happiness, color: .pink, size: geo.size.width)
+                // Action buttons row
+                HStack(spacing: max(4, geo.size.width * 0.02)) {
+                    actionCircle(icon: "fork.knife", size: geo.size.width) {
+                        interact(.feed)
                     }
-
-                    Spacer(minLength: 4)
-
-                    // Action buttons — compact icons
-                    HStack(spacing: max(3, geo.size.width * 0.015)) {
-                        actionCircle(icon: "fork.knife", size: geo.size.width) {
-                            interact(.feed)
-                        }
-                        // Pet button — highlighted when active
-                        petButton(size: geo.size.width)
-                        actionCircle(
-                            icon: activeGame != nil ? "stop.fill" : "gamecontroller.fill",
-                            size: geo.size.width
-                        ) {
-                            if activeGame != nil {
-                                activeGame = nil
-                                showPlayMenu = false
-                            } else {
-                                showPlayMenu.toggle()
-                            }
+                    petButton(size: geo.size.width)
+                    actionCircle(
+                        icon: activeGame != nil ? "stop.fill" : "gamecontroller.fill",
+                        size: geo.size.width
+                    ) {
+                        if activeGame != nil {
+                            activeGame = nil
+                            showPlayMenu = false
+                        } else {
+                            showPlayMenu.toggle()
                         }
                     }
                 }
-                .padding(.horizontal, 6)
 
                 // Game selection menu
                 if showPlayMenu && activeGame == nil {
@@ -672,10 +671,10 @@ struct VirtualPetComponentView: View {
                     .padding(.top, 3)
                 }
             } else {
-                Text(pet.petName ?? "R.I.P.")
-                    .font(.system(size: max(14, geo.size.width * 0.06), weight: .heavy, design: .rounded))
+                Text("R.I.P.")
+                    .font(.system(size: max(11, geo.size.width * 0.05), weight: .heavy, design: .rounded))
                     .foregroundStyle(tc("muted"))
-                    .padding(.top, 4)
+                    .padding(.top, 2)
 
                 if let birth = parseISO(pet.birthDate),
                    let death = parseISO(pet.lastDecayAt) {
@@ -686,7 +685,7 @@ struct VirtualPetComponentView: View {
                 }
             }
 
-            Spacer(minLength: 3)
+            Spacer(minLength: 2)
         }
         .padding(6)
     }
@@ -1743,6 +1742,33 @@ private struct PetSceneView: NSViewRepresentable {
         private var leftEarNode: SCNNode?
         private var rightEarNode: SCNNode?
         private var tailNode: SCNNode?
+
+        // VRM skeleton bone references
+        private var vrmBones: [String: SCNNode] = [:]
+        private var vrmMorpherNode: SCNNode?
+        private var vrmBlendShapeMap: [String: Int] = [:]
+
+        private var hipsBone: SCNNode? { vrmBones["mixamorig:Hips"] }
+        private var spineBone: SCNNode? { vrmBones["mixamorig:Spine"] }
+        private var spine1Bone: SCNNode? { vrmBones["mixamorig:Spine1"] }
+        private var spine2Bone: SCNNode? { vrmBones["mixamorig:Spine2"] }
+        private var neckBone: SCNNode? { vrmBones["mixamorig:Neck"] }
+        private var headBoneVRM: SCNNode? { vrmBones["mixamorig:Head"] }
+        private var leftShoulderBone: SCNNode? { vrmBones["mixamorig:LeftShoulder"] }
+        private var rightShoulderBone: SCNNode? { vrmBones["mixamorig:RightShoulder"] }
+        private var leftUpperArmBone: SCNNode? { vrmBones["mixamorig:LeftArm"] }
+        private var rightUpperArmBone: SCNNode? { vrmBones["mixamorig:RightArm"] }
+        private var leftForeArmBone: SCNNode? { vrmBones["mixamorig:LeftForeArm"] }
+        private var rightForeArmBone: SCNNode? { vrmBones["mixamorig:RightForeArm"] }
+        private var leftHandBone: SCNNode? { vrmBones["mixamorig:LeftHand"] }
+        private var rightHandBone: SCNNode? { vrmBones["mixamorig:RightHand"] }
+        private var leftUpperLegBone: SCNNode? { vrmBones["mixamorig:LeftUpLeg"] }
+        private var rightUpperLegBone: SCNNode? { vrmBones["mixamorig:RightUpLeg"] }
+        private var leftLowerLegBone: SCNNode? { vrmBones["mixamorig:LeftLeg"] }
+        private var rightLowerLegBone: SCNNode? { vrmBones["mixamorig:RightLeg"] }
+        private var leftFootBone: SCNNode? { vrmBones["mixamorig:LeftFoot"] }
+        private var rightFootBone: SCNNode? { vrmBones["mixamorig:RightFoot"] }
+
         private var laserDotNode: SCNNode?
         private var laserGlowNode: SCNNode?
         private var isChasing = false
@@ -3081,6 +3107,158 @@ private struct PetSceneView: NSViewRepresentable {
             pillowNode.eulerAngles.y = 0.1
             matNode.addChildNode(pillowNode)
 
+            // --- Small side table with lamp ---
+            let tableGeo = SCNBox(width: 0.3, height: 0.5, length: 0.3, chamferRadius: 0.02)
+            let tableMat = SCNMaterial()
+            tableMat.diffuse.contents = NSColor(red: 0.55, green: 0.38, blue: 0.22, alpha: 1)
+            tableGeo.materials = [tableMat]
+            let tableNode = SCNNode(geometry: tableGeo)
+            tableNode.position = SCNVector3(1.8, 0.25, -1.2)
+            scene.rootNode.addChildNode(tableNode)
+
+            // Lamp on the table
+            let lampBaseGeo = SCNCylinder(radius: 0.06, height: 0.04)
+            let lampBaseMat = SCNMaterial()
+            lampBaseMat.diffuse.contents = NSColor(white: 0.3, alpha: 1)
+            lampBaseMat.metalness.contents = NSColor(white: 0.7, alpha: 1)
+            lampBaseGeo.materials = [lampBaseMat]
+            let lampBase = SCNNode(geometry: lampBaseGeo)
+            lampBase.position = SCNVector3(1.8, 0.52, -1.2)
+            scene.rootNode.addChildNode(lampBase)
+
+            let lampPoleGeo = SCNCylinder(radius: 0.012, height: 0.25)
+            let lampPoleMat = SCNMaterial()
+            lampPoleMat.diffuse.contents = NSColor(white: 0.4, alpha: 1)
+            lampPoleMat.metalness.contents = NSColor(white: 0.6, alpha: 1)
+            lampPoleGeo.materials = [lampPoleMat]
+            let lampPole = SCNNode(geometry: lampPoleGeo)
+            lampPole.position = SCNVector3(1.8, 0.66, -1.2)
+            scene.rootNode.addChildNode(lampPole)
+
+            let lampShadeGeo = SCNCone(topRadius: 0.04, bottomRadius: 0.1, height: 0.12)
+            let lampShadeMat = SCNMaterial()
+            lampShadeMat.diffuse.contents = pers.accentColor.withAlphaComponent(0.4)
+            lampShadeMat.emission.contents = pers.accentColor.withAlphaComponent(0.15)
+            lampShadeGeo.materials = [lampShadeMat]
+            let lampShade = SCNNode(geometry: lampShadeGeo)
+            lampShade.position = SCNVector3(1.8, 0.82, -1.2)
+            scene.rootNode.addChildNode(lampShade)
+
+            // --- Wall clock (back wall, right side) ---
+            let clockFace = SCNCylinder(radius: 0.2, height: 0.03)
+            let clockFaceMat = SCNMaterial()
+            clockFaceMat.diffuse.contents = NSColor.white
+            clockFace.materials = [clockFaceMat]
+            let clockNode = SCNNode(geometry: clockFace)
+            clockNode.position = SCNVector3(0.0, 2.6, -2.47)
+            clockNode.eulerAngles.x = CGFloat.pi / 2
+            scene.rootNode.addChildNode(clockNode)
+
+            // Clock frame ring
+            let clockRingGeo = SCNTorus(ringRadius: 0.2, pipeRadius: 0.015)
+            let clockRingMat = SCNMaterial()
+            clockRingMat.diffuse.contents = NSColor(red: 0.5, green: 0.35, blue: 0.2, alpha: 1)
+            clockRingGeo.materials = [clockRingMat]
+            let clockRing = SCNNode(geometry: clockRingGeo)
+            clockRing.position = SCNVector3(0.0, 2.6, -2.46)
+            clockRing.eulerAngles.x = CGFloat.pi / 2
+            scene.rootNode.addChildNode(clockRing)
+
+            // Clock hands
+            let hourHandGeo = SCNBox(width: 0.015, height: 0.1, length: 0.005, chamferRadius: 0.002)
+            let handMat = SCNMaterial()
+            handMat.diffuse.contents = NSColor.black
+            hourHandGeo.materials = [handMat]
+            let hourHand = SCNNode(geometry: hourHandGeo)
+            hourHand.pivot = SCNMatrix4MakeTranslation(0, -0.04, 0)
+            hourHand.position = SCNVector3(0.0, 2.6, -2.44)
+            let hour = Calendar.current.component(.hour, from: Date())
+            hourHand.eulerAngles.z = -CGFloat(hour % 12) * CGFloat.pi / 6
+            scene.rootNode.addChildNode(hourHand)
+
+            let minHandGeo = SCNBox(width: 0.01, height: 0.14, length: 0.005, chamferRadius: 0.002)
+            minHandGeo.materials = [handMat]
+            let minHand = SCNNode(geometry: minHandGeo)
+            minHand.pivot = SCNMatrix4MakeTranslation(0, -0.05, 0)
+            minHand.position = SCNVector3(0.0, 2.6, -2.43)
+            let minute = Calendar.current.component(.minute, from: Date())
+            minHand.eulerAngles.z = -CGFloat(minute) * CGFloat.pi / 30
+            scene.rootNode.addChildNode(minHand)
+
+            // --- Bunting / garland on back wall ---
+            let buntingColors: [NSColor] = [pers.accentColor, pers.bodyColor, .systemYellow, pers.toyBallColor, .systemPink]
+            for (i, color) in buntingColors.enumerated() {
+                let flagGeo = SCNBox(width: 0.08, height: 0.1, length: 0.005, chamferRadius: 0.005)
+                let flagMat = SCNMaterial()
+                flagMat.diffuse.contents = color.withAlphaComponent(0.5)
+                flagMat.isDoubleSided = true
+                flagGeo.materials = [flagMat]
+                let flagNode = SCNNode(geometry: flagGeo)
+                let xPos = -1.8 + CGFloat(i) * 0.22
+                let sag = abs(CGFloat(i) - 2.0) * 0.04 // slight sag in middle
+                flagNode.position = SCNVector3(xPos, 3.1 - sag, -2.46)
+                flagNode.eulerAngles.z = CGFloat.random(in: -0.1...0.1)
+                scene.rootNode.addChildNode(flagNode)
+            }
+
+            // Bunting string
+            let buntingStringGeo = SCNCylinder(radius: 0.004, height: 1.1)
+            let buntingStringMat = SCNMaterial()
+            buntingStringMat.diffuse.contents = NSColor(white: 0.6, alpha: 0.6)
+            buntingStringGeo.materials = [buntingStringMat]
+            let buntingString = SCNNode(geometry: buntingStringGeo)
+            buntingString.position = SCNVector3(-0.9, 3.12, -2.47)
+            buntingString.eulerAngles.z = CGFloat.pi / 2
+            scene.rootNode.addChildNode(buntingString)
+
+            // --- Small mirror on right wall ---
+            let mirrorFrameGeo = SCNBox(width: 0.04, height: 0.5, length: 0.35, chamferRadius: 0.02)
+            let mirrorFrameMat = SCNMaterial()
+            mirrorFrameMat.diffuse.contents = NSColor(red: 0.7, green: 0.5, blue: 0.3, alpha: 1)
+            mirrorFrameGeo.materials = [mirrorFrameMat]
+            let mirrorFrame = SCNNode(geometry: mirrorFrameGeo)
+            mirrorFrame.position = SCNVector3(2.97, 2.0, -0.5)
+            scene.rootNode.addChildNode(mirrorFrame)
+
+            let mirrorGlassGeo = SCNBox(width: 0.01, height: 0.42, length: 0.27, chamferRadius: 0.01)
+            let mirrorGlassMat = SCNMaterial()
+            mirrorGlassMat.diffuse.contents = NSColor(red: 0.8, green: 0.85, blue: 0.9, alpha: 0.6)
+            mirrorGlassMat.metalness.contents = NSColor(white: 0.9, alpha: 1)
+            mirrorGlassMat.reflective.contents = NSColor(white: 0.4, alpha: 1)
+            mirrorGlassGeo.materials = [mirrorGlassMat]
+            let mirrorGlass = SCNNode(geometry: mirrorGlassGeo)
+            mirrorGlass.position = SCNVector3(2.96, 2.0, -0.5)
+            scene.rootNode.addChildNode(mirrorGlass)
+
+            // --- Water bowl next to food bowl ---
+            let waterBowl = SCNTorus(ringRadius: 0.14, pipeRadius: 0.04)
+            let waterBowlMat = SCNMaterial()
+            waterBowlMat.diffuse.contents = NSColor.systemBlue.withAlphaComponent(0.4)
+            waterBowl.materials = [waterBowlMat]
+            let waterBowlNode = SCNNode(geometry: waterBowl)
+            waterBowlNode.position = SCNVector3(-0.65, 0.04, 0.9)
+            waterBowlNode.name = "waterBowl"
+            scene.rootNode.addChildNode(waterBowlNode)
+
+            // Water surface
+            let waterSurface = SCNCylinder(radius: 0.12, height: 0.01)
+            let waterSurfMat = SCNMaterial()
+            waterSurfMat.diffuse.contents = NSColor(red: 0.5, green: 0.7, blue: 0.95, alpha: 0.5)
+            waterSurfMat.metalness.contents = NSColor(white: 0.3, alpha: 1)
+            waterSurface.materials = [waterSurfMat]
+            let waterNode = SCNNode(geometry: waterSurface)
+            waterNode.position = SCNVector3(-0.65, 0.05, 0.9)
+            scene.rootNode.addChildNode(waterNode)
+
+            // --- Tiny rug pattern — concentric ring accent on the round rug ---
+            let rugPattern = SCNTorus(ringRadius: 0.8, pipeRadius: 0.015)
+            let rugPatternMat = SCNMaterial()
+            rugPatternMat.diffuse.contents = pers.accentColor.withAlphaComponent(0.2)
+            rugPattern.materials = [rugPatternMat]
+            let rugPatternNode = SCNNode(geometry: rugPattern)
+            rugPatternNode.position = SCNVector3(0, 0.012, 0.2)
+            scene.rootNode.addChildNode(rugPatternNode)
+
             // --- Small star mobile hanging from ceiling ---
             let mobileRod = SCNCylinder(radius: 0.01, height: 0.6)
             let rodMat = SCNMaterial()
@@ -3288,7 +3466,6 @@ private struct PetSceneView: NSViewRepresentable {
 
             let fileName = character.vrmFileName
             guard let url = Bundle.main.url(forResource: fileName, withExtension: "vrm") else {
-                // Fallback: build a simple placeholder sphere if VRM file not found
                 let fallback = SCNSphere(radius: 0.4)
                 let mat = SCNMaterial()
                 mat.diffuse.contents = character.personality.bodyColor
@@ -3302,19 +3479,24 @@ private struct PetSceneView: NSViewRepresentable {
             }
 
             do {
-                let vrmNode = try GLBLoader.loadScene(from: url)
+                let result = try GLBLoader.loadFull(from: url)
+                let vrmNode = result.rootNode
 
-                // Normalize the model size — VRM avatars vary in height.
-                // We want the model to fit comfortably in our room (about 1.0-1.2 units tall).
+                // Store bone references for skeletal animation
+                vrmBones = result.bones
+                vrmMorpherNode = result.morpherNode
+                vrmBlendShapeMap = result.blendShapeMap
+
+                // Normalize the model size to fit comfortably in our room (~1.1 units tall)
                 let (minBound, maxBound) = vrmNode.boundingBox
                 let modelHeight = CGFloat(maxBound.y - minBound.y)
                 let modelWidth = CGFloat(maxBound.x - minBound.x)
                 let maxDimension = max(modelHeight, modelWidth)
-                let targetHeight: CGFloat = 1.1  // target height in scene units
+                let targetHeight: CGFloat = 1.1
                 let scaleFactor = maxDimension > 0 ? Float(targetHeight / maxDimension) : 1.0
                 vrmNode.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
 
-                // Center the model horizontally and place feet on the ground
+                // Center horizontally, place feet on ground
                 let centerX = Float(minBound.x + maxBound.x) / 2.0
                 let bottomY = Float(minBound.y)
                 vrmNode.position = SCNVector3(
@@ -3326,15 +3508,23 @@ private struct PetSceneView: NSViewRepresentable {
                 root.addChildNode(vrmNode)
                 bodyMeshNode = vrmNode
 
-                // For VRM models, we don't set individual body part nodes
-                // (headNode, leftEyeNode, etc.) — animations work on the whole model.
-                // The headNode reference is set to the vrm root so head animations
-                // (look around, tilt) apply to the whole character — looks cute on small mascots.
-                headNode = vrmNode
+                // Set head bone for look-around animations
+                headNode = headBoneVRM ?? neckBone ?? vrmNode
+
+                // Set limb node references for existing animation code paths
+                leftArmNode = leftUpperArmBone
+                rightArmNode = rightUpperArmBone
+                leftFootNode = leftFootBone
+                rightFootNode = rightFootBone
+
+                // Apply natural rest pose (break T-pose)
+                applyVRMRestPose()
+
+                // Start blend shape blinking
+                startVRMBlinking()
 
             } catch {
                 print("⚠️ Failed to load VRM model '\(fileName)': \(error.localizedDescription)")
-                // Fallback placeholder
                 let fallback = SCNSphere(radius: 0.4)
                 let mat = SCNMaterial()
                 mat.diffuse.contents = character.personality.bodyColor
@@ -3349,18 +3539,139 @@ private struct PetSceneView: NSViewRepresentable {
             return root
         }
 
+        /// Apply a natural idle pose to VRM skeleton (arms at sides, not T-pose).
+        private func applyVRMRestPose() {
+            // Rotate arms down from T-pose (~75 degrees)
+            leftUpperArmBone?.simdEulerAngles = SIMD3(0, 0, Float.pi * 0.42)
+            rightUpperArmBone?.simdEulerAngles = SIMD3(0, 0, -Float.pi * 0.42)
+
+            // Slight bend at elbows for natural look
+            leftForeArmBone?.simdEulerAngles = SIMD3(0, 0, Float.pi * 0.06)
+            rightForeArmBone?.simdEulerAngles = SIMD3(0, 0, -Float.pi * 0.06)
+
+            // Slight forward lean for cute posture
+            spine1Bone?.simdEulerAngles = SIMD3(Float.pi * 0.015, 0, 0)
+
+            // Slight head tilt for charm
+            headBoneVRM?.simdEulerAngles = SIMD3(-Float.pi * 0.02, 0, 0)
+        }
+
+        /// Periodic blink using VRM blend shapes.
+        private func startVRMBlinking() {
+            guard !vrmBlendShapeMap.isEmpty else { return }
+            Timer.scheduledTimer(withTimeInterval: Double.random(in: 3.0...5.5), repeats: true) { [weak self] timer in
+                guard let self, let morpher = self.vrmMorpherNode?.morpher else {
+                    timer.invalidate()
+                    return
+                }
+                guard let blinkIdx = self.vrmBlendShapeMap["Blink"] else { return }
+                // Double-blink sometimes
+                let doDouble = Bool.random() && Bool.random()
+                DispatchQueue.main.async {
+                    SCNTransaction.begin()
+                    SCNTransaction.animationDuration = 0.06
+                    morpher.setWeight(1.0, forTargetAt: blinkIdx)
+                    SCNTransaction.commit()
+
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        SCNTransaction.begin()
+                        SCNTransaction.animationDuration = 0.06
+                        morpher.setWeight(0, forTargetAt: blinkIdx)
+                        SCNTransaction.commit()
+
+                        if doDouble {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                                SCNTransaction.begin()
+                                SCNTransaction.animationDuration = 0.06
+                                morpher.setWeight(1.0, forTargetAt: blinkIdx)
+                                SCNTransaction.commit()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    SCNTransaction.begin()
+                                    SCNTransaction.animationDuration = 0.06
+                                    morpher.setWeight(0, forTargetAt: blinkIdx)
+                                    SCNTransaction.commit()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        /// Set a named VRM blend shape weight with animation.
+        private func setVRMBlendShape(_ name: String, weight: CGFloat, duration: TimeInterval = 0.2) {
+            guard let morpher = vrmMorpherNode?.morpher,
+                  let index = vrmBlendShapeMap[name] else { return }
+            SCNTransaction.begin()
+            SCNTransaction.animationDuration = duration
+            morpher.setWeight(weight, forTargetAt: index)
+            SCNTransaction.commit()
+        }
+
         // MARK: - Animations
 
         private func startIdleAnimations(_ root: SCNNode) {
-            // Gentle breathing/bounce
-            let breathe = SCNAction.sequence([
-                SCNAction.moveBy(x: 0, y: 0.06, z: 0, duration: 1.5),
-                SCNAction.moveBy(x: 0, y: -0.06, z: 0, duration: 1.5)
-            ])
-            breathe.timingMode = .easeInEaseOut
-            root.runAction(.repeatForever(breathe), forKey: "breathe")
+            // Ensure avatar always faces the camera (towards user)
+            root.eulerAngles.y = 0
 
-            // Subtle side sway
+            if petCharacter.isVRM, !vrmBones.isEmpty {
+                // VRM bone-based breathing: subtle spine sway
+                if let spine = spineBone {
+                    let breathe = SCNAction.sequence([
+                        SCNAction.rotateBy(x: 0.03, y: 0, z: 0, duration: 1.5),
+                        SCNAction.rotateBy(x: -0.03, y: 0, z: 0, duration: 1.5)
+                    ])
+                    breathe.timingMode = .easeInEaseOut
+                    spine.runAction(.repeatForever(breathe), forKey: "breathe")
+                }
+
+                // Subtle hip sway (weight shift)
+                if let hips = hipsBone {
+                    let hipSway = SCNAction.sequence([
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.02, duration: 2.5),
+                        SCNAction.rotateBy(x: 0, y: 0, z: -0.04, duration: 5.0),
+                        SCNAction.rotateBy(x: 0, y: 0, z: 0.02, duration: 2.5)
+                    ])
+                    hipSway.timingMode = .easeInEaseOut
+                    hips.runAction(.repeatForever(hipSway), forKey: "hipSway")
+                }
+
+                // Gentle whole-body bounce
+                let breathe = SCNAction.sequence([
+                    SCNAction.moveBy(x: 0, y: 0.03, z: 0, duration: 1.5),
+                    SCNAction.moveBy(x: 0, y: -0.03, z: 0, duration: 1.5)
+                ])
+                breathe.timingMode = .easeInEaseOut
+                root.runAction(.repeatForever(breathe), forKey: "breathe")
+
+                // Arm micro-sway (natural, not stiff)
+                if let leftArm = leftUpperArmBone {
+                    let armSway = SCNAction.sequence([
+                        SCNAction.rotateBy(x: 0.02, y: 0, z: 0, duration: 2.0),
+                        SCNAction.rotateBy(x: -0.02, y: 0, z: 0, duration: 2.0)
+                    ])
+                    armSway.timingMode = .easeInEaseOut
+                    leftArm.runAction(.repeatForever(armSway), forKey: "armSway")
+                }
+                if let rightArm = rightUpperArmBone {
+                    let armSway = SCNAction.sequence([
+                        SCNAction.rotateBy(x: -0.02, y: 0, z: 0, duration: 2.2),
+                        SCNAction.rotateBy(x: 0.02, y: 0, z: 0, duration: 2.2)
+                    ])
+                    armSway.timingMode = .easeInEaseOut
+                    rightArm.runAction(.repeatForever(armSway), forKey: "armSway")
+                }
+            } else {
+                // Non-VRM breathing
+                let breathe = SCNAction.sequence([
+                    SCNAction.moveBy(x: 0, y: 0.06, z: 0, duration: 1.5),
+                    SCNAction.moveBy(x: 0, y: -0.06, z: 0, duration: 1.5)
+                ])
+                breathe.timingMode = .easeInEaseOut
+                root.runAction(.repeatForever(breathe), forKey: "breathe")
+            }
+
+            // Subtle side sway (whole body)
             let sway = SCNAction.sequence([
                 SCNAction.rotateBy(x: 0, y: 0, z: 0.04, duration: 2.0),
                 SCNAction.rotateBy(x: 0, y: 0, z: -0.08, duration: 4.0),
@@ -3369,15 +3680,15 @@ private struct PetSceneView: NSViewRepresentable {
             sway.timingMode = .easeInEaseOut
             root.runAction(.repeatForever(sway), forKey: "sway")
 
-            // Head look-around
+            // Head look-around (uses head bone for VRM, headNode otherwise)
             if let head = headNode {
                 let lookAround = SCNAction.sequence([
                     SCNAction.wait(duration: 4),
-                    SCNAction.rotateBy(x: 0, y: 0.3, z: 0, duration: 0.5),
+                    SCNAction.rotateBy(x: 0, y: 0.25, z: 0, duration: 0.5),
                     SCNAction.wait(duration: 1.5),
-                    SCNAction.rotateBy(x: 0, y: -0.6, z: 0, duration: 0.8),
+                    SCNAction.rotateBy(x: 0, y: -0.5, z: 0, duration: 0.8),
                     SCNAction.wait(duration: 1.5),
-                    SCNAction.rotateBy(x: 0, y: 0.3, z: 0, duration: 0.5),
+                    SCNAction.rotateBy(x: 0, y: 0.25, z: 0, duration: 0.5),
                     SCNAction.wait(duration: 3)
                 ])
                 lookAround.timingMode = .easeInEaseOut
@@ -3386,9 +3697,9 @@ private struct PetSceneView: NSViewRepresentable {
                 // Occasional head tilt (cute!)
                 let headTilt = SCNAction.sequence([
                     SCNAction.wait(duration: Double.random(in: 7...12)),
-                    SCNAction.rotateBy(x: 0, y: 0, z: 0.15, duration: 0.3),
+                    SCNAction.rotateBy(x: 0, y: 0, z: 0.12, duration: 0.3),
                     SCNAction.wait(duration: 1.0),
-                    SCNAction.rotateBy(x: 0, y: 0, z: -0.15, duration: 0.3)
+                    SCNAction.rotateBy(x: 0, y: 0, z: -0.12, duration: 0.3)
                 ])
                 headTilt.timingMode = .easeInEaseOut
                 head.runAction(.repeatForever(headTilt), forKey: "headTilt")
@@ -3626,14 +3937,39 @@ private struct PetSceneView: NSViewRepresentable {
                 DispatchQueue.main.async {
                     self.showExpression(.sleepy)
 
-                    if isVRM {
-                        // VRM models: tilt the whole model to lay down (no individual limbs)
+                    if isVRM, !self.vrmBones.isEmpty {
+                        // VRM bone-based sleep: curl up using skeleton
+                        // Close eyes via blend shape
+                        self.setVRMBlendShape("Blink", weight: 1.0, duration: 0.5)
+
+                        // Curl spine forward
+                        self.spineBone?.runAction(SCNAction.rotateTo(x: 0.4, y: 0, z: 0, duration: 0.8))
+                        self.spine1Bone?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: 0, duration: 0.8))
+
+                        // Head droops
+                        self.headBoneVRM?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: 0.1, duration: 0.8))
+
+                        // Bring arms inward (hugging self)
+                        self.leftUpperArmBone?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: CGFloat.pi * 0.3, duration: 0.6))
+                        self.rightUpperArmBone?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: -CGFloat.pi * 0.3, duration: 0.6))
+                        self.leftForeArmBone?.runAction(SCNAction.rotateTo(x: 0.8, y: 0, z: 0, duration: 0.6))
+                        self.rightForeArmBone?.runAction(SCNAction.rotateTo(x: 0.8, y: 0, z: 0, duration: 0.6))
+
+                        // Bend knees
+                        self.leftUpperLegBone?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: 0, duration: 0.8))
+                        self.rightUpperLegBone?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: 0, duration: 0.8))
+                        self.leftLowerLegBone?.runAction(SCNAction.rotateTo(x: 0.8, y: 0, z: 0, duration: 0.8))
+                        self.rightLowerLegBone?.runAction(SCNAction.rotateTo(x: 0.8, y: 0, z: 0, duration: 0.8))
+
+                        // Lower hips
+                        self.hipsBone?.runAction(SCNAction.moveBy(x: 0, y: -0.15, z: 0, duration: 0.8))
+                    } else if isVRM {
+                        // VRM without bones: tilt whole model
                         if pers.sleepStyle == "sprawled" {
                             self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.2, y: 0, z: 0, duration: 0.8))
                         } else if pers.sleepStyle == "on back" {
                             self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.5, y: 0, z: 0, duration: 0.8))
                         } else {
-                            // Curled up: tilt to side
                             self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: CGFloat.pi / 3, duration: 0.8))
                         }
                     } else {
@@ -3704,7 +4040,20 @@ private struct PetSceneView: NSViewRepresentable {
             bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.6))
             body.runAction(SCNAction.moveBy(x: 0, y: 0.2, z: 0, duration: 0.6))
 
-            if !petCharacter.isVRM {
+            if petCharacter.isVRM, !vrmBones.isEmpty {
+                // VRM: reset all bones to rest pose, open eyes
+                setVRMBlendShape("Blink", weight: 0, duration: 0.4)
+                hipsBone?.runAction(SCNAction.moveBy(x: 0, y: 0.15, z: 0, duration: 0.6))
+                leftUpperLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4))
+                rightUpperLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4))
+                leftLowerLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4))
+                rightLowerLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4))
+                spineBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4))
+                spine1Bone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.4))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.applyVRMRestPose()
+                }
+            } else if !petCharacter.isVRM {
                 // Reset limbs (programmatic models only)
                 leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.4))
                 rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.4))
@@ -3724,8 +4073,26 @@ private struct PetSceneView: NSViewRepresentable {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 guard let self else { return }
 
-                if self.petCharacter.isVRM {
-                    // VRM: do a cute bounce wake-up
+                if self.petCharacter.isVRM, !self.vrmBones.isEmpty {
+                    // VRM bone-based stretch: arms up then back to rest
+                    self.leftUpperArmBone?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: CGFloat.pi * 0.5, duration: 0.4),
+                        SCNAction.wait(duration: 0.6),
+                        SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi * 0.42, duration: 0.3)
+                    ]))
+                    self.rightUpperArmBone?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: -CGFloat.pi * 0.5, duration: 0.4),
+                        SCNAction.wait(duration: 0.6),
+                        SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi * 0.42, duration: 0.3)
+                    ]))
+                    // Spine arches back then forward
+                    self.spineBone?.runAction(SCNAction.sequence([
+                        SCNAction.rotateTo(x: -0.2, y: 0, z: 0, duration: 0.4),
+                        SCNAction.wait(duration: 0.6),
+                        SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+                    ]))
+                } else if self.petCharacter.isVRM {
+                    // VRM without bones: bounce wake-up
                     self.bodyMeshNode?.runAction(SCNAction.sequence([
                         SCNAction.scale(by: 1.15, duration: 0.3),
                         SCNAction.scale(by: 1.0 / 1.15, duration: 0.3)
@@ -4156,8 +4523,40 @@ private struct PetSceneView: NSViewRepresentable {
             let stepDuration = 0.25
             let stepCount = max(2, Int(walkDuration / stepDuration))
             var legActions: [SCNAction] = []
-            if petCharacter.isVRM {
-                // VRM models: cute hop/bounce animation while moving
+            if petCharacter.isVRM, !vrmBones.isEmpty {
+                // VRM bone-based walk: alternate leg swings + arm counter-swing + bounce
+                let stepsVRM = max(2, Int(walkDuration / 0.3))
+                for i in 0..<stepsVRM {
+                    let isLeft = i % 2 == 0
+                    let stepAction = SCNAction.run { [weak self] _ in
+                        guard let self else { return }
+                        let swingAngle: Float = 0.35
+                        let armSwing: Float = 0.2
+                        // Legs: swing forward/backward alternately
+                        self.leftUpperLegBone?.runAction(SCNAction.rotateTo(
+                            x: CGFloat(isLeft ? -swingAngle : swingAngle), y: 0, z: 0, duration: 0.15))
+                        self.rightUpperLegBone?.runAction(SCNAction.rotateTo(
+                            x: CGFloat(isLeft ? swingAngle : -swingAngle), y: 0, z: 0, duration: 0.15))
+                        // Knee bend on back leg
+                        self.leftLowerLegBone?.runAction(SCNAction.rotateTo(
+                            x: CGFloat(isLeft ? 0 : 0.4), y: 0, z: 0, duration: 0.15))
+                        self.rightLowerLegBone?.runAction(SCNAction.rotateTo(
+                            x: CGFloat(isLeft ? 0.4 : 0), y: 0, z: 0, duration: 0.15))
+                        // Arms counter-swing
+                        self.leftUpperArmBone?.runAction(SCNAction.rotateBy(
+                            x: CGFloat(isLeft ? armSwing : -armSwing), y: 0, z: 0, duration: 0.15))
+                        self.rightUpperArmBone?.runAction(SCNAction.rotateBy(
+                            x: CGFloat(isLeft ? -armSwing : armSwing), y: 0, z: 0, duration: 0.15))
+                    }
+                    let bounce = SCNAction.sequence([
+                        SCNAction.moveBy(x: 0, y: 0.04, z: 0, duration: 0.15),
+                        SCNAction.moveBy(x: 0, y: -0.04, z: 0, duration: 0.15)
+                    ])
+                    bounce.timingMode = .easeInEaseOut
+                    legActions.append(SCNAction.group([stepAction, bounce]))
+                }
+            } else if petCharacter.isVRM {
+                // VRM without bones: cute hop/bounce
                 let hopCount = max(2, Int(walkDuration / 0.3))
                 for _ in 0..<hopCount {
                     let hop = SCNAction.sequence([
@@ -4190,10 +4589,19 @@ private struct PetSceneView: NSViewRepresentable {
             // Reset limbs after walk + check for topples
             let resetLimbs = SCNAction.run { [weak self] _ in
                 guard let self else { return }
-                self.leftFootNode?.runAction(SCNAction.move(to: SCNVector3(-0.18, -0.45, 0.05), duration: 0.2))
-                self.rightFootNode?.runAction(SCNAction.move(to: SCNVector3(0.18, -0.45, 0.05), duration: 0.2))
-                self.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.2))
-                self.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.2))
+                if self.petCharacter.isVRM, !self.vrmBones.isEmpty {
+                    // Reset VRM bones to rest pose
+                    self.leftUpperLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
+                    self.rightUpperLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
+                    self.leftLowerLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
+                    self.rightLowerLegBone?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
+                    self.applyVRMRestPose()
+                } else {
+                    self.leftFootNode?.runAction(SCNAction.move(to: SCNVector3(-0.18, -0.45, 0.05), duration: 0.2))
+                    self.rightFootNode?.runAction(SCNAction.move(to: SCNVector3(0.18, -0.45, 0.05), duration: 0.2))
+                    self.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.2))
+                    self.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.2))
+                }
                 // Check if pet knocked anything over
                 if let body = self.petBodyNode {
                     self.checkForTopples(at: body.position)
@@ -4825,8 +5233,9 @@ private struct PetSceneView: NSViewRepresentable {
                 return true
             }
 
-            // Scale: map pixel size to scene units
-            let scaleFactor: CGFloat = 220
+            // Scale: map pixel size to scene units — adapt to view size so bubble fits in small widgets
+            let viewWidth = scnViewRef?.bounds.width ?? 300
+            let scaleFactor: CGFloat = max(180, min(280, viewWidth * 0.8))
             let planeWidth = imgWidth / scaleFactor
             let planeHeight = imgHeight / scaleFactor
 
@@ -4840,10 +5249,11 @@ private struct PetSceneView: NSViewRepresentable {
 
             let bubbleNode = SCNNode(geometry: planeGeo)
             bubbleNode.name = "speechBubble"
-            // Position above pet, clamped to visible area
-            let petY = min(2.5, CGFloat(body.position.y) + 1.8)
-            let bubbleX = max(-0.6, min(0.6, CGFloat(body.position.x)))
-            let bubbleZ = min(0.8, CGFloat(body.position.z) + 0.2)
+            // Position above pet, clamped to stay within visible camera frustum
+            // Use a modest Y to avoid clipping at top when widget is small
+            let petY = min(1.8, CGFloat(body.position.y) + 1.2)
+            let bubbleX = max(-0.5, min(0.5, CGFloat(body.position.x)))
+            let bubbleZ = CGFloat(body.position.z) + 0.5 // Closer to camera so it's always visible
             bubbleNode.position = SCNVector3(bubbleX, petY, bubbleZ)
 
             // Always face camera

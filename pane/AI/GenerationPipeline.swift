@@ -107,6 +107,10 @@ struct GenerationPipeline {
             config.description = existingConfig.description
         }
 
+        // Preserve user-set component properties that the AI may have dropped
+        // during regeneration (e.g., temperatureUnit, startHour, location, etc.)
+        preserveUserProperties(from: existingConfig.content, into: config.content)
+
         applyPromptPreferences(to: &config, prompt: editPrompt)
 
         return config
@@ -770,6 +774,60 @@ struct GenerationPipeline {
         if let children = component.children {
             for nested in children {
                 applyTemperatureUnit(unit, to: nested)
+            }
+        }
+    }
+
+    /// After an AI edit, the generated config may drop user-set properties that weren't
+    /// part of the edit request (e.g., temperatureUnit, location, startHour).
+    /// Walk both trees by component type and preserve properties the AI left nil.
+    private func preserveUserProperties(from existing: ComponentConfig, into generated: ComponentConfig) {
+        // Only merge if the component type matches (same kind of widget)
+        if existing.type == generated.type {
+            // Preserve data/display settings the user may have customized
+            if generated.temperatureUnit == nil, let v = existing.temperatureUnit { generated.temperatureUnit = v }
+            if generated.location == nil,        let v = existing.location        { generated.location = v }
+            if generated.symbol == nil,          let v = existing.symbol          { generated.symbol = v }
+            if generated.currency == nil,        let v = existing.currency        { generated.currency = v }
+            if generated.startHour == nil,       let v = existing.startHour       { generated.startHour = v }
+            if generated.endHour == nil,         let v = existing.endHour         { generated.endHour = v }
+            if generated.feedUrl == nil,         let v = existing.feedUrl         { generated.feedUrl = v }
+            if generated.feedUrls == nil,        let v = existing.feedUrls        { generated.feedUrls = v }
+            if generated.timezone == nil,        let v = existing.timezone        { generated.timezone = v }
+            if generated.sourceSystem == nil,    let v = existing.sourceSystem    { generated.sourceSystem = v }
+            if generated.list == nil,            let v = existing.list            { generated.list = v }
+            if generated.device == nil,          let v = existing.device          { generated.device = v }
+            if generated.timeRange == nil,       let v = existing.timeRange       { generated.timeRange = v }
+            if generated.forecastDays == nil,    let v = existing.forecastDays    { generated.forecastDays = v }
+            if generated.items == nil,           let v = existing.items           { generated.items = v }
+            if generated.habits == nil,          let v = existing.habits          { generated.habits = v }
+            if generated.links == nil,           let v = existing.links           { generated.links = v }
+            if generated.shortcuts == nil,       let v = existing.shortcuts       { generated.shortcuts = v }
+            if generated.customQuotes == nil,    let v = existing.customQuotes    { generated.customQuotes = v }
+            if generated.clocks == nil,          let v = existing.clocks          { generated.clocks = v }
+        }
+
+        // Recurse into child
+        if let existChild = existing.child, let genChild = generated.child {
+            preserveUserProperties(from: existChild, into: genChild)
+        }
+
+        // Recurse into children by matching type + position
+        if let existChildren = existing.children, let genChildren = generated.children {
+            // Match by position when counts are equal, or by type otherwise
+            if existChildren.count == genChildren.count {
+                for (ec, gc) in zip(existChildren, genChildren) {
+                    preserveUserProperties(from: ec, into: gc)
+                }
+            } else {
+                // Best-effort: for each generated child, find first matching existing by type
+                var used = Set<Int>()
+                for gc in genChildren {
+                    if let matchIdx = existChildren.indices.first(where: { !used.contains($0) && existChildren[$0].type == gc.type }) {
+                        preserveUserProperties(from: existChildren[matchIdx], into: gc)
+                        used.insert(matchIdx)
+                    }
+                }
             }
         }
     }

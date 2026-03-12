@@ -25,13 +25,17 @@ final class WidgetGalleryWindow {
         let hostingController = NSHostingController(rootView: root)
         let win = NSPanel(contentViewController: hostingController)
         win.title = "Widget Gallery"
-        win.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        win.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         win.setFrame(NSRect(x: 0, y: 0, width: 860, height: 620), display: false)
         win.minSize = NSSize(width: 700, height: 480)
         win.center()
         win.isReleasedWhenClosed = false
         win.isFloatingPanel = false
         win.becomesKeyOnlyIfNeeded = false
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.toolbar = NSToolbar()
+        win.toolbarStyle = .unifiedCompact
         self.window = win
     }
 
