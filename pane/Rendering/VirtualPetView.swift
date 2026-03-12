@@ -940,6 +940,8 @@ struct VirtualPetComponentView: View {
 
     @ViewBuilder
     private func eggSceneSection(pet: UserDataStore.PetStateData, geo: GeometryProxy) -> some View {
+        let sceneHeight = min(geo.size.height * 0.5, 220.0)
+
         VStack(spacing: 0) {
             EggSceneView(
                 theme: theme,
@@ -948,32 +950,65 @@ struct VirtualPetComponentView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .frame(maxWidth: .infinity)
-            .frame(height: geo.size.height * 0.65)
+            .frame(height: sceneHeight)
+
+            Spacer(minLength: 8)
+
+            // Progressive cute messages
+            Text(eggMessage)
+                .font(.system(size: max(11, geo.size.width * 0.044), weight: .semibold, design: .rounded))
+                .foregroundStyle(tc("primary").opacity(0.8))
+                .multilineTextAlignment(.center)
+                .animation(.easeInOut(duration: 0.3), value: eggTaps)
+                .padding(.horizontal, 12)
 
             Spacer(minLength: 6)
 
-            Text(eggTaps == 0 ? "tap the egg to hatch!" : eggTaps < 3 ? "keep tapping! (\(eggTaps)/3)" : "hatching...!")
-                .font(.system(size: max(11, geo.size.width * 0.048), weight: .semibold, design: .rounded))
-                .foregroundStyle(tc("muted"))
-                .animation(.easeInOut(duration: 0.2), value: eggTaps)
-
             if eggTaps == 0 {
-                Spacer(minLength: 4)
-                Image(systemName: "hand.tap.fill")
-                    .font(.system(size: max(14, geo.size.width * 0.06)))
-                    .foregroundStyle(tc("accent").opacity(0.5))
+                VStack(spacing: 4) {
+                    Image(systemName: "hand.tap.fill")
+                        .font(.system(size: max(14, geo.size.width * 0.055)))
+                        .foregroundStyle(tc("accent").opacity(0.4))
+                    Text("tap gently~")
+                        .font(.system(size: max(9, geo.size.width * 0.032), weight: .medium, design: .rounded))
+                        .foregroundStyle(tc("muted"))
+                }
+            } else if eggTaps < 5 {
+                // Progress dots
+                HStack(spacing: 6) {
+                    ForEach(0..<5, id: \.self) { i in
+                        Circle()
+                            .fill(i < eggTaps ? tc("accent") : tc("muted").opacity(0.2))
+                            .frame(width: 8, height: 8)
+                            .scaleEffect(i < eggTaps ? 1.2 : 1.0)
+                            .animation(.spring(response: 0.3), value: eggTaps)
+                    }
+                }
             }
 
             Spacer(minLength: 4)
         }
     }
 
+    /// Progressive egg messages that build anticipation.
+    private var eggMessage: String {
+        switch eggTaps {
+        case 0: return "a mysterious egg appeared! ✨"
+        case 1: return "oh! it wiggled a little! 👀"
+        case 2: return "you can hear something inside~! 🥚💕"
+        case 3: return "cracks are forming...! ✨"
+        case 4: return "almost there...!! keep going~! 🥺"
+        default: return "hatching...!! 🐣✨"
+        }
+    }
+
     private func handleEggTap() {
         eggTaps += 1
-        if eggTaps >= 3 {
+        if eggTaps >= 5 {
             introPhase = .cracking
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+            // Longer dramatic pause before reveal
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
                     if var p = pet {
                         p.hasHatched = true
                         pet = p
@@ -1435,21 +1470,48 @@ private struct EggSceneView: NSViewRepresentable {
             guard let scene, let egg = eggNode, tapCount > currentTapCount else { return }
             currentTapCount = tapCount
 
-            // Add crack lines for each new tap
+            // Wobble the egg on each tap — gets more intense
+            let wobbleIntensity = CGFloat(tapCount) * 0.04
+            egg.runAction(SCNAction.sequence([
+                SCNAction.rotateBy(x: 0, y: 0, z: wobbleIntensity, duration: 0.06),
+                SCNAction.rotateBy(x: 0, y: 0, z: -wobbleIntensity * 2, duration: 0.12),
+                SCNAction.rotateBy(x: 0, y: 0, z: wobbleIntensity * 1.5, duration: 0.1),
+                SCNAction.rotateBy(x: 0, y: 0, z: -wobbleIntensity * 0.5, duration: 0.08),
+                SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.06)
+            ]))
+
+            // Progressive cracks with 5 taps
             if tapCount >= 1 && crackNodes.count < 1 {
-                addCrackToEgg(egg: egg, seed: 1, intensity: 0.6)
+                addCrackToEgg(egg: egg, seed: 1, intensity: 0.4)
             }
             if tapCount >= 2 && crackNodes.count < 2 {
-                addCrackToEgg(egg: egg, seed: 2, intensity: 0.8)
+                addCrackToEgg(egg: egg, seed: 2, intensity: 0.55)
+            }
+            if tapCount >= 3 && crackNodes.count < 3 {
+                addCrackToEgg(egg: egg, seed: 3, intensity: 0.7)
                 // Start glow
                 if let glow = glowNode {
                     let accent = glow.geometry?.firstMaterial?.diffuse.contents as? NSColor ?? .white
-                    glow.opacity = 0.3
-                    glow.geometry?.firstMaterial?.emission.contents = (accent.withAlphaComponent(0.15) as NSColor)
+                    glow.opacity = 0.2
+                    glow.geometry?.firstMaterial?.emission.contents = (accent.withAlphaComponent(0.1) as NSColor)
                 }
             }
-            if tapCount >= 3 {
-                addCrackToEgg(egg: egg, seed: 3, intensity: 1.0)
+            if tapCount >= 4 && crackNodes.count < 4 {
+                addCrackToEgg(egg: egg, seed: 4, intensity: 0.85)
+                // Brighter glow
+                if let glow = glowNode {
+                    let accent = glow.geometry?.firstMaterial?.diffuse.contents as? NSColor ?? .white
+                    glow.opacity = 0.4
+                    glow.geometry?.firstMaterial?.emission.contents = (accent.withAlphaComponent(0.2) as NSColor)
+                }
+                // Egg starts to bounce
+                egg.runAction(SCNAction.sequence([
+                    SCNAction.moveBy(x: 0, y: 0.08, z: 0, duration: 0.1),
+                    SCNAction.moveBy(x: 0, y: -0.08, z: 0, duration: 0.1)
+                ]))
+            }
+            if tapCount >= 5 {
+                addCrackToEgg(egg: egg, seed: 5, intensity: 1.0)
                 // Big burst + egg explodes
                 performHatchAnimation(egg: egg, in: scene)
             }
@@ -2650,34 +2712,60 @@ private struct PetSceneView: NSViewRepresentable {
             cameraNode.look(at: SCNVector3(0, 0.5, 0))
             scene.rootNode.addChildNode(cameraNode)
 
-            // Lighting
+            // Lighting — intensity varies with time of day
+            let isNight = PetPersonality.isSleepTime
+            let hour = Calendar.current.component(.hour, from: Date())
+            let isEvening = hour >= 18 && hour < 23
+            let keyIntensity: CGFloat = isNight ? 150 : (isEvening ? 450 : 800)
+            let fillIntensity: CGFloat = isNight ? 80 : (isEvening ? 160 : 250)
+            let ambientIntensity: CGFloat = isNight ? 80 : (isEvening ? 180 : 300)
+            let lightColor: NSColor = isNight ? NSColor(red: 0.4, green: 0.45, blue: 0.7, alpha: 1) :
+                (isEvening ? NSColor(red: 1.0, green: 0.85, blue: 0.7, alpha: 1) : .white)
+
             let keyLight = SCNNode()
+            keyLight.name = "keyLight"
             keyLight.light = SCNLight()
             keyLight.light?.type = .directional
-            keyLight.light?.intensity = 800
-            keyLight.light?.color = NSColor.white
+            keyLight.light?.intensity = keyIntensity
+            keyLight.light?.color = lightColor
             keyLight.light?.castsShadow = true
             keyLight.light?.shadowMode = .deferred
             keyLight.light?.shadowSampleCount = 8
             keyLight.light?.shadowRadius = 3
-            keyLight.light?.shadowColor = NSColor.black.withAlphaComponent(0.3)
+            keyLight.light?.shadowColor = NSColor.black.withAlphaComponent(isNight ? 0.5 : 0.3)
             keyLight.eulerAngles = SCNVector3(-CGFloat.pi / 3, CGFloat.pi / 5, 0)
             scene.rootNode.addChildNode(keyLight)
 
             let fillLight = SCNNode()
+            fillLight.name = "fillLight"
             fillLight.light = SCNLight()
             fillLight.light?.type = .omni
-            fillLight.light?.intensity = 250
-            fillLight.light?.color = NSColor(palette.accent).withAlphaComponent(0.4)
+            fillLight.light?.intensity = fillIntensity
+            fillLight.light?.color = isNight ? NSColor(red: 0.3, green: 0.3, blue: 0.6, alpha: 0.4) : NSColor(palette.accent).withAlphaComponent(0.4)
             fillLight.position = SCNVector3(-2, 2, 2)
             scene.rootNode.addChildNode(fillLight)
 
             let ambient = SCNNode()
+            ambient.name = "ambientLight"
             ambient.light = SCNLight()
             ambient.light?.type = .ambient
-            ambient.light?.intensity = 300
-            ambient.light?.color = NSColor.white
+            ambient.light?.intensity = ambientIntensity
+            ambient.light?.color = lightColor
             scene.rootNode.addChildNode(ambient)
+
+            // Night glow light — soft warm light near the sleep mat, like a nightlight
+            if isNight || isEvening {
+                let nightlight = SCNNode()
+                nightlight.name = "nightlight"
+                nightlight.light = SCNLight()
+                nightlight.light?.type = .omni
+                nightlight.light?.intensity = isNight ? 120 : 60
+                nightlight.light?.color = NSColor(red: 1.0, green: 0.9, blue: 0.6, alpha: 1)
+                nightlight.light?.attenuationStartDistance = 0.5
+                nightlight.light?.attenuationEndDistance = 3.0
+                nightlight.position = SCNVector3(-0.5, 1.0, -0.2)
+                scene.rootNode.addChildNode(nightlight)
+            }
 
             // Pet character — pick builder based on character type
             let character = pet.character ?? .fluffy
@@ -4122,8 +4210,86 @@ private struct PetSceneView: NSViewRepresentable {
 
             if shouldSleep {
                 startSleeping()
+                dimLights()
             } else {
                 wakeUp()
+                brightenLights()
+            }
+        }
+
+        private func dimLights() {
+            guard let scene = sceneRef else { return }
+            let nightColor = NSColor(red: 0.4, green: 0.45, blue: 0.7, alpha: 1)
+            if let key = scene.rootNode.childNode(withName: "keyLight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                key.light?.intensity = 150
+                key.light?.color = nightColor
+                SCNTransaction.commit()
+            }
+            if let fill = scene.rootNode.childNode(withName: "fillLight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                fill.light?.intensity = 80
+                SCNTransaction.commit()
+            }
+            if let amb = scene.rootNode.childNode(withName: "ambientLight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                amb.light?.intensity = 80
+                amb.light?.color = nightColor
+                SCNTransaction.commit()
+            }
+            // Add nightlight if not present
+            if scene.rootNode.childNode(withName: "nightlight", recursively: false) == nil {
+                let nightlight = SCNNode()
+                nightlight.name = "nightlight"
+                nightlight.light = SCNLight()
+                nightlight.light?.type = .omni
+                nightlight.light?.intensity = 0
+                nightlight.light?.color = NSColor(red: 1.0, green: 0.9, blue: 0.6, alpha: 1)
+                nightlight.light?.attenuationStartDistance = 0.5
+                nightlight.light?.attenuationEndDistance = 3.0
+                nightlight.position = SCNVector3(-0.5, 1.0, -0.2)
+                scene.rootNode.addChildNode(nightlight)
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                nightlight.light?.intensity = 120
+                SCNTransaction.commit()
+            }
+        }
+
+        private func brightenLights() {
+            guard let scene = sceneRef else { return }
+            if let key = scene.rootNode.childNode(withName: "keyLight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                key.light?.intensity = 800
+                key.light?.color = NSColor.white
+                SCNTransaction.commit()
+            }
+            if let fill = scene.rootNode.childNode(withName: "fillLight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                fill.light?.intensity = 250
+                SCNTransaction.commit()
+            }
+            if let amb = scene.rootNode.childNode(withName: "ambientLight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                amb.light?.intensity = 300
+                amb.light?.color = NSColor.white
+                SCNTransaction.commit()
+            }
+            // Remove nightlight
+            if let nl = scene.rootNode.childNode(withName: "nightlight", recursively: false) {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 2.0
+                nl.light?.intensity = 0
+                SCNTransaction.commit()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    nl.removeFromParentNode()
+                }
             }
         }
 
@@ -5261,44 +5427,65 @@ private struct PetSceneView: NSViewRepresentable {
             // Remove any existing speech bubble
             scene.rootNode.childNode(withName: "speechBubble", recursively: false)?.removeFromParentNode()
 
-            // Render the bubble + text as a 2D image, then display on a plane.
-            // This avoids SCNText visibility issues with lighting/z-fighting.
-            let fontSize: CGFloat = 28
+            // Don't show speech bubbles while sleeping (except sleepy mumbles handled separately)
+            // Render the bubble + text as a 2D image with word wrapping.
+            let fontSize: CGFloat = 26
             let font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+            paragraphStyle.lineBreakMode = .byWordWrapping
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: NSColor.black
+                .foregroundColor: NSColor.black,
+                .paragraphStyle: paragraphStyle
             ]
-            let textSize = (text as NSString).size(withAttributes: attributes)
-            let hPad: CGFloat = 24
-            let vPad: CGFloat = 16
-            let imgWidth = textSize.width + hPad * 2
-            let imgHeight = textSize.height + vPad * 2 + 14  // extra space for triangle
 
-            let image = NSImage(size: NSSize(width: imgWidth, height: imgHeight), flipped: true) { rect in
-                let bubbleRect = NSRect(x: 0, y: 0, width: imgWidth, height: imgHeight - 14)
-                let bubblePath = NSBezierPath(roundedRect: bubbleRect, xRadius: 14, yRadius: 14)
-                NSColor.white.withAlphaComponent(0.95).setFill()
+            // Constrain max width so long thoughts wrap
+            let maxTextWidth: CGFloat = 320
+            let hPad: CGFloat = 20
+            let vPad: CGFloat = 14
+            let triHeight: CGFloat = 12
+
+            let constraintRect = CGSize(width: maxTextWidth, height: .greatestFiniteMagnitude)
+            let textRect = (text as NSString).boundingRect(
+                with: constraintRect,
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes
+            )
+            let textWidth = ceil(textRect.width)
+            let textHeight = ceil(textRect.height)
+            let imgWidth = textWidth + hPad * 2
+            let imgHeight = textHeight + vPad * 2 + triHeight
+
+            let image = NSImage(size: NSSize(width: imgWidth, height: imgHeight), flipped: true) { _ in
+                let bubbleRect = NSRect(x: 0, y: 0, width: imgWidth, height: imgHeight - triHeight)
+                let bubblePath = NSBezierPath(roundedRect: bubbleRect, xRadius: 12, yRadius: 12)
+                NSColor.white.withAlphaComponent(0.92).setFill()
                 bubblePath.fill()
+
+                // Subtle border
+                NSColor.black.withAlphaComponent(0.08).setStroke()
+                bubblePath.lineWidth = 1
+                bubblePath.stroke()
 
                 // Triangle pointer at bottom center
                 let triPath = NSBezierPath()
                 let cx = imgWidth / 2
-                triPath.move(to: NSPoint(x: cx - 8, y: imgHeight - 14))
+                triPath.move(to: NSPoint(x: cx - 7, y: imgHeight - triHeight))
                 triPath.line(to: NSPoint(x: cx, y: imgHeight))
-                triPath.line(to: NSPoint(x: cx + 8, y: imgHeight - 14))
+                triPath.line(to: NSPoint(x: cx + 7, y: imgHeight - triHeight))
                 triPath.close()
-                NSColor.white.withAlphaComponent(0.95).setFill()
+                NSColor.white.withAlphaComponent(0.92).setFill()
                 triPath.fill()
 
-                // Draw text centered in bubble
-                let textOrigin = NSPoint(x: hPad, y: vPad)
-                (text as NSString).draw(at: textOrigin, withAttributes: attributes)
+                // Draw text with wrapping
+                let textOrigin = NSRect(x: hPad, y: vPad, width: maxTextWidth, height: textHeight)
+                (text as NSString).draw(in: textOrigin, withAttributes: attributes)
                 return true
             }
 
-            // Scale: map pixel size to scene units (roughly 1 scene unit = 200px)
-            let scaleFactor: CGFloat = 200
+            // Scale: map pixel size to scene units
+            let scaleFactor: CGFloat = 220
             let planeWidth = imgWidth / scaleFactor
             let planeHeight = imgHeight / scaleFactor
 
@@ -5312,10 +5499,10 @@ private struct PetSceneView: NSViewRepresentable {
 
             let bubbleNode = SCNNode(geometry: planeGeo)
             bubbleNode.name = "speechBubble"
-            let petY = CGFloat(body.position.y) + 2.0
-            // Clamp bubble X to stay within visible area regardless of pet position
-            let bubbleX = max(-0.7, min(0.7, CGFloat(body.position.x)))
-            let bubbleZ = min(1.0, CGFloat(body.position.z) + 0.3)
+            // Position above pet, clamped to visible area
+            let petY = min(2.5, CGFloat(body.position.y) + 1.8)
+            let bubbleX = max(-0.6, min(0.6, CGFloat(body.position.x)))
+            let bubbleZ = min(0.8, CGFloat(body.position.z) + 0.2)
             bubbleNode.position = SCNVector3(bubbleX, petY, bubbleZ)
 
             // Always face camera
@@ -5325,11 +5512,13 @@ private struct PetSceneView: NSViewRepresentable {
 
             scene.rootNode.addChildNode(bubbleNode)
 
-            // Pop in
+            // Pop in with slight bounce
             bubbleNode.scale = SCNVector3(0.01, 0.01, 0.01)
+            let displayDuration = max(2.5, Double(text.count) * 0.06)  // longer text stays longer
             bubbleNode.runAction(SCNAction.sequence([
-                SCNAction.scale(to: 1.0, duration: 0.15),
-                SCNAction.wait(duration: 2.5),
+                SCNAction.scale(to: 1.05, duration: 0.12),
+                SCNAction.scale(to: 1.0, duration: 0.06),
+                SCNAction.wait(duration: displayDuration),
                 SCNAction.group([
                     SCNAction.scale(to: 0.01, duration: 0.2),
                     SCNAction.fadeOut(duration: 0.2)
@@ -5480,8 +5669,12 @@ private struct PetSceneView: NSViewRepresentable {
             lastFeedTrigger = trigger
 
             // Drop food near the pet — character-specific foods
-            let foodItems = petCharacter.personality.foods
+            let pers = petCharacter.personality
+            let foodItems = pers.foods
             let foodEmoji = foodItems.randomElement()!
+            // Show excited reaction
+            showSpeechBubble("\(foodEmoji) yay, food!")
+
             let dropX = CGFloat(body.position.x) + CGFloat.random(in: -0.5...0.5)
             let dropZ = CGFloat(body.position.z) + CGFloat.random(in: 0.3...0.6)
 
@@ -5576,6 +5769,9 @@ private struct PetSceneView: NSViewRepresentable {
                             ]))
                             self.headNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3))
                             self.showExpression(.happy)
+                            // Satisfied reaction
+                            let reactions = ["yummy~! \(foodEmoji)", "nom nom nom~ \(foodEmoji)", "so good!! \(foodEmoji)", "*happy tummy noises* \(foodEmoji)", "delicious~! \(foodEmoji)"]
+                            self.showSpeechBubble(reactions.randomElement()!)
                         }
                     },
                     SCNAction.wait(duration: 0.5),
