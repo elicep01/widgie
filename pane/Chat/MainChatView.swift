@@ -6,6 +6,8 @@ struct MainChatView: View {
     let settingsStore: SettingsStore
     let onAddWidget: (String, WidgetTheme) -> Void
 
+    @State private var galleryScrollTarget: String?
+
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -23,7 +25,8 @@ struct MainChatView: View {
                     onAddWidget: onAddWidget,
                     onRemoveWidget: { name in
                         viewModel.onRemoveWidgetByName?(name)
-                    }
+                    },
+                    scrollTarget: $galleryScrollTarget
                 )
             } else if viewModel.activeConversationID != nil {
                 ChatDetailView(viewModel: viewModel)
@@ -57,26 +60,28 @@ struct MainChatView: View {
                             .foregroundStyle(.tertiary)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 9)
                     .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.primary.opacity(0.06))
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.primary.opacity(0.08))
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Create new widget")
             }
             .padding(.horizontal, 14)
             .padding(.top, 52) // Account for titlebar
             .padding(.bottom, 12)
 
             // Segmented control
-            Picker("", selection: $viewModel.sidebarTab) {
+            Picker("View", selection: $viewModel.sidebarTab) {
                 Text("My Widgets").tag(ChatSidebarTab.myWidgets)
                 Text("Gallery").tag(ChatSidebarTab.gallery)
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 14)
             .padding(.bottom, 10)
+            .accessibilityLabel("Switch between My Widgets and Gallery")
 
             // Content
             if viewModel.sidebarTab == .myWidgets {
@@ -106,7 +111,7 @@ struct MainChatView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 1) {
+                    LazyVStack(spacing: 4) {
                         ForEach(viewModel.conversations) { conv in
                             ConversationRow(
                                 conversation: conv,
@@ -125,7 +130,7 @@ struct MainChatView: View {
                         }
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, 6)
                 }
             }
         }
@@ -152,24 +157,30 @@ struct MainChatView: View {
                                 .padding(.bottom, 2)
 
                             ForEach(catItems) { item in
-                                HStack(spacing: 8) {
-                                    Image(systemName: iconForCategory(category))
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 16)
-                                    Text(item.name)
-                                        .font(.system(size: 12, weight: .medium))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-                                    Spacer()
+                                Button {
+                                    // Switch to "all" category so item is visible, then scroll
+                                    galleryScrollTarget = item.id
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: iconForCategory(category))
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 16)
+                                        Text(item.name)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .fill(Color.clear)
+                                    )
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(Color.clear)
-                                )
-                                .contentShape(Rectangle())
+                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -264,23 +275,24 @@ struct MainChatView: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.tertiary)
                 Text(text)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.7))
                 Spacer()
             }
             .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .frame(maxWidth: 280)
+            .padding(.vertical, 10)
+            .frame(maxWidth: 300)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary.opacity(0.03))
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(0.05))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.primary.opacity(0.06), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Quick start: \(text)")
     }
 }
 
@@ -292,6 +304,7 @@ private struct InlineGalleryView: View {
     let activeWidgetCounts: [String: Int]
     let onAddWidget: (String, WidgetTheme) -> Void
     let onRemoveWidget: (String) -> Void
+    @Binding var scrollTarget: String?
 
     @State private var selectedTheme: WidgetTheme = .obsidian
     @State private var selectedCategory: String = "all"
@@ -312,9 +325,28 @@ private struct InlineGalleryView: View {
         VStack(spacing: 0) {
             galleryHeader
             Divider().opacity(0.5)
-            ScrollView {
-                galleryGrid
-                    .padding(20)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    galleryGrid
+                        .padding(20)
+                }
+                .onChange(of: scrollTarget) { _, target in
+                    guard let target else { return }
+                    // If filtered by category and item isn't visible, show all
+                    if selectedCategory != "all" {
+                        let allItems = templateStore.storeItems()
+                        if let item = allItems.first(where: { $0.id == target }),
+                           item.category != selectedCategory {
+                            selectedCategory = "all"
+                        }
+                    }
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        proxy.scrollTo(target, anchor: .top)
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        scrollTarget = nil
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -401,6 +433,7 @@ private struct InlineGalleryView: View {
         LazyVGrid(columns: gridColumns, spacing: 14) {
             ForEach(items) { item in
                 galleryCard(item)
+                    .id(item.id)
             }
         }
     }
@@ -479,6 +512,7 @@ private struct InlineGalleryView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Remove one from desktop")
+                        .accessibilityLabel("Remove \(item.name) from desktop")
                     }
 
                     // Add button (always visible)
@@ -505,6 +539,7 @@ private struct InlineGalleryView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Add to desktop")
+                        .accessibilityLabel("Add \(item.name) to desktop")
                     }
                 }
             }
@@ -517,12 +552,14 @@ private struct InlineGalleryView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.primary.opacity(isHovered ? 0.12 : 0.05), lineWidth: 1)
+                .stroke(Color.primary.opacity(isHovered ? 0.15 : 0.06), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(isHovered ? 0.12 : 0.05), radius: isHovered ? 8 : 3, y: isHovered ? 4 : 2)
+        .shadow(color: .black.opacity(isHovered ? 0.14 : 0.06), radius: isHovered ? 10 : 4, y: isHovered ? 5 : 2)
+        .animation(.easeOut(duration: 0.2), value: isHovered)
         .onHover { hovering in
             hoveredItem = hovering ? item.id : nil
         }
+        .accessibilityLabel("\(item.name): \(item.description)")
     }
 }
 
@@ -597,6 +634,7 @@ private struct ConversationRow: View {
         .contextMenu {
             Button("Delete", role: .destructive) { onDelete() }
         }
+        .accessibilityLabel("\(conversation.title)\(isSelected ? ", selected" : "")")
     }
 
     private func relativeDate(_ date: Date) -> String {

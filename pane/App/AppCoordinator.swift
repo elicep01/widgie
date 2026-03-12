@@ -82,7 +82,7 @@ final class AppCoordinator {
     private lazy var menuBarController = MenuBarController(
         onNewWidget: { [weak self] in self?.openMainWindow() },
         onCreateTemplate: { [weak self] id in self?.createWidgetFromTemplate(id: id) },
-        onShowGallery: { [weak self] in self?.galleryWindow.show() },
+        onShowGallery: { [weak self] in self?.mainAppWindow.showGallery() },
         onImportWidgets: { [weak self] in self?.importWidgets() },
         onExportWidgets: { [weak self] in self?.exportWidgets() },
         onAutoLayout: { [weak self] in
@@ -100,6 +100,8 @@ final class AppCoordinator {
     private var settingsObserver: NSObjectProtocol?
     private var activeConversation: AgentConversation?
     private var activePlan: AgentBuildPlan?
+    /// Per-request ID to prevent concurrent requests from interfering with each other's state.
+    private var activeRequestID: UUID?
 
     init(
         settingsStore: SettingsStore,
@@ -226,13 +228,13 @@ final class AppCoordinator {
     }
 
     private func registerExtraHotkeys() {
-        // Cmd+G → Widget Gallery
+        // Cmd+G → Gallery tab in main window
         hotkeyListener.registerExtra(
             keyCode: UInt32(kVK_ANSI_G),
             modifiers: UInt32(cmdKey)
         ) { [weak self] in
             Task { @MainActor in
-                self?.galleryWindow.show()
+                self?.mainAppWindow.showGallery()
             }
         }
 
@@ -349,14 +351,25 @@ final class AppCoordinator {
             return
         }
 
+        // Scope this request — if a new request comes in, the old one's state won't interfere
+        let requestID = UUID()
+        activeRequestID = requestID
+
         chatViewModel.setProcessing(true, status: "Thinking...")
         chatViewModel.clearTrace()
+        // Clear any stale clarification state from previous requests
+        chatViewModel.pendingClarification = nil
+        chatViewModel.clarificationSelections = [:]
 
         Task {
+            // Bail if another request has superseded this one
+            guard activeRequestID == requestID else { return }
             do {
                 var config: WidgetConfig
                 let isEdit = existingWidgetID != nil
                     && widgetManager.widgetConfig(for: existingWidgetID!) != nil
+                // Snapshot the existing widget before any changes, for change description
+                let previousConfig: WidgetConfig? = isEdit ? widgetManager.widgetConfig(for: existingWidgetID!) : nil
 
                 // Both new and edit flows go through planning + clarification
                 chatViewModel.setProcessing(true, status: isEdit ? "Analyzing edit..." : "Researching...")
@@ -410,11 +423,7 @@ final class AppCoordinator {
                     chatViewModel.appendTrace("Plan ready, generating...")
                     if isEdit, let existing = widgetManager.widgetConfig(for: existingWidgetID!) {
                         chatViewModel.setProcessing(true, status: "Updating widget...")
-                        let editPrompt = plan.synthesizedPrompt
-                        config = try await aiService.editWidget(existingConfig: existing, editPrompt: editPrompt)
-                        // Preserve position/size from the on-screen widget
-                        if config.position == nil { config.position = existing.position }
-                        config.size = existing.size
+                        config = try await executeEditGeneration(plan: plan, existing: existing)
                     } else {
                         config = try await executeGeneration(plan: plan)
                         // Apply user's default theme for new widgets
@@ -424,7 +433,7 @@ final class AppCoordinator {
                     }
                 }
 
-                finalizeChatWidget(config: config, prompt: prompt, isEdit: isEdit)
+                finalizeChatWidget(config: config, prompt: prompt, isEdit: isEdit, previousConfig: previousConfig)
             } catch {
                 // Never fail silently — always try to produce SOMETHING
                 chatViewModel.appendTrace("Generation hit an issue, attempting recovery...")
@@ -495,12 +504,13 @@ final class AppCoordinator {
                     resolvedPlan = updatedPlan
                 }
 
+                let prevConfig: WidgetConfig?
                 if isEdit, let editingWidgetID, let existing = widgetManager.widgetConfig(for: editingWidgetID) {
-                    // Edit flow — use enriched prompt from clarification
-                    config = try await aiService.editWidget(existingConfig: existing, editPrompt: resolvedPlan.synthesizedPrompt)
-                    if config.position == nil { config.position = existing.position }
-                    config.size = existing.size
+                    prevConfig = existing
+                    // Edit flow — with critique/repair for quality
+                    config = try await executeEditGeneration(plan: resolvedPlan, existing: existing)
                 } else {
+                    prevConfig = nil
                     config = try await executeGeneration(plan: resolvedPlan)
                     // Apply user's default theme for new widgets
                     let theme = settingsStore.defaultTheme
@@ -508,7 +518,7 @@ final class AppCoordinator {
                     config.background = BackgroundConfig.default(for: theme)
                 }
 
-                finalizeChatWidget(config: config, prompt: plan.originalPrompt + " " + answer, isEdit: isEdit)
+                finalizeChatWidget(config: config, prompt: plan.originalPrompt + " " + answer, isEdit: isEdit, previousConfig: prevConfig)
             } catch {
                 // Recovery: build simpler version rather than showing empty error
                 let combinedPrompt = plan.originalPrompt + " " + answer
@@ -549,7 +559,48 @@ final class AppCoordinator {
         return outcome.config
     }
 
-    private func finalizeChatWidget(config: WidgetConfig, prompt: String, isEdit: Bool = false) {
+    /// Build conversation history lines from the active conversation for AI context.
+    private func buildConversationHistory() -> [String] {
+        guard let convID = chatViewModel.activeConversationID,
+              let conv = conversationStore.conversation(for: convID) else { return [] }
+        return conv.messages.map { msg in
+            let role = msg.role == .user ? "User" : (msg.role == .assistant ? "Assistant" : "System")
+            return "[\(role)] \(msg.content)"
+        }
+    }
+
+    /// Execute an edit with critique/repair loop — same quality pipeline as create.
+    private func executeEditGeneration(plan: AgentBuildPlan, existing: WidgetConfig) async throws -> WidgetConfig {
+        chatViewModel.setProcessing(true, status: "Updating widget...")
+
+        let editPrompt = plan.synthesizedPrompt
+        let history = buildConversationHistory()
+        var config = try await aiService.editWidget(existingConfig: existing, editPrompt: editPrompt, conversationHistory: history)
+
+        // Preserve position/size from the on-screen widget
+        if config.position == nil { config.position = existing.position }
+        config.size = existing.size
+
+        // Run critique to catch layout/component issues from the edit
+        chatViewModel.appendTrace("Verifying edit quality...")
+        let critique = agentOrchestrator.critiqueWidget(config: config, plan: plan)
+        if critique.confidence < 0.82 && !critique.issues.isEmpty {
+            chatViewModel.appendTrace("Issues found, repairing...")
+            // One repair attempt for edits (lighter than full create loop)
+            let repairPrompt = agentOrchestrator.buildRepairPrompt(plan: plan, critique: critique)
+            var repaired = try await aiService.editWidget(existingConfig: config, editPrompt: repairPrompt, conversationHistory: history)
+            if repaired.position == nil { repaired.position = existing.position }
+            repaired.size = existing.size
+            config = repaired
+            chatViewModel.appendTrace("Edit repair completed")
+        } else {
+            chatViewModel.appendTrace("Edit quality verified (confidence: \(Int(critique.confidence * 100))%)")
+        }
+
+        return config
+    }
+
+    private func finalizeChatWidget(config: WidgetConfig, prompt: String, isEdit: Bool = false, previousConfig: WidgetConfig? = nil) {
         // Create/update the widget — skip auto-fit on edits to preserve user's size
         widgetManager.createOrUpdateWidget(config, forceAutoFit: !isEdit)
         refreshMenuState()
@@ -565,10 +616,141 @@ final class AppCoordinator {
         }
 
         chatViewModel.setProcessing(false)
-        if isEdit {
+        if isEdit, let previousConfig {
+            let changeSummary = describeChanges(from: previousConfig, to: config, prompt: prompt)
+            chatViewModel.appendAssistantMessage(changeSummary)
+        } else if isEdit {
             chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" updated! You can continue chatting to make more changes.")
         } else {
-            chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" created! You can continue chatting to make changes.")
+            let components = describeNewWidget(config)
+            chatViewModel.appendAssistantMessage("Widget \"\(config.name)\" created!\n\n\(components)\n\nYou can continue chatting to make changes.")
+        }
+    }
+
+    /// Describe what components a newly created widget contains.
+    private func describeNewWidget(_ config: WidgetConfig) -> String {
+        var parts: [String] = []
+        collectComponentDescriptions(config.content, into: &parts)
+        if parts.isEmpty { return "Your widget is ready." }
+        return "**What's included:**\n" + parts.map { "- \($0)" }.joined(separator: "\n")
+    }
+
+    /// Describe changes between old and new widget configs.
+    private func describeChanges(from old: WidgetConfig, to new: WidgetConfig, prompt: String) -> String {
+        var changes: [String] = []
+
+        // Name change
+        if old.name != new.name {
+            changes.append("Renamed from \"\(old.name)\" to \"\(new.name)\"")
+        }
+
+        // Theme change
+        if old.theme != new.theme {
+            changes.append("Theme changed to \(new.theme.rawValue)")
+        }
+
+        // Size change
+        if old.size.width != new.size.width || old.size.height != new.size.height {
+            changes.append("Resized to \(Int(new.size.width))×\(Int(new.size.height))")
+        }
+
+        // Component differences
+        var oldComponents: [String] = []
+        var newComponents: [String] = []
+        collectComponentTypes(old.content, into: &oldComponents)
+        collectComponentTypes(new.content, into: &newComponents)
+
+        let oldSet = Set(oldComponents)
+        let newSet = Set(newComponents)
+        let added = newSet.subtracting(oldSet)
+        let removed = oldSet.subtracting(newSet)
+
+        for comp in added.sorted() {
+            changes.append("Added \(comp)")
+        }
+        for comp in removed.sorted() {
+            changes.append("Removed \(comp)")
+        }
+
+        // If we couldn't detect structural changes, summarize from the prompt
+        if changes.isEmpty {
+            changes.append("Applied your requested changes")
+        }
+
+        let summary = "**Changes made:**\n" + changes.map { "- \($0)" }.joined(separator: "\n")
+        return "Widget \"\(new.name)\" updated!\n\n\(summary)\n\nYou can continue chatting to make more changes."
+    }
+
+    /// Collect human-readable component descriptions from a component tree.
+    private func collectComponentDescriptions(_ component: ComponentConfig, into result: inout [String]) {
+        switch component.type {
+        case .vstack, .hstack, .container:
+            for child in component.children ?? [] {
+                collectComponentDescriptions(child, into: &result)
+            }
+        case .weather:
+            let loc = component.location ?? "your location"
+            result.append("Weather for \(loc)")
+        case .clock:
+            result.append("Clock" + (component.timezone.map { " (\($0))" } ?? ""))
+        case .analogClock:
+            result.append("Analog clock")
+        case .date:
+            result.append("Date display")
+        case .text:
+            if let content = component.content, !content.isEmpty {
+                let preview = content.count > 40 ? String(content.prefix(40)) + "..." : content
+                result.append("Text: \"\(preview)\"")
+            }
+        case .stock:
+            result.append("Stock price: \(component.symbol ?? "—")")
+        case .crypto:
+            result.append("Crypto price: \(component.symbol ?? "—")")
+        case .checklist:
+            result.append("Checklist" + (component.title.map { ": \($0)" } ?? ""))
+        case .newsHeadlines:
+            result.append("News headlines")
+        case .dayProgress:
+            result.append("Day progress tracker")
+        case .musicNowPlaying:
+            result.append("Now playing (media)")
+        case .systemStats:
+            result.append("System stats")
+        case .countdown:
+            result.append("Countdown timer")
+        case .battery:
+            result.append("Battery level")
+        case .calendarNext:
+            result.append("Upcoming calendar events")
+        case .reminders:
+            result.append("Reminders")
+        case .pomodoro:
+            result.append("Pomodoro timer")
+        case .quote:
+            result.append("Inspirational quote")
+        case .worldClocks:
+            result.append("World clocks")
+        default:
+            result.append(component.type.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+        }
+    }
+
+    /// Collect component type names from a component tree (for diffing).
+    private func collectComponentTypes(_ component: ComponentConfig, into result: inout [String]) {
+        let type = component.type
+        if type != .vstack && type != .hstack && type != .container {
+            let raw = type.rawValue
+            // Include distinguishing info for duplicates
+            if let symbol = component.symbol {
+                result.append("\(raw)(\(symbol))")
+            } else if let location = component.location {
+                result.append("\(raw)(\(location))")
+            } else {
+                result.append(raw)
+            }
+        }
+        for child in component.children ?? [] {
+            collectComponentTypes(child, into: &result)
         }
     }
 
@@ -614,6 +796,9 @@ final class AppCoordinator {
             return
         }
 
+        // Scope this request
+        let requestID = UUID()
+        activeRequestID = requestID
         activeConversation = nil
         activePlan = nil
 
@@ -764,6 +949,31 @@ final class AppCoordinator {
                     // Preserve position/size from the on-screen widget
                     if config.position == nil { config.position = existing.position }
                     config.size = existing.size
+
+                    // Run critique/repair on edits too — same quality as create
+                    commandBarWindow.appendAgentTrace("Verifying edit quality...")
+                    let editCritique = agentOrchestrator.critiqueWidget(config: config, plan: plan ?? AgentBuildPlan(
+                        originalPrompt: prompt, synthesizedPrompt: prompt, phase: .done,
+                        interactionMode: .staticDisplay,
+                        dataPlan: AgentDataPlan(requestedSources: [], supportedSources: [], unsupportedSources: [], missingRequirements: [], refreshHintSeconds: nil, sourceAttributions: []),
+                        openQuestions: [], assumptions: []
+                    ))
+                    if editCritique.confidence < 0.82 && !editCritique.issues.isEmpty {
+                        commandBarWindow.appendAgentTrace("Issues found in edit, repairing...")
+                        let repairP = agentOrchestrator.buildRepairPrompt(
+                            plan: plan ?? AgentBuildPlan(
+                                originalPrompt: prompt, synthesizedPrompt: prompt, phase: .done,
+                                interactionMode: .staticDisplay,
+                                dataPlan: AgentDataPlan(requestedSources: [], supportedSources: [], unsupportedSources: [], missingRequirements: [], refreshHintSeconds: nil, sourceAttributions: []),
+                                openQuestions: [], assumptions: []
+                            ),
+                            critique: editCritique
+                        )
+                        var repaired = try await aiService.editWidget(existingConfig: config, editPrompt: repairP)
+                        if repaired.position == nil { repaired.position = existing.position }
+                        repaired.size = existing.size
+                        config = repaired
+                    }
                     commandBarWindow.completeChecklistItem(id: "build")
                     commandBarWindow.completeChecklistItem(id: "verify")
                 } else {
@@ -781,26 +991,10 @@ final class AppCoordinator {
                             }
                         )
                         commandBarWindow.appendAgentTrace("Completed in \(outcome.iterations) iteration(s)")
-                        let requiredConfidence = 0.95
-                        if outcome.confidence < requiredConfidence {
-                            commandBarWindow.appendAgentTrace("Confidence below threshold \(Int(requiredConfidence * 100))%")
-                            let followups = agentOrchestrator.lowConfidenceFollowupQuestions(
-                                plan: plan,
-                                issues: outcome.issues
-                            )
-                            if !followups.isEmpty {
-                                commandBarWindow.setLoading(false, message: nil)
-                                let followupConversation = self.activeConversation ?? AgentConversation(originalPrompt: originalPrompt)
-                                showClarificationWithContinuation(
-                                    questions: followups,
-                                    originalPrompt: originalPrompt,
-                                    plan: plan,
-                                    conversation: followupConversation
-                                )
-                                return
-                            }
-                            // No follow-up questions possible — use what we have rather than failing
-                            commandBarWindow.appendAgentTrace("Using best-effort result (confidence: \(Int(outcome.confidence * 100))%)")
+                        // BUILD-FIRST: Always show the widget. Never loop back to ask more questions.
+                        // The user can refine via the feedback/tweak flow or chat.
+                        if outcome.confidence < 0.95 {
+                            commandBarWindow.appendAgentTrace("Confidence: \(Int(outcome.confidence * 100))% — showing best result (refine via chat)")
                         }
                         config = outcome.config
                         commandBarWindow.completeChecklistItem(id: "build")
@@ -850,9 +1044,8 @@ final class AppCoordinator {
                 }
             } catch {
                 commandBarWindow.setLoading(false, message: nil)
-                if !isEditing, offerStuckClarificationsIfHelpful(prompt: originalPrompt, error: error) {
-                    return
-                }
+                // BUILD-FIRST: Don't ask more questions on error — just build the best we can.
+                // The user can always refine via the feedback/tweak flow.
 
                 // Last resort: always produce a widget rather than showing just an error
                 let recoveryConfig = emergencyRecoveryWidget(for: originalPrompt, details: error.localizedDescription)

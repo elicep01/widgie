@@ -2,7 +2,13 @@ import Foundation
 
 protocol AIWidgetService {
     func generateWidget(prompt: String) async throws -> WidgetConfig
-    func editWidget(existingConfig: WidgetConfig, editPrompt: String) async throws -> WidgetConfig
+    func editWidget(existingConfig: WidgetConfig, editPrompt: String, conversationHistory: [String]) async throws -> WidgetConfig
+}
+
+extension AIWidgetService {
+    func editWidget(existingConfig: WidgetConfig, editPrompt: String) async throws -> WidgetConfig {
+        try await editWidget(existingConfig: existingConfig, editPrompt: editPrompt, conversationHistory: [])
+    }
 }
 
 enum AIWidgetServiceError: LocalizedError {

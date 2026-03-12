@@ -54,7 +54,7 @@ final class ProviderBackedAIService: AIWidgetService {
         )
     }
 
-    func editWidget(existingConfig: WidgetConfig, editPrompt: String) async throws -> WidgetConfig {
+    func editWidget(existingConfig: WidgetConfig, editPrompt: String, conversationHistory: [String] = []) async throws -> WidgetConfig {
         let trimmed = editPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             throw AIWidgetServiceError.invalidPrompt
@@ -72,7 +72,8 @@ final class ProviderBackedAIService: AIWidgetService {
             generationClient: generationClient,
             verificationClient: verificationClient,
             extraExamples: learnedExampleStore.examples,
-            userStyleProfile: userPreferenceStore.styleProfile
+            userStyleProfile: userPreferenceStore.styleProfile,
+            conversationHistory: conversationHistory
         )
     }
 

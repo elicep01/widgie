@@ -106,7 +106,7 @@ final class AgentOrchestrator {
                 sourceAttributions: webResolution.attributions
             ),
             openQuestions: [],
-            assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan) + webResolution.assumptions,
+            assumptions: defaultAssumptions(for: interaction, dataPlan: dataPlan, lowerPrompt: lower) + webResolution.assumptions,
             webContext: webResolution.context
         )
 
@@ -356,6 +356,16 @@ final class AgentOrchestrator {
         }
 
         return Array(questions.prefix(3))
+    }
+
+    /// Critique a widget config against a build plan. Public for use in edit repair flows.
+    func critiqueWidget(config: WidgetConfig, plan: AgentBuildPlan) -> AgentCritique {
+        critique(config: config, plan: plan)
+    }
+
+    /// Build a repair prompt from a plan and critique result. Public for use in edit repair flows.
+    func buildRepairPrompt(plan: AgentBuildPlan, critique: AgentCritique) -> String {
+        repairPrompt(for: plan, critique: critique)
     }
 
     private func critique(config: WidgetConfig, plan: AgentBuildPlan) -> AgentCritique {
@@ -614,21 +624,15 @@ final class AgentOrchestrator {
             || supported.contains("temperature")
             || supported.contains("temp")
 
-        if requestsWeatherLike, !containsLikelyLocation(lowerPrompt) {
-            missingRequirements.append("weather_location")
-        }
-        if requestsWeatherLike, !containsExplicitTemperatureUnit(lowerPrompt) {
-            missingRequirements.append("weather_temperature_unit")
-        }
+        // Weather location/unit: use sensible defaults instead of blocking on clarification.
+        // The agent will default to "New York" and "fahrenheit" — user refines after seeing widget.
         if supported.contains("stock"), !containsTickerSymbols(lowerPrompt) {
             missingRequirements.append("stock_symbols")
         }
         if supported.contains("crypto"), !containsTickerSymbols(lowerPrompt) {
             missingRequirements.append("crypto_symbols")
         }
-        if lowerPrompt.contains("launcher"), !containsAppNames(lowerPrompt) {
-            missingRequirements.append("launcher_apps")
-        }
+        // Launcher apps: use sensible defaults (Safari, Notes, Calendar, Terminal) instead of asking
 
         let refreshHint: Int?
         if lowerPrompt.contains("real-time") || lowerPrompt.contains("live") {
@@ -649,7 +653,7 @@ final class AgentOrchestrator {
         )
     }
 
-    private func defaultAssumptions(for interaction: AgentInteractionMode, dataPlan: AgentDataPlan) -> [String] {
+    private func defaultAssumptions(for interaction: AgentInteractionMode, dataPlan: AgentDataPlan, lowerPrompt: String) -> [String] {
         var assumptions: [String] = []
         if interaction == .userEditable {
             assumptions.append("Prefer interactive components when available (interactive: true on checklists, editable: true on notes).")
@@ -658,11 +662,25 @@ final class AgentOrchestrator {
             let sources = dataPlan.unsupportedSources.joined(separator: ", ")
             assumptions.append("Cannot fetch live data from: \(sources). Use link_bookmarks with relevant URLs + text header as a useful fallback. NEVER produce an empty widget.")
         }
-        if !dataPlan.missingRequirements.isEmpty {
-            assumptions.append("Missing source details must be clarified before final rendering.")
+        // Smart defaults instead of asking — agent decides autonomously
+        let requestsWeather = dataPlan.supportedSources.contains("weather")
+            || dataPlan.supportedSources.contains("temperature")
+            || dataPlan.supportedSources.contains("temp")
+        if requestsWeather {
+            if !containsLikelyLocation(lowerPrompt) {
+                assumptions.append("Default weather location: New York (user can change later).")
+            }
+            if !containsExplicitTemperatureUnit(lowerPrompt) {
+                assumptions.append("Default temperature unit: fahrenheit (user can change later).")
+            }
+        }
+        if dataPlan.missingRequirements.contains("launcher_apps") {
+            assumptions.append("Default launcher apps: Safari, Notes, Calendar, Terminal (user can customize later).")
         }
         if let refreshHint = dataPlan.refreshHintSeconds {
             assumptions.append("Target refresh interval around \(refreshHint) seconds when applicable.")
+        } else if interaction == .autoRefreshing {
+            assumptions.append("Default refresh interval: 300 seconds (5 minutes).")
         }
         if dataPlan.requestedSources.isEmpty && dataPlan.unsupportedSources.isEmpty {
             assumptions.append("No external data source needed. Compose from interactive/static components to best serve the user's intent.")
@@ -678,28 +696,13 @@ final class AgentOrchestrator {
     ) -> [ClarificationQuestion] {
         var questions: [ClarificationQuestion] = []
 
-        if dataPlan.missingRequirements.contains("weather_location") {
-            questions.append(
-                ClarificationQuestion(
-                    id: "weather-location",
-                    question: "Which city should weather use?",
-                    options: ["Current city", "New York", "San Francisco", "London"],
-                    allowsMultiple: false
-                )
-            )
-        }
+        // BUILD-FIRST PHILOSOPHY: Only ask questions when we literally cannot build
+        // without the info. For everything else, use sensible defaults and let the
+        // user refine after seeing the widget. This makes the agent truly autonomous.
 
-        if dataPlan.missingRequirements.contains("weather_temperature_unit") {
-            questions.append(
-                ClarificationQuestion(
-                    id: "weather-unit",
-                    question: "Which temperature unit?",
-                    options: ["Celsius", "Fahrenheit"],
-                    allowsMultiple: false
-                )
-            )
-        }
-
+        // Weather: default to "New York" and "fahrenheit" — user can refine later
+        // Temperature unit: default to fahrenheit — user can refine later
+        // Stock/Crypto: these ARE critical — we can't build without knowing WHAT to track
         if dataPlan.missingRequirements.contains("stock_symbols") {
             questions.append(
                 ClarificationQuestion(
@@ -718,43 +721,6 @@ final class AgentOrchestrator {
                     question: "Which crypto should it track?",
                     options: ["BTC", "ETH", "SOL", "DOGE"],
                     allowsMultiple: true
-                )
-            )
-        }
-
-        if dataPlan.missingRequirements.contains("launcher_apps") {
-            questions.append(
-                ClarificationQuestion(
-                    id: "launcher-apps",
-                    question: "Which apps should launcher include?",
-                    options: ["Safari", "Notes", "Terminal", "Calendar"],
-                    allowsMultiple: true
-                )
-            )
-        }
-
-        if interaction == .userEditable,
-           (lowerPrompt.contains("checklist") || lowerPrompt.contains("note")),
-           !lowerPrompt.contains("editable"),
-           !lowerPrompt.contains("read only"),
-           !lowerPrompt.contains("read-only") {
-            questions.append(
-                ClarificationQuestion(
-                    id: "editable-vs-static",
-                    question: "Should this widget be editable?",
-                    options: ["Yes", "No"],
-                    allowsMultiple: false
-                )
-            )
-        }
-
-        if (lowerPrompt.contains("live") || lowerPrompt.contains("real-time")) && dataPlan.refreshHintSeconds == nil {
-            questions.append(
-                ClarificationQuestion(
-                    id: "refresh-frequency",
-                    question: "How often should it refresh?",
-                    options: ["1 min", "5 min", "15 min", "Hourly"],
-                    allowsMultiple: false
                 )
             )
         }

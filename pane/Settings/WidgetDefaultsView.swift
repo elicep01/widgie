@@ -26,7 +26,7 @@ struct WidgetDefaultsView: View {
                         }
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 8)
 
                 HStack {
                     Image(systemName: "checkmark.circle.fill")

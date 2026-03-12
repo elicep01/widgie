@@ -251,17 +251,20 @@ struct PromptClarifier {
            - Timer → needs duration specification
            - Interactive lists → needs `interactive: true`
 
-        4. **WHAT is MISSING that would cause a bad widget?** Only ask about things where:
-           - The wrong default would make the widget useless (e.g., wrong timezone, wrong city)
-           - There are multiple valid interpretations and picking wrong would disappoint
-           - A technical detail is needed that the user likely has an opinion on
+        4. **WHAT is MISSING that would cause a COMPLETELY BROKEN widget?** Only ask about things where:
+           - You literally CANNOT build anything useful without the answer (e.g., "track my stocks" with zero stock symbols)
+           - NOT for preferences like temperature units, time format, colors, refresh rate — use sensible defaults
+           - NOT for things with obvious defaults — weather defaults to "New York", launcher defaults to popular apps
 
-        5. **WHAT can you INFER without asking?** Be smart:
+        5. **BUILD-FIRST PHILOSOPHY:** Your default should be to say "needsClarification: false" and let the system build with smart defaults. The user will refine after seeing the widget. Only ask questions if:
+           - The request is genuinely ambiguous about WHAT to build (not HOW it should look)
+           - Missing data would produce a completely empty/useless widget
            - "Bitcoin and Ethereum" → symbols are BTC and ETH, no need to ask
            - "Clock for Tokyo" → timezone is Asia/Tokyo, no need to ask
-           - "Weather in London" → location is clear, no need to ask
+           - "Weather" with no city → default to New York, NO NEED TO ASK
            - "Analog clock" → use analog_clock component, no need to ask about style
-           - Simple, self-contained requests (stopwatch, battery, pomodoro) → no questions needed
+           - Simple, self-contained requests (stopwatch, battery, pomodoro) → DEFINITELY no questions needed
+           - Preference questions (12h vs 24h, celsius vs fahrenheit, colors) → NEVER ASK, use defaults
 
         ## UNIVERSAL CAPABILITY MAP — WHAT CAN WIDGIE DO?
 
@@ -467,14 +470,17 @@ struct PromptClarifier {
         }
 
         Rules:
-        - Maximum 3 questions per round, maximum 5 options each
+        - DEFAULT TO {"needsClarification": false} — only ask if absolutely critical
+        - Maximum 2 questions per round, maximum 5 options each
         - allowsMultiple: true for "what to include"; false for mutually exclusive choices
         - Question text: under 60 characters, ends with "?"
         - Option text: 1–4 words
         - Do NOT re-ask questions that were already answered in the conversation history
         - Do NOT ask about things you can confidently infer
-        - DO ask about things where picking wrong would produce a useless or wrong widget
+        - Do NOT ask about preferences (units, format, colors, refresh rate) — use defaults
+        - ONLY ask about things where the widget would be EMPTY or COMPLETELY WRONG without the answer
         - For github_repo_stats: stat options MUST be exactly: "Stars", "Forks", "Open Issues", "Watchers", "Description"
+        - When in doubt: BUILD FIRST, refine later. The user can always tell you to change things.
         """
     }
 

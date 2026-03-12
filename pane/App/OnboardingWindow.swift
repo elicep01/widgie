@@ -32,8 +32,8 @@ final class OnboardingWindow: NSObject, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.setFrame(NSRect(x: 0, y: 0, width: 560, height: 640), display: false)
-        window.minSize = NSSize(width: 520, height: 580)
+        window.setFrame(NSRect(x: 0, y: 0, width: 560, height: 720), display: false)
+        window.minSize = NSSize(width: 520, height: 660)
         window.center()
         window.isReleasedWhenClosed = false
         window.backgroundColor = .clear
@@ -131,7 +131,7 @@ private struct OnboardingRootView: View {
             }
             .padding(.horizontal, 40)
         }
-        .frame(minWidth: 520, minHeight: 580)
+        .frame(minWidth: 520, minHeight: 660)
         .onAppear {
             // Pre-fill if user already has a key
             if !settingsStore.openAIAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -523,6 +523,42 @@ private struct OnboardingRootView: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(Color.white.opacity(0.06), lineWidth: 1)
             )
+
+            // Keyboard shortcuts
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Keyboard Shortcuts")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.4))
+                    .textCase(.uppercase)
+
+                shortcutRow(label: "Open widgie", keys: "\u{2318}\u{21E7}W")
+                shortcutRow(label: "Gallery", keys: "\u{2318}G")
+                shortcutRow(label: "New widget", keys: "\u{2318}N")
+                shortcutRow(label: "Auto layout", keys: "\u{2318}L")
+            }
+            .padding(14)
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
+            )
+        }
+    }
+
+    private func shortcutRow(label: String, keys: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.65))
+            Spacer()
+            Text(keys)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(Color.white.opacity(0.45))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         }
     }
 
@@ -588,6 +624,7 @@ private struct OnboardingRootView: View {
                     .shadow(color: Color.accentColor.opacity(0.3), radius: 8, y: 4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Start building widgets")
             } else {
                 Button {
                     withAnimation {

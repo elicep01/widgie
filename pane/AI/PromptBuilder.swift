@@ -511,10 +511,27 @@ struct PromptBuilder {
         """
     }
 
-    func editUserPrompt(existingConfig: WidgetConfig, editPrompt: String) -> String {
+    func editUserPrompt(existingConfig: WidgetConfig, editPrompt: String, conversationHistory: [String] = []) -> String {
         let configJSON = Self.encode(existingConfig)
         let manifest = Self.buildPreservationManifest(existingConfig: existingConfig)
         let editIntelligence = Self.editReasoningHints(existingConfig: existingConfig, editPrompt: editPrompt)
+
+        // Include conversation history so the AI has full context of prior requests/changes
+        let historyBlock: String
+        if !conversationHistory.isEmpty {
+            let recentHistory = conversationHistory.suffix(20) // Last 20 messages max
+            historyBlock = """
+
+            ## CONVERSATION HISTORY (for context — the user has been iterating on this widget)
+            \(recentHistory.joined(separator: "\n"))
+
+            Use this history to understand the user's intent and what has already been changed.
+            The CURRENT edit request (below) is what you should apply now.
+            """
+        } else {
+            historyBlock = ""
+        }
+
         return """
         The user wants to modify an existing widget.
 
@@ -522,6 +539,7 @@ struct PromptBuilder {
         \(configJSON)
 
         \(manifest)
+        \(historyBlock)
 
         User edit request:
         \(editPrompt)

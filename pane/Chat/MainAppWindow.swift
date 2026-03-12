@@ -57,6 +57,11 @@ final class MainAppWindow {
         }
     }
 
+    func showGallery() {
+        viewModel.sidebarTab = .gallery
+        show()
+    }
+
     func openConversationForWidget(_ widgetID: UUID, widgetName: String) {
         if let existing = viewModel.conversationStore.conversationForWidget(widgetID) {
             viewModel.selectConversation(existing.id)

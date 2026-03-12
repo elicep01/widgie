@@ -60,6 +60,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     func startNewConversation() {
+        clearClarificationState()
         let conv = conversationStore.create(title: "New Widget")
         refreshConversations()
         selectConversation(conv.id)
@@ -72,6 +73,15 @@ final class ChatViewModel: ObservableObject {
         }
         inputText = ""
         traceLines = []
+        // Clean up stale clarification state when switching conversations
+        clearClarificationState()
+    }
+
+    /// Clear all pending clarification state — call when switching conversations or dismissing.
+    func clearClarificationState() {
+        pendingClarification = nil
+        clarificationSelections = [:]
+        onAnswerClarification = nil
     }
 
     // MARK: - Clarification Option Selection

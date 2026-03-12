@@ -11,7 +11,7 @@ final class SettingsWindow {
 
         let window = NSWindow(contentViewController: hostingController)
         window.title = "widgie Settings"
-        window.styleMask = [.titled, .closable, .miniaturizable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setFrame(NSRect(x: 0, y: 0, width: 680, height: 520), display: false)
         window.center()
         window.isReleasedWhenClosed = false

@@ -5,17 +5,17 @@ struct GenerationPipeline {
     private let validator: SchemaValidator
     private let verificationService: VerificationService
     private let correctionService: CorrectionService
-    private let maxTotalCalls = 6
-    private let maxGenerationAttempts = 2
-    private let maxSchemaRepairAttemptsPerGeneration = 1
+    private let maxTotalCalls = 10
+    private let maxGenerationAttempts = 3
+    private let maxSchemaRepairAttemptsPerGeneration = 2
     private let callTimeoutSeconds: Double
     private let totalPipelineTimeoutSeconds: Double
 
     init(
         promptBuilder: PromptBuilder,
         validator: SchemaValidator,
-        callTimeoutSeconds: Double = 8.0,
-        totalPipelineTimeoutSeconds: Double = 10.0
+        callTimeoutSeconds: Double = 30.0,
+        totalPipelineTimeoutSeconds: Double = 60.0
     ) {
         self.promptBuilder = promptBuilder
         self.validator = validator
@@ -79,10 +79,11 @@ struct GenerationPipeline {
         generationClient: AIProviderClient,
         verificationClient: AIProviderClient? = nil,
         extraExamples: [PromptExample] = [],
-        userStyleProfile: String? = nil
+        userStyleProfile: String? = nil,
+        conversationHistory: [String] = []
     ) async throws -> WidgetConfig {
         let systemPrompt = promptBuilder.generationSystemPrompt(defaultTheme: defaultTheme, context: context, prompt: editPrompt, extraExamples: extraExamples, userStyleProfile: userStyleProfile)
-        let userPrompt = promptBuilder.editUserPrompt(existingConfig: existingConfig, editPrompt: editPrompt)
+        let userPrompt = promptBuilder.editUserPrompt(existingConfig: existingConfig, editPrompt: editPrompt, conversationHistory: conversationHistory)
 
         var config = try await runPipeline(
             originalPrompt: editPrompt,

@@ -15,7 +15,7 @@ struct ChatDetailView: View {
                             conversationHeader(conv)
                         }
 
-                        LazyVStack(spacing: 2) {
+                        LazyVStack(spacing: 4) {
                             ForEach(viewModel.activeMessages) { message in
                                 MessageRow(message: message)
                                     .id(message.id)
@@ -98,7 +98,7 @@ struct ChatDetailView: View {
             // Avatar
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.12))
+                    .fill(Color.accentColor.opacity(0.15))
                     .frame(width: 26, height: 26)
                 Image(systemName: "sparkles")
                     .font(.system(size: 11, weight: .semibold))
@@ -127,7 +127,7 @@ struct ChatDetailView: View {
         HStack(spacing: 0) {
             Image(systemName: "bolt.fill")
                 .font(.system(size: 8))
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(.tertiary)
                 .padding(.trailing, 6)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -135,15 +135,15 @@ struct ChatDetailView: View {
                     ForEach(Array(viewModel.traceLines.suffix(4).enumerated()), id: \.offset) { _, line in
                         Text(line)
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.quaternary)
+                            .foregroundStyle(.tertiary)
                             .lineLimit(1)
                     }
                 }
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 5)
-        .background(Color.primary.opacity(0.015))
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.025))
     }
 
     // MARK: - Composer Bar
@@ -166,7 +166,8 @@ struct ChatDetailView: View {
                     }
                     .disabled(viewModel.isProcessing)
                     .padding(.leading, 14)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 11)
+                    .accessibilityLabel("Message input")
 
                 Button {
                     viewModel.submit()
@@ -174,24 +175,25 @@ struct ChatDetailView: View {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(canSubmit ? AnyShapeStyle(.white) : AnyShapeStyle(.quaternary))
-                        .frame(width: 26, height: 26)
+                        .frame(width: 28, height: 28)
                         .background(
                             Circle()
-                                .fill(canSubmit ? Color.accentColor : Color.primary.opacity(0.05))
+                                .fill(canSubmit ? Color.accentColor : Color.primary.opacity(0.06))
                         )
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSubmit)
                 .padding(.trailing, 8)
                 .padding(.bottom, 6)
+                .accessibilityLabel("Send message")
             }
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.primary.opacity(0.04))
+                    .fill(Color.primary.opacity(0.06))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                    .stroke(Color.primary.opacity(0.10), lineWidth: 0.5)
             )
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

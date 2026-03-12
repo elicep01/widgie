@@ -5,26 +5,43 @@ struct GeneralSettingsView: View {
 
     var body: some View {
         Form {
-            Picker("Global Hotkey", selection: $settingsStore.hotkeyPreset) {
-                ForEach(HotkeyPreset.allCases) { preset in
-                    Text(preset.displayName).tag(preset)
+            Section("General") {
+                HStack {
+                    Text("Launch at Login")
+                    Spacer()
+                    Toggle("", isOn: $settingsStore.launchAtLogin)
+                        .labelsHidden()
                 }
             }
 
-            HStack {
-                Text("Launch At Login")
-                Spacer()
-                Toggle("", isOn: $settingsStore.launchAtLogin)
-                    .labelsHidden()
-            }
+            Section("Keyboard Shortcuts") {
+                Picker("Open widgie", selection: $settingsStore.hotkeyPreset) {
+                    ForEach(HotkeyPreset.allCases) { preset in
+                        Text(preset.displayName).tag(preset)
+                    }
+                }
 
-            HStack {
-                Text("Current Trigger")
-                Spacer()
-                Text(settingsStore.hotkeyPreset.displayName)
-                    .foregroundStyle(.secondary)
+                shortcutDisplay(label: "Gallery", shortcut: "\u{2318}G")
+                shortcutDisplay(label: "New Widget", shortcut: "\u{2318}N")
+                shortcutDisplay(label: "Auto Layout", shortcut: "\u{2318}L")
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func shortcutDisplay(label: String, shortcut: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(shortcut)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.primary.opacity(0.06))
+                )
+        }
     }
 }

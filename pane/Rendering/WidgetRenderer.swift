@@ -1365,7 +1365,7 @@ private struct DayProgressComponentView: View {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { showSettings = true }
                     } label: {
-                        Image(systemName: "pencil.circle")
+                        Image(systemName: "gearshape")
                             .font(.system(size: (9 * scale).cgFloat))
                             .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                     }
@@ -2695,7 +2695,7 @@ private struct NewsHeadlinesComponentView: View {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) { showSettings = true }
                     } label: {
-                        Image(systemName: "slider.horizontal.3")
+                        Image(systemName: "gearshape")
                             .font(.system(size: (9 * scale).cgFloat))
                             .foregroundStyle(ThemeResolver.color(for: "muted", theme: theme))
                     }
@@ -3057,7 +3057,7 @@ private struct ChecklistComponentView: View {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) { isEditing.toggle() }
                 } label: {
-                    Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle")
+                    Image(systemName: isEditing ? "checkmark.circle.fill" : "square.and.pencil")
                         .font(.system(size: (10 * scale).cgFloat))
                         .foregroundStyle(ThemeResolver.color(for: isEditing ? "positive" : "muted", theme: theme))
                 }
