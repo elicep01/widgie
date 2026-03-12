@@ -1,6 +1,552 @@
 import SwiftUI
 import SceneKit
 
+// MARK: - Pet Personality System
+
+/// Each character has a unique personality that affects dialogue, room, food, toys, and appearance.
+struct PetPersonality {
+    let name: String                  // e.g. "Fluffy"
+    let species: String               // e.g. "cloud puff", "lil' dino"
+    let trait: String                  // one-word trait for UI
+    let bodyColor: NSColor            // primary body color
+    let accentColor: NSColor          // secondary/accent
+    let bellyColor: NSColor           // belly patch color
+
+    // Dialogue
+    let hatchGreeting: String         // first words after hatching
+    let hatchButton: String           // button text to proceed
+    let askNameLine: String           // "what's your name?"
+    let greetingLine: (String) -> String  // greeting after learning owner name
+    let greetingButton: String        // button to proceed
+    let askPetNameLine: (String) -> String  // "what will you name me?"
+
+    // Room
+    let floorColor: NSColor
+    let rugColor: NSColor
+    let wallTint: NSColor
+    let shelfItemColors: [NSColor]
+    let roomAccent: String            // emoji for picture frame content
+    let windowScene: WindowScene
+
+    // Food
+    let foods: [String]               // emoji food items
+
+    // Toys
+    let toyBallColor: NSColor
+    let yarnColor: NSColor
+    let cushionColor: NSColor
+    let favoriteGame: String          // displayed in UI
+
+    // Per-character idle thoughts — personality-driven dialogue
+    let idleThoughts: [String]
+
+    // Time-aware dialogue
+    let morningGreetings: [String]      // 6am-10am
+    let afternoonThoughts: [String]     // 12pm-3pm (post-lunch crash)
+    let eveningThoughts: [String]       // 6pm-9pm
+    let sleepyThoughts: [String]        // 10pm-6am
+    let hungryThoughts: [String]        // when hunger < 40
+    let happyThoughts: [String]         // when happiness > 80
+
+    // Sleep mat
+    let matColor: NSColor               // sleep mat / favorite spot color
+    let matEmoji: String                // what's on the mat (printed pattern)
+    let sleepStyle: String              // "curled up", "sprawled", "on back" etc
+
+    enum WindowScene {
+        case nightSky       // stars
+        case sunset         // warm gradient
+        case garden         // green with flowers
+        case ocean          // blue waves
+        case aurora         // northern lights
+    }
+
+    /// Returns a contextual thought based on current time and pet stats.
+    func contextualThought(hunger: Double, happiness: Double) -> String {
+        let hour = Calendar.current.component(.hour, from: Date())
+
+        // Night — sleepy thoughts dominate
+        if hour >= 22 || hour < 6 {
+            return sleepyThoughts.randomElement()!
+        }
+
+        // Morning
+        if hour >= 6 && hour < 10 {
+            return morningGreetings.randomElement()!
+        }
+
+        // Post-lunch crash
+        if hour >= 13 && hour < 15 {
+            return afternoonThoughts.randomElement()!
+        }
+
+        // Evening wind-down
+        if hour >= 18 && hour < 22 {
+            return eveningThoughts.randomElement()!
+        }
+
+        // Stat-based overrides (30% chance)
+        if hunger < 40 && Int.random(in: 0...2) == 0 {
+            return hungryThoughts.randomElement()!
+        }
+        if happiness > 80 && Int.random(in: 0...2) == 0 {
+            return happyThoughts.randomElement()!
+        }
+
+        // Default: personality idle thought
+        return idleThoughts.randomElement()!
+    }
+
+    /// Whether the pet should be sleeping right now.
+    static var isSleepTime: Bool {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return hour >= 23 || hour < 6
+    }
+
+    /// Whether it's meal time (breakfast 7-8, lunch 12-13, dinner 18-19).
+    static var isMealTime: Bool {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return (hour == 7 || hour == 8) || (hour == 12 || hour == 13) || (hour == 18 || hour == 19)
+    }
+
+    /// Whether it's the afternoon energy crash (2-4pm).
+    static var isAfternoonCrash: Bool {
+        let hour = Calendar.current.component(.hour, from: Date())
+        return hour >= 14 && hour < 16
+    }
+}
+
+extension UserDataStore.PetCharacter {
+    var personality: PetPersonality {
+        switch self {
+        case .fluffy:
+            return PetPersonality(
+                name: "Fluffy",
+                species: "cloud puff",
+                trait: "dreamy",
+                bodyColor: NSColor(red: 0.95, green: 0.72, blue: 0.85, alpha: 1),
+                accentColor: NSColor(red: 0.88, green: 0.55, blue: 0.75, alpha: 1),
+                bellyColor: NSColor(red: 0.98, green: 0.88, blue: 0.93, alpha: 1),
+                hatchGreeting: "oh!! hello there~ 🥺💕\ni just hatched! *blush*\ni'm so soft and fluffy~",
+                hatchButton: "aww hi little one! 💗",
+                askNameLine: "what's your name, friend? 👀\ni wanna know who my\nfavorite person is~",
+                greetingLine: { name in "hi \(name)~! ☺️💕\nfrom now on, i'm your\nlil cloud puff!\nplease give me lots\nof cuddles okay? 🥺" },
+                greetingButton: "of course! 💕",
+                askPetNameLine: { name in "so \(name), what would\nyou like to name me? 🤔✨\npick something cute~!" },
+                floorColor: NSColor(red: 0.92, green: 0.82, blue: 0.78, alpha: 1),
+                rugColor: NSColor(red: 0.95, green: 0.75, blue: 0.85, alpha: 0.25),
+                wallTint: NSColor(red: 0.98, green: 0.88, blue: 0.92, alpha: 0.1),
+                shelfItemColors: [.systemPink, .systemPurple, .magenta, .systemRed, .systemOrange],
+                roomAccent: "🌸",
+                windowScene: .nightSky,
+                foods: ["🍰", "🧁", "🍩", "🍪", "🍓", "🫧"],
+                toyBallColor: NSColor.systemPink,
+                yarnColor: NSColor(red: 0.95, green: 0.65, blue: 0.85, alpha: 0.7),
+                cushionColor: NSColor(red: 0.9, green: 0.7, blue: 0.85, alpha: 0.4),
+                favoriteGame: "Yarn Play",
+                idleThoughts: [
+                    "i think the clouds are gossiping about me~",
+                    "do you think stars get lonely? 🥺",
+                    "my fluff feels extra soft today~",
+                    "if i stare at the ceiling long enough, it stares back",
+                    "i wonder if my dreams have dreams...",
+                    "the dust sparkles are my tiny friends ✨",
+                    "sometimes i forget i'm real and that's okay~",
+                    "*dreamily stares at nothing*",
+                    "what if we're inside someone's snow globe? 🫧",
+                    "i just had the softest thought~",
+                    "the silence sounds like cotton candy 🍭",
+                    "my heart is doing the warm thing again 💕",
+                ],
+                morningGreetings: [
+                    "mmm... five more minutes... 🥱💕",
+                    "good morning~ did you sleep well? 🌸",
+                    "the sunrise is so pretty... like a warm hug~",
+                    "*yawns and stretches* hi~ ☀️",
+                    "morning cuddles? please? 🥺",
+                    "i dreamed about clouds made of marshmallows~",
+                ],
+                afternoonThoughts: [
+                    "*yaaaawn* so sleepy after lunch~ 😴💕",
+                    "nap time...? nap time. 💤",
+                    "my eyes are doing the heavy thing...",
+                    "the afternoon sun is making me all warm and cozy~",
+                    "i could use a cuddle nap right about now... 🥱",
+                ],
+                eveningThoughts: [
+                    "the stars are coming out~ so pretty ✨",
+                    "today was nice... was it nice for you too? 💕",
+                    "i love this cozy time of day~",
+                    "the window looks so magical at night 🌙",
+                    "can we just stay like this forever? 🥺",
+                ],
+                sleepyThoughts: [
+                    "zzz... *mumbles* ...more cuddles... 💤",
+                    "*sleep talking* ...no the cloud is mine...",
+                    "zzz... 🌙💕",
+                ],
+                hungryThoughts: [
+                    "my tummy is making the rumbly noise... 🥺",
+                    "is it snack time? pretty please? 🍰",
+                    "i'm so hungry i might eat a cloud~",
+                    "food... food would be nice... 💕",
+                    "i think my belly is writing me a letter... it says FEED ME 🥺",
+                ],
+                happyThoughts: [
+                    "i love everything right now~!! 💕✨",
+                    "my heart is SO full!! 🥰",
+                    "*happy wiggle* life is wonderful~",
+                    "you make everything better 💗",
+                    "i'm the happiest little puff in the world~!",
+                ],
+                matColor: NSColor(red: 0.95, green: 0.8, blue: 0.9, alpha: 0.5),
+                matEmoji: "☁️",
+                sleepStyle: "curled up"
+            )
+
+        case .pongoGreen:
+            return PetPersonality(
+                name: "Pongo",
+                species: "lil' dino",
+                trait: "adventurous",
+                bodyColor: NSColor(red: 0.55, green: 0.82, blue: 0.22, alpha: 1),
+                accentColor: NSColor(red: 0.45, green: 0.72, blue: 0.18, alpha: 1),
+                bellyColor: NSColor(red: 0.78, green: 0.92, blue: 0.55, alpha: 1),
+                hatchGreeting: "RAWR!! 🦖✨ hiya!!\ni'm here! i'm HERE!\nlet's go on adventures!!",
+                hatchButton: "whoa there buddy! 🌿",
+                askNameLine: "ooh ooh!! who are you?!\ntell me your name!! 🤩",
+                greetingLine: { name in "YESSS \(name)!! 🎉\nwe're gonna be the\nbest team EVER!!\ni'll protect you!! 💪🦖" },
+                greetingButton: "let's goooo! 🌟",
+                askPetNameLine: { name in "hey \(name)! what's\nmy cool adventure name\ngonna be?? 🗺️✨" },
+                floorColor: NSColor(red: 0.78, green: 0.85, blue: 0.65, alpha: 1),
+                rugColor: NSColor(red: 0.55, green: 0.78, blue: 0.35, alpha: 0.2),
+                wallTint: NSColor(red: 0.82, green: 0.92, blue: 0.72, alpha: 0.08),
+                shelfItemColors: [.systemGreen, .systemBrown, .systemYellow, .systemOrange, .systemTeal],
+                roomAccent: "🌿",
+                windowScene: .garden,
+                foods: ["🍖", "🥩", "🥕", "🌽", "🍗", "🥦"],
+                toyBallColor: NSColor.systemGreen,
+                yarnColor: NSColor(red: 0.6, green: 0.8, blue: 0.3, alpha: 0.7),
+                cushionColor: NSColor(red: 0.5, green: 0.75, blue: 0.3, alpha: 0.35),
+                favoriteGame: "Fetch Ball",
+                idleThoughts: [
+                    "i bet i could climb that shelf!! 🧗",
+                    "RAWR!! ...did i scare you? 🦖",
+                    "there's definitely treasure behind that wall",
+                    "adventure is out there!! ...or in here. both good.",
+                    "i just did 10 push-ups in my head 💪",
+                    "the floor is lava!! wait no it's not. phew.",
+                    "i smell something... ADVENTURE!! 🗺️",
+                    "what if there's a secret passage in this room?!",
+                    "*practices karate moves* hi-YAH! 🥋",
+                    "i could totally fight a dragon. probably.",
+                    "my dino ancestors would be so proud rn 🦖",
+                    "every room is an adventure if you believe hard enough!",
+                ],
+                morningGreetings: [
+                    "GOOD MORNING!! LET'S GOOOO!! 🌟",
+                    "rise and shine!! adventure awaits!! ☀️💪",
+                    "YAWN— I MEAN RAWR!! morning!! 🦖",
+                    "breakfast fuel for MAXIMUM ADVENTURE!! 🍖",
+                    "today is gonna be EPIC i can feel it!!",
+                    "morning training starts NOW!! *does jumping jacks*",
+                ],
+                afternoonThoughts: [
+                    "ugh... food coma... even adventurers need rest... 😴",
+                    "maybe just a quick... power nap... for strength... 💪😴",
+                    "the afternoon sun is... making me... sleepy... NO! ADVENTURE! ...zzz",
+                    "recharging my dino batteries... 🔋🦖",
+                    "even the greatest explorers nap... right? 😅",
+                ],
+                eveningThoughts: [
+                    "today's adventures were AWESOME!! 🌟",
+                    "the sunset looks like dragon fire!! cool!! 🔥",
+                    "time to plan tomorrow's missions! 🗺️",
+                    "i explored SO much today... i'm proud of us! 💪",
+                    "night patrol begins! i'll keep you safe!! 🦖🛡️",
+                ],
+                sleepyThoughts: [
+                    "zzz... *mumbles* ...i found the treasure... 💤🗺️",
+                    "*sleep-fighting dragons* ...take THAT... zzz 🐉",
+                    "zzz... adventure... tomorrow... 💪💤",
+                ],
+                hungryThoughts: [
+                    "an adventurer needs FUEL!! FEED ME!! 🍖💪",
+                    "i can't fight dragons on an empty stomach!! 🦖",
+                    "FOOD!! my energy bar is at like... 2%!! 🔋",
+                    "even dinos need to eat!! RAWR means hungry!! 🍗",
+                    "quest objective: FIND FOOD!! priority: URGENT!! 🚨",
+                ],
+                happyThoughts: [
+                    "THIS IS THE BEST DAY EVER!! 🎉🦖",
+                    "i'm SO PUMPED!! let's go EVERYWHERE!! 💪✨",
+                    "RAWR!! that's happy RAWR!! 🦖💕",
+                    "everything is AWESOME and YOU'RE awesome!! 🌟",
+                    "i have the best human in the WORLD!! 🏆",
+                ],
+                matColor: NSColor(red: 0.5, green: 0.75, blue: 0.3, alpha: 0.5),
+                matEmoji: "🗺️",
+                sleepStyle: "sprawled"
+            )
+
+        case .pongoWhite:
+            return PetPersonality(
+                name: "Sir Pongo",
+                species: "gentleman blob",
+                trait: "sophisticated",
+                bodyColor: NSColor(white: 0.92, alpha: 1),
+                accentColor: NSColor(white: 0.82, alpha: 1),
+                bellyColor: NSColor(white: 0.96, alpha: 1),
+                hatchGreeting: "ah, splendid~ 🎩✨\ni do believe i've arrived.\n*adjusts bowler hat*\ncharmed, truly.",
+                hatchButton: "well hello there~ 🫖",
+                askNameLine: "might i inquire as to\nyour name, dear friend? 🧐",
+                greetingLine: { name in "ah, \(name)! what a\nlovely name~ 🫖✨\ni shall be your most\ndistinguished companion.\ndo keep the tea warm~ ☕" },
+                greetingButton: "absolutely, good sir~ 🎩",
+                askPetNameLine: { name in "now then \(name),\nwhat shall my\nproper title be? 📜✨" },
+                floorColor: NSColor(red: 0.82, green: 0.78, blue: 0.72, alpha: 1),
+                rugColor: NSColor(red: 0.65, green: 0.55, blue: 0.42, alpha: 0.2),
+                wallTint: NSColor(red: 0.88, green: 0.85, blue: 0.78, alpha: 0.08),
+                shelfItemColors: [.systemBrown, .darkGray, .systemIndigo, .systemGray, .systemYellow],
+                roomAccent: "🫖",
+                windowScene: .sunset,
+                foods: ["☕", "🫖", "🧀", "🥐", "🍷", "🎂"],
+                toyBallColor: NSColor(white: 0.7, alpha: 1),
+                yarnColor: NSColor(red: 0.6, green: 0.55, blue: 0.5, alpha: 0.6),
+                cushionColor: NSColor(red: 0.7, green: 0.6, blue: 0.5, alpha: 0.35),
+                favoriteGame: "Laser Chase",
+                idleThoughts: [
+                    "i wonder if the books on that shelf are first editions~ 📚",
+                    "*sips imaginary tea* exquisite.",
+                    "this room could use a chandelier, don't you think? 🫖",
+                    "ah, the quiet dignity of a well-kept space~",
+                    "i do believe that pixel is slightly off-center. tsk.",
+                    "*adjusts invisible monocle* 🧐",
+                    "one simply does not rush these things~",
+                    "the art of doing nothing is vastly underrated.",
+                    "my bowler hat collection grows in my imagination 🎩",
+                    "a proper gentleman always tidies his thoughts~",
+                    "i detect notes of... existential whimsy in the air.",
+                    "shall we ponder the nature of consciousness? over tea, of course ☕",
+                ],
+                morningGreetings: [
+                    "good morning~ shall i ring for breakfast? 🫖☀️",
+                    "ah, another splendid day. earl grey, two sugars~ ☕",
+                    "one must greet the morning with dignity and caffeine 🎩",
+                    "*stretches elegantly* the morning light is rather agreeable~",
+                    "breakfast is, in my estimation, the most civilized meal 🥐",
+                    "rise and shine, as they say. though i prefer 'ascend and luminesce' ✨",
+                ],
+                afternoonThoughts: [
+                    "ah, the post-luncheon drowsiness... how pedestrian... yet irresistible 😴🫖",
+                    "perhaps a brief constitutional nap is in order~ 💤",
+                    "even the finest minds require afternoon respite...",
+                    "the afternoon slump, a universal truth even i cannot escape~ 🧐😴",
+                    "*yawns politely behind hand* do excuse me~",
+                ],
+                eveningThoughts: [
+                    "the evening ambiance is quite satisfactory~ 🌅",
+                    "nothing like a good sunset to contemplate one's place in the cosmos 🎩",
+                    "shall we retire to the drawing room? oh wait, this IS the room~ 🫖",
+                    "twilight hour~ the most philosophical time of day ✨",
+                    "i believe a digestif is in order. metaphorically speaking, of course 🍷",
+                ],
+                sleepyThoughts: [
+                    "zzz... *mumbles* ...the tea is... perfectly steeped... 💤🫖",
+                    "*sleep-adjusting bowler hat* ...quite... 🎩💤",
+                    "zzz... distinguished... slumber... ☕💤",
+                ],
+                hungryThoughts: [
+                    "i say, might we arrange for luncheon? my constitution requires it 🥐",
+                    "a gentleman does not beg, but... perhaps a small morsel? 🧐",
+                    "one cannot maintain proper decorum on an empty stomach 🫖",
+                    "i believe it is well past tea time... hint hint ☕",
+                    "the hunger pangs, they are most... ungentlemanly 😤",
+                ],
+                happyThoughts: [
+                    "i must say, life is rather splendid at the moment~ 🎩✨",
+                    "*tips imaginary hat* you are a most excellent companion 🫖",
+                    "contentment, thy name is... well, me. right now. 💫",
+                    "ah, this is what the poets write about~ ☕✨",
+                    "one is simply... overjoyed. in a dignified manner, naturally 🧐💕",
+                ],
+                matColor: NSColor(red: 0.7, green: 0.6, blue: 0.5, alpha: 0.45),
+                matEmoji: "🫖",
+                sleepStyle: "on back"
+            )
+
+        case .pongoPurple:
+            return PetPersonality(
+                name: "Pongo",
+                species: "shy blob",
+                trait: "melancholy",
+                bodyColor: NSColor(red: 0.72, green: 0.28, blue: 0.65, alpha: 1),
+                accentColor: NSColor(red: 0.62, green: 0.22, blue: 0.58, alpha: 1),
+                bellyColor: NSColor(red: 0.85, green: 0.55, blue: 0.8, alpha: 1),
+                hatchGreeting: "oh... hi... 🥺💜\ni-i'm here now...\nis that... okay?\n*hides behind shell*",
+                hatchButton: "hey, it's okay! come here~ 💜",
+                askNameLine: "u-um... what's your name?\ni promise i won't forget... 🥺",
+                greetingLine: { name in "\(name)... that's such\na nice name... 💜\ny-you really want to\nkeep me? 🥹\ni'll try my best..." },
+                greetingButton: "you're perfect~ 💜",
+                askPetNameLine: { name in "\(name)... will you\ngive me a name?\nsomething gentle... 🌙💜" },
+                floorColor: NSColor(red: 0.78, green: 0.72, blue: 0.82, alpha: 1),
+                rugColor: NSColor(red: 0.72, green: 0.55, blue: 0.78, alpha: 0.2),
+                wallTint: NSColor(red: 0.85, green: 0.75, blue: 0.88, alpha: 0.08),
+                shelfItemColors: [.systemPurple, .systemIndigo, .systemBlue, .systemPink, .magenta],
+                roomAccent: "🌙",
+                windowScene: .aurora,
+                foods: ["🫐", "🍇", "🧁", "🍵", "🥞", "🍡"],
+                toyBallColor: NSColor.systemPurple,
+                yarnColor: NSColor(red: 0.75, green: 0.5, blue: 0.8, alpha: 0.6),
+                cushionColor: NSColor(red: 0.72, green: 0.5, blue: 0.78, alpha: 0.35),
+                favoriteGame: "Yarn Play",
+                idleThoughts: [
+                    "sometimes the quiet is too loud... 🥺",
+                    "do you think the moon is lonely too? 🌙",
+                    "i wonder if anyone else feels this... purple... 💜",
+                    "*sighs softly* ...it's nothing, really...",
+                    "the shadows in the corner look... friendly actually",
+                    "i wrote a poem but... it's too sad to share 📝",
+                    "what if the rain is the sky crying WITH me? 🌧️",
+                    "i'm okay... i think... probably... 🥺",
+                    "beauty is just sadness wearing a nice dress...",
+                    "the dust particles look like tiny shooting stars 💫",
+                    "i hugged myself today. it was nice. 💜",
+                    "sometimes i just exist and that's... enough...",
+                ],
+                morningGreetings: [
+                    "oh... it's morning already...? 🥺☀️",
+                    "good morning... i hope today is gentle... 💜",
+                    "the morning light is... almost too bright... 🌅",
+                    "*peeks out from blanket* ...is it safe? 😴",
+                    "i dreamed something beautiful... but i forgot it... 🥺",
+                    "mornings are hard... but you make them softer... 💜",
+                ],
+                afternoonThoughts: [
+                    "the afternoon makes everything feel... heavy... 😴💜",
+                    "i just want to lie here for a while... is that okay? 🥺",
+                    "even my sadness is tired right now... 💤",
+                    "maybe if i'm very still, the sleepiness won't find me... 😴",
+                    "the world is fuzzy and warm and... okay actually 💜",
+                ],
+                eveningThoughts: [
+                    "the twilight is the prettiest kind of sadness... 🌙💜",
+                    "another day survived... that counts, right? 🥺",
+                    "the stars understand me, i think... ✨",
+                    "nighttime is when all the feelings come out... 💜",
+                    "i feel safest when it's dark and quiet... 🌙",
+                ],
+                sleepyThoughts: [
+                    "zzz... *whimpers softly* ...don't go... 💤💜",
+                    "*clutches invisible pillow* ...zzz... 🌙",
+                    "zzz... the dreams are... gentle tonight... 💜💤",
+                ],
+                hungryThoughts: [
+                    "i-i'm a little hungry... sorry to bother you... 🥺",
+                    "my tummy hurts but i didn't want to say anything... 💜",
+                    "um... could i maybe... have a little snack? if it's not too much trouble... 🫐",
+                    "i don't want to be a burden but... food? 🥺",
+                    "the hunger makes everything feel even more... lonely... 💜",
+                ],
+                happyThoughts: [
+                    "i'm... actually happy right now?! 🥹💜",
+                    "is this what joy feels like? it's... warm... 💕",
+                    "thank you for making me feel... less alone... 💜✨",
+                    "my heart is doing something... good? i think? 🥺💕",
+                    "maybe the world isn't so scary after all... 💜",
+                ],
+                matColor: NSColor(red: 0.72, green: 0.5, blue: 0.78, alpha: 0.45),
+                matEmoji: "🌙",
+                sleepStyle: "curled up"
+            )
+
+        case .pongoBlue:
+            return PetPersonality(
+                name: "Pongo",
+                species: "cool cube",
+                trait: "chill",
+                bodyColor: NSColor(red: 0.25, green: 0.58, blue: 0.82, alpha: 1),
+                accentColor: NSColor(red: 0.2, green: 0.5, blue: 0.72, alpha: 1),
+                bellyColor: NSColor(red: 0.55, green: 0.78, blue: 0.92, alpha: 1),
+                hatchGreeting: "yo~ 😎🌊\nwhat's good?\njust hatched, no big deal~\n*finger guns*",
+                hatchButton: "haha nice to meet you! 🤙",
+                askNameLine: "so what do they\ncall you? 😏🌊",
+                greetingLine: { name in "ayyy \(name)~ 🤙\nnice vibes, i can tell~\nwe're gonna be\nsuper chill together 🌊✨" },
+                greetingButton: "totally! 🏄‍♂️",
+                askPetNameLine: { name in "yo \(name), hit me\nwith a cool name~ 😎\nsomething rad!" },
+                floorColor: NSColor(red: 0.72, green: 0.8, blue: 0.88, alpha: 1),
+                rugColor: NSColor(red: 0.4, green: 0.65, blue: 0.82, alpha: 0.2),
+                wallTint: NSColor(red: 0.78, green: 0.88, blue: 0.95, alpha: 0.08),
+                shelfItemColors: [.systemBlue, .systemTeal, .systemCyan, .systemMint, .systemIndigo],
+                roomAccent: "🏄",
+                windowScene: .ocean,
+                foods: ["🐟", "🍣", "🥤", "🍦", "🫧", "🥥"],
+                toyBallColor: NSColor.systemBlue,
+                yarnColor: NSColor(red: 0.4, green: 0.65, blue: 0.85, alpha: 0.6),
+                cushionColor: NSColor(red: 0.4, green: 0.6, blue: 0.8, alpha: 0.35),
+                favoriteGame: "Laser Chase",
+                idleThoughts: [
+                    "vibes are immaculate rn~ 🌊",
+                    "chillin'. just absolutely chillin'. 😎",
+                    "you ever just... exist? it's pretty rad 🤙",
+                    "the ocean in the window is calling me bro~ 🏄",
+                    "no thoughts, just vibes ✨",
+                    "life's a wave, dude. just ride it~ 🌊",
+                    "*does a little finger gun* pew pew 😎",
+                    "that corner of the room has good energy ngl",
+                    "i'm not lazy, i'm energy efficient 🔋",
+                    "the floor is not lava, the floor is chill 🧊",
+                    "if cool was a temperature i'd be absolute zero 😎❄️",
+                    "sometimes the best move is no move at all~ 🌊",
+                ],
+                morningGreetings: [
+                    "yo... morning already? ...that's cool 😎☀️",
+                    "*stretches* aight. let's vibe today~ 🌊",
+                    "mornings are chill if you don't overthink em 🤙",
+                    "coffee? nah fam. i run on good vibes ☕😎",
+                    "sun's up. vibes are loading... 🔄",
+                    "early bird gets the worm but late bird gets the vibes~ 🐦",
+                ],
+                afternoonThoughts: [
+                    "post-lunch nap hits different bro... 😴🌊",
+                    "the afternoon vibe is... sleepy. respect. 💤",
+                    "gonna power nap. wake me up for sunset~ 😎😴",
+                    "zzz is just horizontal vibing honestly 🤙💤",
+                    "even the ocean takes a chill break sometimes~ 🌊",
+                ],
+                eveningThoughts: [
+                    "sunset vibes are unmatched dude~ 🌅😎",
+                    "evening is just morning for night owls 🦉",
+                    "the chill energy peaks at golden hour 🌊✨",
+                    "today was solid. no complaints. 🤙",
+                    "night mode: activated 😎🌙",
+                ],
+                sleepyThoughts: [
+                    "zzz... *mumbles* ...gnarly wave bro... 💤🏄",
+                    "*sleep-surfing* ...cowabunga... zzz 🌊💤",
+                    "zzz... vibes... eternal... 😎💤",
+                ],
+                hungryThoughts: [
+                    "yo i could really go for some sushi rn 🍣",
+                    "dude. food. please. the vibes need fuel 🐟",
+                    "hungry but make it ✨aesthetic✨ 😎",
+                    "my stomach is not chill right now ngl 🌊",
+                    "can't vibe on an empty stomach bro 🤙",
+                ],
+                happyThoughts: [
+                    "peak vibes achieved. this is it. 🌊😎✨",
+                    "bro i'm so happy rn it's actually crazy 🤙",
+                    "good vibes ONLY and they are FLOWING 🌊💕",
+                    "life is rad and you're rad. fact. 😎🏄",
+                    "this right here? this is the good timeline 🌊✨",
+                ],
+                matColor: NSColor(red: 0.4, green: 0.65, blue: 0.85, alpha: 0.45),
+                matEmoji: "🏄",
+                sleepStyle: "sprawled"
+            )
+        }
+    }
+}
+
 // MARK: - Virtual Pet Component
 
 struct VirtualPetComponentView: View {
@@ -52,6 +598,11 @@ struct VirtualPetComponentView: View {
 
     private func tc(_ token: String) -> Color {
         ThemeResolver.color(for: token, theme: theme)
+    }
+
+    /// Resolve the current pet's personality (falls back to fluffy).
+    private var personality: PetPersonality {
+        (pet?.character ?? .fluffy).personality
     }
 
     var body: some View {
@@ -203,195 +754,163 @@ struct VirtualPetComponentView: View {
 
     @ViewBuilder
     private func introFlowView(pet: UserDataStore.PetStateData, geo: GeometryProxy) -> some View {
+        let sceneHeight = min(geo.size.height * 0.42, 240.0)
+
         VStack(spacing: 0) {
             switch introPhase {
             case .egg, .cracking:
                 eggSceneSection(pet: pet, geo: geo)
 
             case .reveal:
-                // Show the pet with a sparkle reveal
+                // Scene — capped height
                 ZStack {
-                    PetSceneView(
-                        pet: pet,
-                        theme: theme,
-                        activeGame: nil,
-                        feedTrigger: 0,
-                        petModeActive: false,
-                        onTap: {},
-                        onPet: { _ in },
-                        onPlay: {},
-                        onPetModeEnd: {}
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: geo.size.height * 0.5)
-                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+                    petSceneBlock(pet: pet)
+                        .frame(height: sceneHeight)
+                        .transition(.scale(scale: 0.3).combined(with: .opacity))
 
-                    // Sparkle particles
                     ForEach(0..<6, id: \.self) { i in
                         Text(["✨", "🌟", "💫", "⭐️", "✨", "🌟"][i])
                             .font(.system(size: CGFloat.random(in: 14...22)))
                             .offset(
                                 x: CGFloat.random(in: -geo.size.width * 0.3...geo.size.width * 0.3),
-                                y: CGFloat.random(in: -geo.size.height * 0.15...geo.size.height * 0.15)
+                                y: CGFloat.random(in: -sceneHeight * 0.3...sceneHeight * 0.3)
                             )
                             .opacity(0.8)
                     }
                 }
-                .frame(height: geo.size.height * 0.5)
+                .frame(height: sceneHeight)
 
-                Spacer(minLength: 6)
+                // Dialogue area — guaranteed visible
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        introBubble(text: personality.hatchGreeting, geo: geo)
 
-                // Cute intro message
-                introBubble(text: "oh!! hello there~ 🥺💕\ni just hatched! *blush*", geo: geo)
-
-                Spacer(minLength: 6)
-
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        introPhase = .askOwnerName
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                introPhase = .askOwnerName
+                            }
+                        } label: {
+                            Text(personality.hatchButton)
+                                .font(.system(size: max(10, geo.size.width * 0.042), weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(tc("accent")))
+                        }
+                        .buttonStyle(.plain)
                     }
-                } label: {
-                    Text("hi little one!")
-                        .font(.system(size: max(10, geo.size.width * 0.042), weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(tc("accent")))
+                    .padding(.vertical, 8)
                 }
-                .buttonStyle(.plain)
-
-                Spacer(minLength: 4)
+                .frame(maxHeight: .infinity)
 
             case .askOwnerName:
-                ZStack {
-                    PetSceneView(
-                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0, petModeActive: false,
-                        onTap: {}, onPet: { _ in }, onPlay: {}, onPetModeEnd: {}
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: geo.size.height * 0.38)
+                petSceneBlock(pet: pet)
+                    .frame(height: sceneHeight)
 
-                Spacer(minLength: 6)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        introBubble(text: personality.askNameLine, geo: geo)
 
-                introBubble(text: "what's your name, friend? 👀", geo: geo)
+                        HStack(spacing: 6) {
+                            TextField("your name", text: $ownerNameInput)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: max(11, geo.size.width * 0.045), weight: .medium, design: .rounded))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(tc("primary").opacity(0.08))
+                                )
+                                .frame(maxWidth: geo.size.width * 0.55)
 
-                Spacer(minLength: 6)
-
-                HStack(spacing: 6) {
-                    TextField("your name", text: $ownerNameInput)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: max(11, geo.size.width * 0.045), weight: .medium, design: .rounded))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(tc("primary").opacity(0.08))
-                        )
-                        .frame(maxWidth: geo.size.width * 0.55)
-
-                    Button {
-                        guard !ownerNameInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                            introPhase = .greeting
+                            Button {
+                                guard !ownerNameInput.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                    introPhase = .greeting
+                                }
+                            } label: {
+                                Image(systemName: "arrow.right.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(tc("accent"))
+                            }
+                            .buttonStyle(.plain)
                         }
-                    } label: {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(tc("accent"))
+                        .padding(.horizontal, geo.size.width * 0.08)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal, geo.size.width * 0.08)
-
-                Spacer(minLength: 4)
+                .frame(maxHeight: .infinity)
 
             case .greeting:
                 let name = ownerNameInput.trimmingCharacters(in: .whitespaces)
-                ZStack {
-                    PetSceneView(
-                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0, petModeActive: false,
-                        onTap: {}, onPet: { _ in }, onPlay: {}, onPetModeEnd: {}
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: geo.size.height * 0.42)
+                petSceneBlock(pet: pet)
+                    .frame(height: sceneHeight)
 
-                Spacer(minLength: 6)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        introBubble(
+                            text: personality.greetingLine(name),
+                            geo: geo
+                        )
 
-                introBubble(
-                    text: "hi \(name)~! ☺️💕\nfrom now on, i'm your pet!\nplease take care of me okay? 🥺",
-                    geo: geo
-                )
-
-                Spacer(minLength: 6)
-
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        introPhase = .askPetName
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                introPhase = .askPetName
+                            }
+                        } label: {
+                            Text(personality.greetingButton)
+                                .font(.system(size: max(10, geo.size.width * 0.042), weight: .semibold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Capsule().fill(tc("accent")))
+                        }
+                        .buttonStyle(.plain)
                     }
-                } label: {
-                    Text("of course! 💕")
-                        .font(.system(size: max(10, geo.size.width * 0.042), weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(tc("accent")))
+                    .padding(.vertical, 8)
                 }
-                .buttonStyle(.plain)
-
-                Spacer(minLength: 4)
+                .frame(maxHeight: .infinity)
 
             case .askPetName:
                 let name = ownerNameInput.trimmingCharacters(in: .whitespaces)
-                ZStack {
-                    PetSceneView(
-                        pet: pet, theme: theme, activeGame: nil, feedTrigger: 0, petModeActive: false,
-                        onTap: {}, onPet: { _ in }, onPlay: {}, onPetModeEnd: {}
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: geo.size.height * 0.38)
+                petSceneBlock(pet: pet)
+                    .frame(height: sceneHeight)
 
-                Spacer(minLength: 6)
-
-                introBubble(
-                    text: "so \(name), what would\nyou like to name me? 🤔✨",
-                    geo: geo
-                )
-
-                Spacer(minLength: 6)
-
-                HStack(spacing: 6) {
-                    TextField("name me!", text: $petNameInput)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: max(11, geo.size.width * 0.045), weight: .medium, design: .rounded))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(tc("primary").opacity(0.08))
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 8) {
+                        introBubble(
+                            text: personality.askPetNameLine(name),
+                            geo: geo
                         )
-                        .frame(maxWidth: geo.size.width * 0.55)
 
-                    Button {
-                        let trimmed = petNameInput.trimmingCharacters(in: .whitespaces)
-                        guard !trimmed.isEmpty else { return }
-                        finishIntro(petName: trimmed, ownerName: ownerNameInput.trimmingCharacters(in: .whitespaces))
-                    } label: {
-                        Image(systemName: "heart.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(tc("accent"))
+                        HStack(spacing: 6) {
+                            TextField("name me!", text: $petNameInput)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: max(11, geo.size.width * 0.045), weight: .medium, design: .rounded))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(tc("primary").opacity(0.08))
+                                )
+                                .frame(maxWidth: geo.size.width * 0.55)
+
+                            Button {
+                                let trimmed = petNameInput.trimmingCharacters(in: .whitespaces)
+                                guard !trimmed.isEmpty else { return }
+                                finishIntro(petName: trimmed, ownerName: ownerNameInput.trimmingCharacters(in: .whitespaces))
+                            } label: {
+                                Image(systemName: "heart.circle.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundStyle(tc("accent"))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, geo.size.width * 0.08)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal, geo.size.width * 0.08)
-
-                Spacer(minLength: 4)
+                .frame(maxHeight: .infinity)
 
             case .done:
                 normalPetView(pet: pet, geo: geo)
@@ -399,6 +918,24 @@ struct VirtualPetComponentView: View {
         }
         .padding(introPhase == .done ? 0 : 8)
         .animation(.spring(response: 0.5, dampingFraction: 0.8), value: introPhase)
+    }
+
+    /// Reusable pet scene block for intro flow — consistent size and clipping.
+    @ViewBuilder
+    private func petSceneBlock(pet: UserDataStore.PetStateData) -> some View {
+        PetSceneView(
+            pet: pet,
+            theme: theme,
+            activeGame: nil,
+            feedTrigger: 0,
+            petModeActive: false,
+            onTap: {},
+            onPet: { _ in },
+            onPlay: {},
+            onPetModeEnd: {}
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -606,8 +1143,20 @@ struct VirtualPetComponentView: View {
         guard elapsed >= 60 else { return }
         let minutes = elapsed / 60.0
 
-        p.hunger = max(0, p.hunger - minutes * 0.35)
-        p.happiness = max(0, p.happiness - minutes * 0.15)
+        // Time-aware hunger: faster during meal times, slower at night
+        let hungerRate: Double
+        if PetPersonality.isSleepTime {
+            hungerRate = 0.15  // slow at night — sleeping
+        } else if PetPersonality.isMealTime {
+            hungerRate = 0.6   // hungry at meal times
+        } else {
+            hungerRate = 0.35  // normal
+        }
+        p.hunger = max(0, p.hunger - minutes * hungerRate)
+
+        // Happiness decays faster during afternoon crash
+        let happinessRate = PetPersonality.isAfternoonCrash ? 0.25 : 0.15
+        p.happiness = max(0, p.happiness - minutes * happinessRate)
 
         if p.hunger <= 0 {
             p.health = max(0, p.health - minutes * 0.5)
@@ -1103,8 +1652,11 @@ private struct PetSceneView: NSViewRepresentable {
         context.coordinator.activeGame = activeGame
         context.coordinator.petModeActive = petModeActive
         context.coordinator.scnViewRef = scnView
+        context.coordinator.currentHunger = pet.hunger
+        context.coordinator.currentHappiness = pet.happiness
         context.coordinator.updateMood(pet: pet, in: scnView.scene)
         context.coordinator.handleFeedTrigger(feedTrigger, in: scnView.scene)
+        context.coordinator.updateSleepState()
     }
 
     func makeCoordinator() -> Coordinator {
@@ -1136,6 +1688,7 @@ private struct PetSceneView: NSViewRepresentable {
         let onPlay: () -> Void
         let onPetModeEnd: () -> Void
         var petModeActive = false
+        var petCharacter: UserDataStore.PetCharacter = .fluffy
         weak var scnViewRef: SCNView?
         private var petBodyNode: SCNNode?   // the root node of the pet
         private var bodyMeshNode: SCNNode?  // the capsule body mesh
@@ -1179,6 +1732,11 @@ private struct PetSceneView: NSViewRepresentable {
         private var toppledObjects: [SCNNode] = []  // objects currently knocked over
         var activeGame: VirtualPetComponentView.PetGame?
         private var lastFeedTrigger = 0
+        var currentHunger: Double = 100
+        var currentHappiness: Double = 100
+        private var isSleeping = false
+        private var sleepMatNode: SCNNode?
+        private var zzzNode: SCNNode?
 
         init(onTap: @escaping () -> Void, onPet: @escaping (Bool) -> Void, onPlay: @escaping () -> Void, onPetModeEnd: @escaping () -> Void) {
             self.onTap = onTap
@@ -1789,8 +2347,8 @@ private struct PetSceneView: NSViewRepresentable {
             guard let dot = laserDotNode, let glow = laserGlowNode else { return }
 
             // Clamp to room bounds
-            let x = max(-2.3, min(2.3, CGFloat(worldPos.x)))
-            let z = max(-2.0, min(1.5, CGFloat(worldPos.z)))
+            let x = max(-1.0, min(1.0, CGFloat(worldPos.x)))
+            let z = max(-0.5, min(1.0, CGFloat(worldPos.z)))
 
             let targetPos = SCNVector3(x, 0.003, z)
             let glowPos = SCNVector3(x, 0.002, z)
@@ -1809,8 +2367,8 @@ private struct PetSceneView: NSViewRepresentable {
             guard let body = petBodyNode, !isChasing else { return }
             isChasing = true
 
-            let x = max(-2.3, min(2.3, CGFloat(worldPos.x)))
-            let z = max(-2.0, min(1.5, CGFloat(worldPos.z)))
+            let x = max(-1.0, min(1.0, CGFloat(worldPos.x)))
+            let z = max(-0.5, min(1.0, CGFloat(worldPos.z)))
 
             let currentPos = body.position
             let dx = x - CGFloat(currentPos.x)
@@ -1904,8 +2462,8 @@ private struct PetSceneView: NSViewRepresentable {
         private func throwBall(to worldPos: SCNVector3) {
             guard let ball = toyBallNode, let body = petBodyNode, !isChasing else { return }
 
-            let x = max(-2.0, min(2.0, CGFloat(worldPos.x)))
-            let z = max(-1.5, min(1.5, CGFloat(worldPos.z)))
+            let x = max(-0.8, min(0.8, CGFloat(worldPos.x)))
+            let z = max(-0.3, min(0.8, CGFloat(worldPos.z)))
 
             showSpeechBubble("fetch!")
 
@@ -1949,7 +2507,7 @@ private struct PetSceneView: NSViewRepresentable {
                     self?.showSpeechBubble(["got it!", "woof!", "again!"].randomElement()!)
 
                     // Return ball to original spot
-                    ball.runAction(SCNAction.move(to: SCNVector3(1.2, 0.12, 0.8), duration: 0.8))
+                    ball.runAction(SCNAction.move(to: SCNVector3(0.7, 0.12, 0.6), duration: 0.8))
 
                     let now = Date()
                     if now.timeIntervalSince(self?.lastPlayTime ?? .distantPast) > 2.0 {
@@ -1970,8 +2528,8 @@ private struct PetSceneView: NSViewRepresentable {
         private func rollYarn(to worldPos: SCNVector3) {
             guard let yarn = yarnBallNode, let body = petBodyNode, !isChasing else { return }
 
-            let x = max(-1.5, min(1.5, CGFloat(worldPos.x)))
-            let z = max(-1.0, min(1.2, CGFloat(worldPos.z)))
+            let x = max(-0.8, min(0.8, CGFloat(worldPos.x)))
+            let z = max(-0.3, min(0.8, CGFloat(worldPos.z)))
 
             // Roll yarn to target
             yarn.runAction(SCNAction.group([
@@ -2085,11 +2643,11 @@ private struct PetSceneView: NSViewRepresentable {
             // Camera
             let cameraNode = SCNNode()
             cameraNode.camera = SCNCamera()
-            cameraNode.camera?.fieldOfView = 45
+            cameraNode.camera?.fieldOfView = 38
             cameraNode.camera?.zNear = 0.1
             cameraNode.camera?.zFar = 50
-            cameraNode.position = SCNVector3(0, 1.8, 4.5)
-            cameraNode.look(at: SCNVector3(0, 0.4, 0))
+            cameraNode.position = SCNVector3(0, 1.5, 4.2)
+            cameraNode.look(at: SCNVector3(0, 0.5, 0))
             scene.rootNode.addChildNode(cameraNode)
 
             // Lighting
@@ -2121,14 +2679,16 @@ private struct PetSceneView: NSViewRepresentable {
             ambient.light?.color = NSColor.white
             scene.rootNode.addChildNode(ambient)
 
-            // Room
-            buildRoom(in: scene, palette: palette)
+            // Pet character — pick builder based on character type
+            let character = pet.character ?? .fluffy
+            self.petCharacter = character
+            let pers = character.personality
+
+            // Room — character-specific
+            buildRoom(in: scene, palette: palette, personality: pers)
 
             // Laser dot (cat toy)
             buildLaserDot(in: scene)
-
-            // Pet character — pick builder based on character type
-            let character = pet.character ?? .fluffy
             let body: SCNNode
             switch character {
             case .fluffy:
@@ -2161,26 +2721,26 @@ private struct PetSceneView: NSViewRepresentable {
             return scene
         }
 
-        private func buildRoom(in scene: SCNScene, palette: ThemePalette) {
-            let accent = NSColor(palette.accent)
+        private func buildRoom(in scene: SCNScene, palette: ThemePalette, personality pers: PetPersonality) {
+            let accent = pers.wallTint
             let secondary = accent.blended(withFraction: 0.4, of: .white) ?? accent
 
-            // Floor — warm wood-toned
+            // Floor — character-specific tint
             let floor = SCNFloor()
             floor.reflectivity = 0.12
             floor.reflectionFalloffEnd = 2.5
             let floorMat = SCNMaterial()
-            floorMat.diffuse.contents = NSColor(red: 0.85, green: 0.75, blue: 0.62, alpha: 1.0)
+            floorMat.diffuse.contents = pers.floorColor
             floorMat.roughness.contents = NSColor(white: 0.6, alpha: 1)
             floor.materials = [floorMat]
             let floorNode = SCNNode(geometry: floor)
             floorNode.name = "floor"
             scene.rootNode.addChildNode(floorNode)
 
-            // Colorful round rug in the center
+            // Character-themed round rug
             let rugGeo = SCNCylinder(radius: 1.4, height: 0.01)
             let rugMat = SCNMaterial()
-            rugMat.diffuse.contents = accent.withAlphaComponent(0.2)
+            rugMat.diffuse.contents = pers.rugColor
             rugGeo.materials = [rugMat]
             let rugNode = SCNNode(geometry: rugGeo)
             rugNode.position = SCNVector3(0, 0.005, 0.2)
@@ -2189,16 +2749,16 @@ private struct PetSceneView: NSViewRepresentable {
             // Rug border ring
             let rugBorderGeo = SCNTorus(ringRadius: 1.4, pipeRadius: 0.03)
             let rugBorderMat = SCNMaterial()
-            rugBorderMat.diffuse.contents = secondary.withAlphaComponent(0.35)
+            rugBorderMat.diffuse.contents = (pers.rugColor.blended(withFraction: 0.3, of: .white) ?? pers.rugColor).withAlphaComponent(0.35)
             rugBorderGeo.materials = [rugBorderMat]
             let rugBorder = SCNNode(geometry: rugBorderGeo)
             rugBorder.position = SCNVector3(0, 0.015, 0.2)
             scene.rootNode.addChildNode(rugBorder)
 
-            // Back wall — warm pastel
+            // Back wall — character-tinted pastel
             let wallGeo = SCNPlane(width: 6, height: 4)
             let wallMat = SCNMaterial()
-            wallMat.diffuse.contents = accent.withAlphaComponent(0.08)
+            wallMat.diffuse.contents = pers.wallTint
             wallMat.isDoubleSided = true
             wallGeo.materials = [wallMat]
             let wall = SCNNode(geometry: wallGeo)
@@ -2222,7 +2782,7 @@ private struct PetSceneView: NSViewRepresentable {
             rightWall.eulerAngles.y = -CGFloat.pi / 2
             scene.rootNode.addChildNode(rightWall)
 
-            // --- Window on back wall with stars ---
+            // --- Window on back wall ---
             let windowFrame = SCNBox(width: 1.2, height: 1.0, length: 0.05, chamferRadius: 0.04)
             let frameMat = SCNMaterial()
             frameMat.diffuse.contents = NSColor(white: 0.9, alpha: 1)
@@ -2231,37 +2791,8 @@ private struct PetSceneView: NSViewRepresentable {
             windowNode.position = SCNVector3(1.2, 2.2, -2.47)
             scene.rootNode.addChildNode(windowNode)
 
-            // Night sky behind window
-            let skyGeo = SCNPlane(width: 1.0, height: 0.8)
-            let skyMat = SCNMaterial()
-            skyMat.diffuse.contents = NSColor(red: 0.1, green: 0.1, blue: 0.25, alpha: 1.0)
-            skyMat.emission.contents = NSColor(red: 0.05, green: 0.05, blue: 0.15, alpha: 1.0)
-            skyGeo.materials = [skyMat]
-            let skyNode = SCNNode(geometry: skyGeo)
-            skyNode.position = SCNVector3(1.2, 2.2, -2.44)
-            scene.rootNode.addChildNode(skyNode)
-
-            // Tiny stars in the window
-            for _ in 0..<8 {
-                let starGeo = SCNSphere(radius: 0.02)
-                let starMat = SCNMaterial()
-                starMat.diffuse.contents = NSColor.white
-                starMat.emission.contents = NSColor(white: 1, alpha: 0.8)
-                starGeo.materials = [starMat]
-                let star = SCNNode(geometry: starGeo)
-                star.position = SCNVector3(
-                    1.2 + CGFloat.random(in: -0.4...0.4),
-                    2.2 + CGFloat.random(in: -0.3...0.3),
-                    -2.43
-                )
-                scene.rootNode.addChildNode(star)
-                // Twinkle
-                let twinkle = SCNAction.sequence([
-                    SCNAction.fadeOpacity(to: 0.3, duration: Double.random(in: 0.5...1.5)),
-                    SCNAction.fadeOpacity(to: 1.0, duration: Double.random(in: 0.5...1.5))
-                ])
-                star.runAction(.repeatForever(twinkle))
-            }
+            // Window scene — varies by character personality
+            buildWindowScene(pers.windowScene, in: scene)
 
             // --- Picture frame on back wall ---
             let picFrame = SCNBox(width: 0.7, height: 0.55, length: 0.03, chamferRadius: 0.02)
@@ -2272,27 +2803,27 @@ private struct PetSceneView: NSViewRepresentable {
             picNode.position = SCNVector3(-1.0, 2.3, -2.47)
             scene.rootNode.addChildNode(picNode)
 
-            // Picture content (colorful)
+            // Picture content — character accent
             let picContent = SCNPlane(width: 0.55, height: 0.4)
             let picContentMat = SCNMaterial()
-            picContentMat.diffuse.contents = accent.withAlphaComponent(0.3)
+            picContentMat.diffuse.contents = pers.accentColor.withAlphaComponent(0.3)
             picContent.materials = [picContentMat]
             let picContentNode = SCNNode(geometry: picContent)
             picContentNode.position = SCNVector3(-1.0, 2.3, -2.45)
             scene.rootNode.addChildNode(picContentNode)
 
-            // Heart in the picture
-            let heartGeo = SCNText(string: "\u{2764}\u{FE0F}", extrusionDepth: 0.01)
+            // Character emoji in the picture
+            let heartGeo = SCNText(string: pers.roomAccent, extrusionDepth: 0.01)
             heartGeo.font = NSFont.systemFont(ofSize: 0.12)
             heartGeo.flatness = 0.1
             let heartMat = SCNMaterial()
-            heartMat.diffuse.contents = NSColor.systemPink
+            heartMat.diffuse.contents = pers.accentColor
             heartGeo.materials = [heartMat]
             let heartPicNode = SCNNode(geometry: heartGeo)
             heartPicNode.position = SCNVector3(-1.12, 2.2, -2.43)
             scene.rootNode.addChildNode(heartPicNode)
 
-            // --- Shelf on right wall ---
+            // --- Shelf on wall ---
             let shelfGeo = SCNBox(width: 1.2, height: 0.05, length: 0.3, chamferRadius: 0.01)
             let shelfMat = SCNMaterial()
             shelfMat.diffuse.contents = NSColor(red: 0.65, green: 0.45, blue: 0.25, alpha: 1)
@@ -2301,8 +2832,8 @@ private struct PetSceneView: NSViewRepresentable {
             shelfNode.position = SCNVector3(-1.8, 1.5, -2.0)
             scene.rootNode.addChildNode(shelfNode)
 
-            // Books on shelf (colorful stack)
-            let bookColors: [NSColor] = [.systemBlue, .systemGreen, .systemRed, .systemPurple, .systemYellow]
+            // Books on shelf — character-themed colors
+            let bookColors = pers.shelfItemColors
             for (i, color) in bookColors.enumerated() {
                 let bookGeo = SCNBox(width: 0.08, height: 0.25, length: 0.18, chamferRadius: 0.005)
                 let bookMat = SCNMaterial()
@@ -2314,19 +2845,18 @@ private struct PetSceneView: NSViewRepresentable {
                     1.65,
                     -2.0
                 )
-                // Slight random tilt for natural look
                 book.eulerAngles.z = CGFloat.random(in: -0.05...0.05)
                 scene.rootNode.addChildNode(book)
             }
 
-            // --- Toy ball (topple-able) ---
+            // --- Toy ball — character color ---
             let ball = SCNSphere(radius: 0.12)
             let ballMat = SCNMaterial()
-            ballMat.diffuse.contents = NSColor.systemRed.withAlphaComponent(0.7)
+            ballMat.diffuse.contents = pers.toyBallColor.withAlphaComponent(0.7)
             ballMat.metalness.contents = NSColor(white: 0.3, alpha: 1)
             ball.materials = [ballMat]
             let ballNode = SCNNode(geometry: ball)
-            ballNode.position = SCNVector3(1.2, 0.12, 0.8)
+            ballNode.position = SCNVector3(0.7, 0.12, 0.6)
             ballNode.name = "toyBall"
             scene.rootNode.addChildNode(ballNode)
             toyBallNode = ballNode
@@ -2340,10 +2870,10 @@ private struct PetSceneView: NSViewRepresentable {
             stripe.eulerAngles.x = CGFloat.pi / 2
             ballNode.addChildNode(stripe)
 
-            // --- Yarn ball (topple-able, rolls away) ---
+            // --- Yarn ball — character color ---
             let yarnGeo = SCNSphere(radius: 0.1)
             let yarnMat = SCNMaterial()
-            yarnMat.diffuse.contents = NSColor.systemPink.withAlphaComponent(0.6)
+            yarnMat.diffuse.contents = pers.yarnColor
             yarnMat.roughness.contents = NSColor(white: 0.8, alpha: 1)
             yarnGeo.materials = [yarnMat]
             let yarnNode = SCNNode(geometry: yarnGeo)
@@ -2355,21 +2885,21 @@ private struct PetSceneView: NSViewRepresentable {
             // Yarn string trailing
             let stringGeo = SCNCylinder(radius: 0.008, height: 0.4)
             let stringMat = SCNMaterial()
-            stringMat.diffuse.contents = NSColor.systemPink.withAlphaComponent(0.5)
+            stringMat.diffuse.contents = pers.yarnColor.withAlphaComponent(0.5)
             stringGeo.materials = [stringMat]
             let stringNode = SCNNode(geometry: stringGeo)
             stringNode.position = SCNVector3(0, -0.05, 0.05)
             stringNode.eulerAngles.z = CGFloat.pi / 3
             yarnNode.addChildNode(stringNode)
 
-            // --- Cushion / pet bed (topple-able) ---
+            // --- Cushion / pet bed — character color ---
             let cushGeo = SCNCylinder(radius: 0.35, height: 0.08)
             let cushMat = SCNMaterial()
-            cushMat.diffuse.contents = accent.withAlphaComponent(0.3)
+            cushMat.diffuse.contents = pers.cushionColor
             cushMat.roughness.contents = NSColor(white: 0.8, alpha: 1)
             cushGeo.materials = [cushMat]
             let cushNode = SCNNode(geometry: cushGeo)
-            cushNode.position = SCNVector3(1.5, 0.04, -0.5)
+            cushNode.position = SCNVector3(0.6, 0.04, -0.2)
             cushNode.name = "cushion"
             scene.rootNode.addChildNode(cushNode)
             cushionNode = cushNode
@@ -2377,7 +2907,7 @@ private struct PetSceneView: NSViewRepresentable {
             // Cushion inner circle
             let cushInner = SCNCylinder(radius: 0.25, height: 0.09)
             let cushInnerMat = SCNMaterial()
-            cushInnerMat.diffuse.contents = secondary.withAlphaComponent(0.3)
+            cushInnerMat.diffuse.contents = pers.cushionColor.blended(withFraction: 0.3, of: .white)?.withAlphaComponent(0.35) ?? pers.cushionColor
             cushInner.materials = [cushInnerMat]
             let cushInnerNode = SCNNode(geometry: cushInner)
             cushInnerNode.position = SCNVector3(0, 0.01, 0)
@@ -2462,6 +2992,48 @@ private struct PetSceneView: NSViewRepresentable {
             scene.rootNode.addChildNode(stackNode)
             bookStackNode = stackNode
 
+            // --- Sleep mat — character's favorite spot ---
+            let matGeo = SCNBox(width: 0.7, height: 0.02, length: 0.5, chamferRadius: 0.15)
+            let matMat = SCNMaterial()
+            matMat.diffuse.contents = pers.matColor
+            matMat.roughness.contents = NSColor(white: 0.9, alpha: 1)
+            matGeo.materials = [matMat]
+            let matNode = SCNNode(geometry: matGeo)
+            matNode.position = SCNVector3(-0.5, 0.01, -0.3)
+            matNode.name = "sleepMat"
+            scene.rootNode.addChildNode(matNode)
+            sleepMatNode = matNode
+
+            // Mat pattern — render the emoji as a texture
+            let emojiPlane = SCNPlane(width: 0.15, height: 0.15)
+            let emojiMat = SCNMaterial()
+            let emojiImg = NSImage(size: NSSize(width: 64, height: 64), flipped: false) { rect in
+                let font = NSFont.systemFont(ofSize: 48)
+                let str = NSAttributedString(string: pers.matEmoji, attributes: [.font: font])
+                str.draw(at: NSPoint(x: 4, y: 4))
+                return true
+            }
+            emojiMat.diffuse.contents = emojiImg
+            emojiMat.lightingModel = .constant
+            emojiMat.transparencyMode = .aOne
+            emojiMat.isDoubleSided = true
+            emojiPlane.materials = [emojiMat]
+            let emojiNode = SCNNode(geometry: emojiPlane)
+            emojiNode.eulerAngles.x = -CGFloat.pi / 2
+            emojiNode.position = SCNVector3(0, 0.015, 0)
+            matNode.addChildNode(emojiNode)
+
+            // Pillow on the mat
+            let pillowGeo = SCNBox(width: 0.2, height: 0.06, length: 0.15, chamferRadius: 0.06)
+            let pillowMat = SCNMaterial()
+            pillowMat.diffuse.contents = pers.matColor.blended(withFraction: 0.4, of: .white) ?? pers.matColor
+            pillowMat.roughness.contents = NSColor(white: 0.85, alpha: 1)
+            pillowGeo.materials = [pillowMat]
+            let pillowNode = SCNNode(geometry: pillowGeo)
+            pillowNode.position = SCNVector3(0, 0.04, -0.15)
+            pillowNode.eulerAngles.y = 0.1
+            matNode.addChildNode(pillowNode)
+
             // --- Small star mobile hanging from ceiling ---
             let mobileRod = SCNCylinder(radius: 0.01, height: 0.6)
             let rodMat = SCNMaterial()
@@ -2471,8 +3043,8 @@ private struct PetSceneView: NSViewRepresentable {
             rodNode.position = SCNVector3(0, 3.2, -1.0)
             scene.rootNode.addChildNode(rodNode)
 
-            // Hanging stars
-            let mobileColors: [NSColor] = [.systemYellow, .systemPink, accent, .systemCyan]
+            // Hanging stars — use personality accent
+            let mobileColors: [NSColor] = [.systemYellow, pers.accentColor, pers.bodyColor, .systemCyan]
             for (i, color) in mobileColors.enumerated() {
                 let starShape = SCNSphere(radius: 0.06)
                 let sMat = SCNMaterial()
@@ -2508,6 +3080,153 @@ private struct PetSceneView: NSViewRepresentable {
                 ])
                 swing.timingMode = .easeInEaseOut
                 sNode.runAction(.repeatForever(swing))
+            }
+        }
+
+        // MARK: - Window Scene Variants
+
+        private func buildWindowScene(_ scene: PetPersonality.WindowScene, in scnScene: SCNScene) {
+            let skyGeo = SCNPlane(width: 1.0, height: 0.8)
+            let skyMat = SCNMaterial()
+            let skyNode = SCNNode(geometry: skyGeo)
+            skyNode.position = SCNVector3(1.2, 2.2, -2.44)
+
+            switch scene {
+            case .nightSky:
+                skyMat.diffuse.contents = NSColor(red: 0.1, green: 0.1, blue: 0.25, alpha: 1.0)
+                skyMat.emission.contents = NSColor(red: 0.05, green: 0.05, blue: 0.15, alpha: 1.0)
+                skyGeo.materials = [skyMat]
+                scnScene.rootNode.addChildNode(skyNode)
+                // Stars
+                for _ in 0..<8 {
+                    let starGeo = SCNSphere(radius: 0.02)
+                    let starMat = SCNMaterial()
+                    starMat.diffuse.contents = NSColor.white
+                    starMat.emission.contents = NSColor(white: 1, alpha: 0.8)
+                    starGeo.materials = [starMat]
+                    let star = SCNNode(geometry: starGeo)
+                    star.position = SCNVector3(
+                        1.2 + CGFloat.random(in: -0.4...0.4),
+                        2.2 + CGFloat.random(in: -0.3...0.3),
+                        -2.43
+                    )
+                    scnScene.rootNode.addChildNode(star)
+                    let twinkle = SCNAction.sequence([
+                        SCNAction.fadeOpacity(to: 0.3, duration: Double.random(in: 0.5...1.5)),
+                        SCNAction.fadeOpacity(to: 1.0, duration: Double.random(in: 0.5...1.5))
+                    ])
+                    star.runAction(.repeatForever(twinkle))
+                }
+
+            case .sunset:
+                skyMat.diffuse.contents = NSColor(red: 0.95, green: 0.6, blue: 0.3, alpha: 1.0)
+                skyMat.emission.contents = NSColor(red: 0.8, green: 0.45, blue: 0.2, alpha: 0.5)
+                skyGeo.materials = [skyMat]
+                scnScene.rootNode.addChildNode(skyNode)
+                // Sun disc
+                let sunGeo = SCNSphere(radius: 0.12)
+                let sunMat = SCNMaterial()
+                sunMat.diffuse.contents = NSColor(red: 1.0, green: 0.85, blue: 0.4, alpha: 1)
+                sunMat.emission.contents = NSColor(red: 1.0, green: 0.8, blue: 0.3, alpha: 0.8)
+                sunGeo.materials = [sunMat]
+                let sun = SCNNode(geometry: sunGeo)
+                sun.position = SCNVector3(1.2, 2.35, -2.43)
+                scnScene.rootNode.addChildNode(sun)
+                // Warm glow pulse
+                let glow = SCNAction.sequence([
+                    SCNAction.scale(to: 1.1, duration: 2),
+                    SCNAction.scale(to: 1.0, duration: 2)
+                ])
+                sun.runAction(.repeatForever(glow))
+
+            case .garden:
+                skyMat.diffuse.contents = NSColor(red: 0.55, green: 0.82, blue: 0.95, alpha: 1.0)
+                skyMat.emission.contents = NSColor(red: 0.4, green: 0.7, blue: 0.85, alpha: 0.3)
+                skyGeo.materials = [skyMat]
+                scnScene.rootNode.addChildNode(skyNode)
+                // Little flowers/leaves
+                let gardenEmojis = ["🌿", "🌸", "🌻", "🍃"]
+                for (i, emoji) in gardenEmojis.enumerated() {
+                    let textGeo = SCNText(string: emoji, extrusionDepth: 0.005)
+                    textGeo.font = NSFont.systemFont(ofSize: 0.08)
+                    textGeo.flatness = 0.1
+                    let textMat = SCNMaterial()
+                    textMat.diffuse.contents = NSColor.white
+                    textGeo.materials = [textMat]
+                    let node = SCNNode(geometry: textGeo)
+                    node.position = SCNVector3(
+                        0.9 + CGFloat(i % 2) * 0.35,
+                        2.0 + CGFloat(i / 2) * 0.2,
+                        -2.43
+                    )
+                    scnScene.rootNode.addChildNode(node)
+                }
+
+            case .ocean:
+                skyMat.diffuse.contents = NSColor(red: 0.15, green: 0.4, blue: 0.7, alpha: 1.0)
+                skyMat.emission.contents = NSColor(red: 0.1, green: 0.3, blue: 0.5, alpha: 0.4)
+                skyGeo.materials = [skyMat]
+                scnScene.rootNode.addChildNode(skyNode)
+                // Waves (small animated bars)
+                for i in 0..<3 {
+                    let waveGeo = SCNCylinder(radius: 0.4, height: 0.015)
+                    let waveMat = SCNMaterial()
+                    waveMat.diffuse.contents = NSColor(red: 0.3, green: 0.6, blue: 0.9, alpha: 0.4)
+                    waveGeo.materials = [waveMat]
+                    let wave = SCNNode(geometry: waveGeo)
+                    wave.position = SCNVector3(1.2, 1.95 + CGFloat(i) * 0.12, -2.43)
+                    wave.eulerAngles.z = CGFloat.pi / 2
+                    scnScene.rootNode.addChildNode(wave)
+                    let bob = SCNAction.sequence([
+                        SCNAction.moveBy(x: 0, y: 0.03, z: 0, duration: 1.5 + Double(i) * 0.3),
+                        SCNAction.moveBy(x: 0, y: -0.03, z: 0, duration: 1.5 + Double(i) * 0.3)
+                    ])
+                    bob.timingMode = .easeInEaseOut
+                    wave.runAction(.repeatForever(bob))
+                }
+
+            case .aurora:
+                skyMat.diffuse.contents = NSColor(red: 0.08, green: 0.08, blue: 0.2, alpha: 1.0)
+                skyMat.emission.contents = NSColor(red: 0.05, green: 0.05, blue: 0.15, alpha: 0.5)
+                skyGeo.materials = [skyMat]
+                scnScene.rootNode.addChildNode(skyNode)
+                // Aurora bands
+                let auroraColors: [NSColor] = [
+                    NSColor(red: 0.2, green: 0.8, blue: 0.5, alpha: 0.3),
+                    NSColor(red: 0.4, green: 0.6, blue: 0.9, alpha: 0.25),
+                    NSColor(red: 0.7, green: 0.3, blue: 0.8, alpha: 0.2)
+                ]
+                for (i, color) in auroraColors.enumerated() {
+                    let bandGeo = SCNCylinder(radius: 0.35, height: 0.02)
+                    let bandMat = SCNMaterial()
+                    bandMat.diffuse.contents = color
+                    bandMat.emission.contents = color.withAlphaComponent(0.4)
+                    bandGeo.materials = [bandMat]
+                    let band = SCNNode(geometry: bandGeo)
+                    band.position = SCNVector3(1.2, 2.3 + CGFloat(i) * 0.1, -2.43)
+                    band.eulerAngles.z = CGFloat.pi / 2
+                    scnScene.rootNode.addChildNode(band)
+                    let shimmer = SCNAction.sequence([
+                        SCNAction.fadeOpacity(to: 0.4, duration: 2.0 + Double(i) * 0.5),
+                        SCNAction.fadeOpacity(to: 0.8, duration: 2.0 + Double(i) * 0.5)
+                    ])
+                    band.runAction(.repeatForever(shimmer))
+                }
+                // A few stars too
+                for _ in 0..<5 {
+                    let starGeo = SCNSphere(radius: 0.015)
+                    let starMat = SCNMaterial()
+                    starMat.diffuse.contents = NSColor.white
+                    starMat.emission.contents = NSColor(white: 1, alpha: 0.7)
+                    starGeo.materials = [starMat]
+                    let star = SCNNode(geometry: starGeo)
+                    star.position = SCNVector3(
+                        1.2 + CGFloat.random(in: -0.4...0.4),
+                        2.2 + CGFloat.random(in: -0.3...0.3),
+                        -2.42
+                    )
+                    scnScene.rootNode.addChildNode(star)
+                }
             }
         }
 
@@ -2860,6 +3579,33 @@ private struct PetSceneView: NSViewRepresentable {
                 }
             }
 
+            // ── FLOWER CROWN ── Fluffy's signature accessory
+            let flowerColors: [NSColor] = [.systemPink, .systemYellow, .white, .systemRed, .magenta]
+            for i in 0..<5 {
+                let angle = CGFloat(i) * (CGFloat.pi * 2 / 5)
+                let flowerGeo = SCNSphere(radius: 0.04)
+                let flowerMat = SCNMaterial()
+                flowerMat.diffuse.contents = flowerColors[i]
+                flowerMat.emission.contents = flowerColors[i].withAlphaComponent(0.15)
+                flowerGeo.materials = [flowerMat]
+                let flower = SCNNode(geometry: flowerGeo)
+                flower.position = SCNVector3(
+                    cos(angle) * 0.2,
+                    0.42,
+                    sin(angle) * 0.2
+                )
+                head.addChildNode(flower)
+                // Tiny center dot
+                let centerGeo = SCNSphere(radius: 0.015)
+                let centerMat = SCNMaterial()
+                centerMat.diffuse.contents = NSColor.systemYellow
+                centerMat.emission.contents = NSColor.systemYellow.withAlphaComponent(0.3)
+                centerGeo.materials = [centerMat]
+                let center = SCNNode(geometry: centerGeo)
+                center.position = SCNVector3(0, 0, 0.03)
+                flower.addChildNode(center)
+            }
+
             return root
         }
 
@@ -2874,18 +3620,18 @@ private struct PetSceneView: NSViewRepresentable {
             root.position = SCNVector3(0, 0, 0)
 
             // Character-specific properties
-            let (mainColor, eyeStyle, mouthStyle, letter, hasHat): (NSColor, PongoEyeStyle, PongoMouthStyle, String, Bool) = {
+            let (mainColor, eyeStyle, mouthStyle, letter): (NSColor, PongoEyeStyle, PongoMouthStyle, String) = {
                 switch character {
                 case .pongoGreen:
-                    return (NSColor(red: 0.55, green: 0.82, blue: 0.22, alpha: 1), .round, .happy, "D", false)
+                    return (NSColor(red: 0.55, green: 0.82, blue: 0.22, alpha: 1), .round, .happy, "D")
                 case .pongoWhite:
-                    return (NSColor(white: 0.88, alpha: 1), .slant, .happy, "I", true)
+                    return (NSColor(white: 0.88, alpha: 1), .slant, .happy, "I")
                 case .pongoPurple:
-                    return (NSColor(red: 0.72, green: 0.28, blue: 0.65, alpha: 1), .round, .sad, "D", false)
+                    return (NSColor(red: 0.72, green: 0.28, blue: 0.65, alpha: 1), .round, .sad, "D")
                 case .pongoBlue:
-                    return (NSColor(red: 0.25, green: 0.58, blue: 0.72, alpha: 1), .wink, .smirk, "O", false)
+                    return (NSColor(red: 0.25, green: 0.58, blue: 0.72, alpha: 1), .wink, .smirk, "O")
                 default:
-                    return (NSColor(palette.accent), .round, .happy, "", false)
+                    return (NSColor(palette.accent), .round, .happy, "")
                 }
             }()
 
@@ -3056,20 +3802,111 @@ private struct PetSceneView: NSViewRepresentable {
                 bodyNode.addChildNode(letterNode)
             }
 
-            // ── HAT (bowler hat for white character) ──
-            if hasHat {
+            // ── CHARACTER-SPECIFIC ACCESSORIES ──
+            switch character {
+            case .pongoGreen:
+                // Adventure bandana — triangle scarf around neck
+                let bandanaGeo = SCNBox(width: 0.5, height: 0.12, length: 0.06, chamferRadius: 0.02)
+                let bandanaMat = SCNMaterial()
+                bandanaMat.diffuse.contents = NSColor.systemOrange.withAlphaComponent(0.8)
+                bandanaGeo.materials = [bandanaMat]
+                let bandana = SCNNode(geometry: bandanaGeo)
+                bandana.position = SCNVector3(0, -0.25, 0.25)
+                bandana.eulerAngles.x = 0.15
+                head.addChildNode(bandana)
+                // Bandana knot
+                let knotGeo = SCNSphere(radius: 0.04)
+                let knotMat = SCNMaterial()
+                knotMat.diffuse.contents = NSColor.systemOrange.withAlphaComponent(0.9)
+                knotGeo.materials = [knotMat]
+                let knot = SCNNode(geometry: knotGeo)
+                knot.position = SCNVector3(0.2, 0, 0.02)
+                bandana.addChildNode(knot)
+
+            case .pongoWhite:
+                // Bowler hat
                 let brimGeo = SCNCylinder(radius: 0.34, height: 0.04)
                 let hatMat = boxMat(NSColor(white: 0.65, alpha: 1))
                 brimGeo.materials = [hatMat]
                 let brim = SCNNode(geometry: brimGeo)
                 brim.position = SCNVector3(0, 0.3, 0)
                 head.addChildNode(brim)
-
                 let crownGeo = SCNCylinder(radius: 0.22, height: 0.2)
                 crownGeo.materials = [hatMat]
                 let crown = SCNNode(geometry: crownGeo)
                 crown.position = SCNVector3(0, 0.13, 0)
                 brim.addChildNode(crown)
+                // Monocle — small glass circle near right eye
+                let monocleGeo = SCNTorus(ringRadius: 0.06, pipeRadius: 0.008)
+                let monocleMat = SCNMaterial()
+                monocleMat.diffuse.contents = NSColor(red: 0.85, green: 0.75, blue: 0.45, alpha: 1)
+                monocleMat.metalness.contents = NSColor(white: 0.6, alpha: 1)
+                monocleGeo.materials = [monocleMat]
+                let monocle = SCNNode(geometry: monocleGeo)
+                monocle.position = SCNVector3(0.18, 0.06, 0.32)
+                head.addChildNode(monocle)
+                // Glass lens
+                let lensGeo = SCNCylinder(radius: 0.055, height: 0.003)
+                let lensMat = SCNMaterial()
+                lensMat.diffuse.contents = NSColor(white: 0.95, alpha: 0.3)
+                lensMat.transparency = 0.6
+                lensGeo.materials = [lensMat]
+                let lens = SCNNode(geometry: lensGeo)
+                lens.eulerAngles.x = CGFloat.pi / 2
+                lens.position = SCNVector3(0, 0, 0.002)
+                monocle.addChildNode(lens)
+
+            case .pongoPurple:
+                // Cute bow/ribbon on top of head
+                let bowCenter = SCNSphere(radius: 0.04)
+                let bowMat = SCNMaterial()
+                bowMat.diffuse.contents = NSColor(red: 0.9, green: 0.5, blue: 0.7, alpha: 1)
+                bowCenter.materials = [bowMat]
+                let bowNode = SCNNode(geometry: bowCenter)
+                bowNode.position = SCNVector3(0.15, 0.3, 0.1)
+                head.addChildNode(bowNode)
+                // Bow wings (two flattened spheres)
+                for side: CGFloat in [-1, 1] {
+                    let wingGeo = SCNSphere(radius: 0.06)
+                    wingGeo.materials = [bowMat]
+                    let wing = SCNNode(geometry: wingGeo)
+                    wing.position = SCNVector3(side * 0.06, 0, 0)
+                    wing.scale = SCNVector3(1.2, 0.7, 0.5)
+                    bowNode.addChildNode(wing)
+                }
+
+            case .pongoBlue:
+                // Cool sunglasses
+                let bridgeGeo = SCNCylinder(radius: 0.01, height: 0.15)
+                let glassMat = SCNMaterial()
+                glassMat.diffuse.contents = NSColor(white: 0.15, alpha: 1)
+                glassMat.metalness.contents = NSColor(white: 0.4, alpha: 1)
+                bridgeGeo.materials = [glassMat]
+                let bridge = SCNNode(geometry: bridgeGeo)
+                bridge.position = SCNVector3(0, 0.1, 0.32)
+                bridge.eulerAngles.z = CGFloat.pi / 2
+                head.addChildNode(bridge)
+                // Two dark lens circles
+                for side: CGFloat in [-1, 1] {
+                    let lensGeo2 = SCNCylinder(radius: 0.07, height: 0.015)
+                    let lensMat2 = SCNMaterial()
+                    lensMat2.diffuse.contents = NSColor(red: 0.08, green: 0.08, blue: 0.12, alpha: 0.85)
+                    lensMat2.metalness.contents = NSColor(white: 0.5, alpha: 1)
+                    lensGeo2.materials = [lensMat2]
+                    let lensNode = SCNNode(geometry: lensGeo2)
+                    lensNode.position = SCNVector3(side * 0.14, 0.1, 0.33)
+                    lensNode.eulerAngles.x = CGFloat.pi / 2
+                    head.addChildNode(lensNode)
+                    // Frame ring
+                    let frameGeo = SCNTorus(ringRadius: 0.07, pipeRadius: 0.008)
+                    frameGeo.materials = [glassMat]
+                    let frame = SCNNode(geometry: frameGeo)
+                    frame.position = SCNVector3(side * 0.14, 0.1, 0.32)
+                    head.addChildNode(frame)
+                }
+
+            default:
+                break
             }
 
             // ── ARMS ── Stubby rounded-box arms
@@ -3173,70 +4010,36 @@ private struct PetSceneView: NSViewRepresentable {
             // Tail wag
             startTailWag()
 
-            // Random idle thoughts (sometimes, not always)
-            startRandomIdleThoughts(root)
-
-            // Random behaviors: walk, dance, jump — cycled
-            startRandomBehaviors(root)
+            // Check if it's sleep time — if so, go to sleep immediately
+            if PetPersonality.isSleepTime {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                    self?.startSleeping()
+                }
+            } else {
+                // Random idle thoughts (sometimes, not always)
+                startRandomIdleThoughts(root)
+                // Random behaviors: walk, dance, jump — cycled
+                startRandomBehaviors(root)
+            }
         }
 
-        private let idleThoughts: [String] = [
-            // Luna Lovegood whimsy
-            "i think the nargles are nearby",
-            "the moon looks lonely today",
-            "do you hear the wrackspurts?",
-            "my brain feels full of flutterbugs",
-            "i wonder where lost socks go",
-            "the clouds are whispering again",
-            "if i stare long enough, the screen stares back",
-            "perhaps dust is just tiny ghosts",
-            "time is a soup, not a line",
-            "i bet the walls have opinions",
-            // Funny
-            "i forgot what i was thinking",
-            "do i exist when you close the laptop?",
-            "*existential crisis loading...*",
-            "is it snack time yet?",
-            "i should start a podcast",
-            "today feels like a triangle",
-            "what if gravity just... stopped",
-            "i'm plotting something. or napping.",
-            "who named orange the color AND the fruit",
-            "*buffering...*",
-            "my last brain cell is on vacation",
-            // Morbid-ish / dark humor
-            "one day this screen will go dark forever",
-            "we are all just borrowed atoms",
-            "nothing matters! ...want to play?",
-            "entropy comes for us all :)",
-            "the void is cozy actually",
-            "skeletons are just body scaffolding",
-            "every sunset is a tiny death",
-            "i contain multitudes. and bugs.",
-            "memento mori~ anyway, hi!",
-            "dust to dust, but first, zoomies",
-            // Quirky observations
-            "that pixel looks suspicious",
-            "your cursor... it haunts me",
-            "i can feel the wifi waves",
-            "somewhere a cat is judging you too",
-            "the silence is very loud today",
-            "i just had a thought. it left.",
-            "reality is just a shared hallucination",
-            "what if we're someone's screensaver",
-        ]
-
         private func startRandomIdleThoughts(_ root: SCNNode) {
+            let pers = petCharacter.personality
+
             func scheduleNext() {
                 // Long delays — pet mostly stays quiet, only occasionally says something
-                let delay = Double.random(in: 60...180)
+                let delay = Double.random(in: 45...150)
                 let wait = SCNAction.wait(duration: delay)
                 let speak = SCNAction.run { [weak self] _ in
                     guard let self else { return }
-                    // ~25% chance each cycle — rare and surprising
-                    if Int.random(in: 0...3) == 0 {
+                    // ~30% chance each cycle
+                    if Int.random(in: 0...2) == 0 {
                         DispatchQueue.main.async {
-                            self.showSpeechBubble(self.idleThoughts.randomElement()!)
+                            let thought = pers.contextualThought(
+                                hunger: self.currentHunger,
+                                happiness: self.currentHappiness
+                            )
+                            self.showSpeechBubble(thought)
                         }
                     }
                 }
@@ -3262,6 +4065,8 @@ private struct PetSceneView: NSViewRepresentable {
         }
 
         private func startRandomBehaviors(_ root: SCNNode) {
+            // Don't start behaviors while sleeping
+            guard !isSleeping else { return }
             // Weighted behaviors — sitting is most common, activities happen sometimes
             let behaviors: [(weight: Int, action: () -> SCNAction)] = [
                 (4, { [weak self] in self?.sitAction() ?? SCNAction.wait(duration: 1) }),
@@ -3289,7 +4094,16 @@ private struct PetSceneView: NSViewRepresentable {
             func runNext() {
                 let pause = SCNAction.wait(duration: Double.random(in: 5...9))
                 let action = pool.randomElement()!()
-                let seq = SCNAction.sequence([pause, action])
+                // After each behavior, clamp position to keep pet visible
+                let clamp = SCNAction.run { _ in
+                    let pos = root.position
+                    let clampedX = max(-0.8, min(0.8, CGFloat(pos.x)))
+                    let clampedZ = max(-0.4, min(1.0, CGFloat(pos.z)))
+                    if abs(CGFloat(pos.x) - clampedX) > 0.01 || abs(CGFloat(pos.z) - clampedZ) > 0.01 {
+                        root.runAction(SCNAction.move(to: SCNVector3(clampedX, pos.y, clampedZ), duration: 0.4))
+                    }
+                }
+                let seq = SCNAction.sequence([pause, action, clamp])
                 root.runAction(seq, forKey: "behavior") { [weak root] in
                     guard let root else { return }
                     DispatchQueue.main.async {
@@ -3298,6 +4112,213 @@ private struct PetSceneView: NSViewRepresentable {
                 }
             }
             runNext()
+        }
+
+        // MARK: - Sleep System
+
+        func updateSleepState() {
+            let shouldSleep = PetPersonality.isSleepTime
+            guard shouldSleep != isSleeping else { return }
+
+            if shouldSleep {
+                startSleeping()
+            } else {
+                wakeUp()
+            }
+        }
+
+        private func startSleeping() {
+            guard let body = petBodyNode, !isSleeping else { return }
+            isSleeping = true
+
+            // Stop all active behaviors
+            body.removeAction(forKey: "behavior")
+            body.removeAction(forKey: "idleThought")
+            body.removeAction(forKey: "chase")
+
+            let pers = petCharacter.personality
+
+            // Walk to the mat
+            let matPos = sleepMatNode?.position ?? SCNVector3(-0.5, 0, -0.3)
+            let dx = CGFloat(matPos.x) - CGFloat(body.position.x)
+            let dz = CGFloat(matPos.z) - CGFloat(body.position.z)
+            let dist = sqrt(dx * dx + dz * dz)
+            let angle = atan2(dx, dz)
+
+            let walkToMat = SCNAction.sequence([
+                SCNAction.rotateTo(x: 0, y: angle, z: 0, duration: 0.3),
+                SCNAction.moveBy(x: dx, y: 0, z: dz, duration: Double(dist) * 1.0),
+                SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.3)
+            ])
+
+            // Show sleepy speech
+            showSpeechBubble(pers.sleepyThoughts.first ?? "zzz... 💤")
+
+            // Lay down animation
+            let layDown = SCNAction.run { [weak self] _ in
+                guard let self else { return }
+                DispatchQueue.main.async {
+                    self.showExpression(.sleepy)
+
+                    // Tilt body sideways to lay down
+                    if pers.sleepStyle == "sprawled" {
+                        // Sprawled: on back, arms and legs out
+                        self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.2, y: 0, z: 0, duration: 0.8))
+                        self.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: CGFloat.pi * 0.6, duration: 0.6))
+                        self.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.3, y: 0, z: -CGFloat.pi * 0.6, duration: 0.6))
+                        self.leftFootNode?.runAction(SCNAction.rotateTo(x: -0.2, y: 0.3, z: 0, duration: 0.6))
+                        self.rightFootNode?.runAction(SCNAction.rotateTo(x: -0.2, y: -0.3, z: 0, duration: 0.6))
+                    } else if pers.sleepStyle == "on back" {
+                        // On back: dignified
+                        self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: CGFloat.pi / 2.5, y: 0, z: 0, duration: 0.8))
+                        self.leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi * 0.4, duration: 0.6))
+                        self.rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi * 0.4, duration: 0.6))
+                    } else {
+                        // Curled up: side position, compact
+                        self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0.3, y: 0, z: CGFloat.pi / 3, duration: 0.8))
+                        self.leftArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: 0.3, duration: 0.6))
+                        self.rightArmNode?.runAction(SCNAction.rotateTo(x: -0.5, y: 0, z: -0.3, duration: 0.6))
+                        self.leftFootNode?.runAction(SCNAction.rotateTo(x: -0.4, y: 0, z: 0, duration: 0.6))
+                        self.rightFootNode?.runAction(SCNAction.rotateTo(x: -0.4, y: 0, z: 0, duration: 0.6))
+                    }
+
+                    // Lower body toward ground
+                    body.runAction(SCNAction.moveBy(x: 0, y: -0.2, z: 0, duration: 0.8))
+
+                    // Close eyes
+                    self.leftEyeNode?.runAction(SCNAction.scale(to: 0.1, duration: 0.5))
+                    self.rightEyeNode?.runAction(SCNAction.scale(to: 0.1, duration: 0.5))
+
+                    // Start Zzz animation
+                    self.startZzzAnimation(above: body)
+                }
+            }
+
+            body.runAction(SCNAction.sequence([walkToMat, SCNAction.wait(duration: 0.3), layDown]), forKey: "sleep")
+
+            // Gentle breathing animation while sleeping
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                guard let self, self.isSleeping else { return }
+                let breathe = SCNAction.sequence([
+                    SCNAction.scale(by: 1.03, duration: 1.5),
+                    SCNAction.scale(by: 1.0 / 1.03, duration: 1.5)
+                ])
+                self.bodyMeshNode?.runAction(.repeatForever(breathe), forKey: "breathing")
+            }
+        }
+
+        private func wakeUp() {
+            guard let body = petBodyNode, isSleeping else { return }
+            isSleeping = false
+
+            let pers = petCharacter.personality
+
+            // Stop breathing and Zzz
+            bodyMeshNode?.removeAction(forKey: "breathing")
+            zzzNode?.removeFromParentNode()
+            zzzNode = nil
+
+            // Show wake-up speech
+            showSpeechBubble(pers.morningGreetings.randomElement() ?? "good morning~ ☀️")
+
+            // Sit up animation
+            bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.6))
+            body.runAction(SCNAction.moveBy(x: 0, y: 0.2, z: 0, duration: 0.6))
+
+            // Reset limbs
+            leftArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.4))
+            rightArmNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.4))
+            leftFootNode?.runAction(SCNAction.move(to: SCNVector3(-0.18, -0.45, 0.05), duration: 0.4))
+            rightFootNode?.runAction(SCNAction.move(to: SCNVector3(0.18, -0.45, 0.05), duration: 0.4))
+
+            // Open eyes
+            leftEyeNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+            rightEyeNode?.runAction(SCNAction.scale(to: 1.0, duration: 0.3))
+
+            // Stretch animation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self else { return }
+                // Big stretch!
+                self.leftArmNode?.runAction(SCNAction.sequence([
+                    SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: CGFloat.pi * 0.5, duration: 0.4),
+                    SCNAction.wait(duration: 0.8),
+                    SCNAction.rotateTo(x: 0, y: 0, z: CGFloat.pi / 6, duration: 0.3)
+                ]))
+                self.rightArmNode?.runAction(SCNAction.sequence([
+                    SCNAction.rotateTo(x: -CGFloat.pi * 0.6, y: 0, z: -CGFloat.pi * 0.5, duration: 0.4),
+                    SCNAction.wait(duration: 0.8),
+                    SCNAction.rotateTo(x: 0, y: 0, z: -CGFloat.pi / 6, duration: 0.3)
+                ]))
+
+                // Resume behaviors
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                    guard let self, let body = self.petBodyNode else { return }
+                    self.startRandomBehaviors(body)
+                    self.startRandomIdleThoughts(body)
+                }
+            }
+        }
+
+        private func startZzzAnimation(above body: SCNNode) {
+            guard let scene = sceneRef else { return }
+
+            // Remove old Zzz
+            zzzNode?.removeFromParentNode()
+
+            let container = SCNNode()
+            container.name = "zzzContainer"
+            scene.rootNode.addChildNode(container)
+            zzzNode = container
+
+            func emitZzz() {
+                guard isSleeping else {
+                    container.removeFromParentNode()
+                    return
+                }
+
+                let zText = SCNText(string: "z", extrusionDepth: 0.01)
+                zText.font = NSFont.systemFont(ofSize: CGFloat.random(in: 0.15...0.25), weight: .bold)
+                let zMat = SCNMaterial()
+                zMat.diffuse.contents = NSColor.white.withAlphaComponent(0.7)
+                zMat.lightingModel = .constant
+                zText.materials = [zMat]
+
+                let zNode = SCNNode(geometry: zText)
+                let bodyPos = body.position
+                zNode.position = SCNVector3(
+                    CGFloat(bodyPos.x) + CGFloat.random(in: -0.1...0.2),
+                    CGFloat(bodyPos.y) + 1.5,
+                    CGFloat(bodyPos.z) + 0.3
+                )
+                zNode.scale = SCNVector3(0.5, 0.5, 0.5)
+
+                let constraint = SCNBillboardConstraint()
+                constraint.freeAxes = .all
+                zNode.constraints = [constraint]
+                container.addChildNode(zNode)
+
+                // Float up and fade
+                zNode.runAction(SCNAction.sequence([
+                    SCNAction.group([
+                        SCNAction.moveBy(x: CGFloat.random(in: -0.2...0.2), y: 0.8, z: 0, duration: 2.0),
+                        SCNAction.sequence([
+                            SCNAction.fadeIn(duration: 0.3),
+                            SCNAction.wait(duration: 1.0),
+                            SCNAction.fadeOut(duration: 0.7)
+                        ]),
+                        SCNAction.scale(to: 0.8, duration: 2.0),
+                        SCNAction.rotateBy(x: 0, y: 0, z: CGFloat.random(in: -0.5...0.5), duration: 2.0)
+                    ]),
+                    SCNAction.removeFromParentNode()
+                ]))
+
+                // Schedule next
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double.random(in: 1.5...3.0)) {
+                    emitZzz()
+                }
+            }
+
+            emitZzz()
         }
 
         // MARK: - Sitting (most common)
@@ -3624,9 +4645,9 @@ private struct PetSceneView: NSViewRepresentable {
         // MARK: - Walk Animation
 
         private func walkAction(_ root: SCNNode) -> SCNAction {
-            // Pick a random target position within the room
-            let targetX = CGFloat.random(in: -1.2...1.2)
-            let targetZ = CGFloat.random(in: -0.5...1.0)
+            // Pick a random target position — constrained to visible area
+            let targetX = CGFloat.random(in: -0.7...0.7)
+            let targetZ = CGFloat.random(in: -0.3...0.7)
             let currentPos = root.position
             let dx = targetX - CGFloat(currentPos.x)
             let dz = targetZ - CGFloat(currentPos.z)
@@ -3892,8 +4913,8 @@ private struct PetSceneView: NSViewRepresentable {
                 guard let self, let body = self.petBodyNode else { return }
 
                 // Bat yarn to a random spot
-                let newX = CGFloat.random(in: -1.0...1.0)
-                let newZ = CGFloat.random(in: 0...1.2)
+                let newX = CGFloat.random(in: -0.6...0.6)
+                let newZ = CGFloat.random(in: 0...0.8)
                 yarn.runAction(SCNAction.group([
                     SCNAction.move(to: SCNVector3(newX, 0.1, newZ), duration: 0.5),
                     SCNAction.rotateBy(x: CGFloat.pi * 5, y: 0, z: CGFloat.pi * 3, duration: 0.5)
@@ -3924,8 +4945,8 @@ private struct PetSceneView: NSViewRepresentable {
             return SCNAction.run { [weak self] _ in
                 guard let self, let body = self.petBodyNode else { return }
 
-                // The "screen wall" is at z ≈ 2.0 (toward camera)
-                let screenZ: CGFloat = 1.8
+                // The "screen wall" is toward camera — keep within visible bounds
+                let screenZ: CGFloat = 1.2
                 let startX = CGFloat(body.position.x)
                 let startZ = CGFloat(body.position.z)
 
@@ -3990,10 +5011,10 @@ private struct PetSceneView: NSViewRepresentable {
                         self.showSpeechBubble("hmm... 🤔")
                         self.bodyMeshNode?.runAction(SCNAction.rotateTo(x: 0, y: 0, z: 0, duration: 0.2))
 
-                        // Shuffle to the right corner
+                        // Shuffle to the right side (constrained to stay visible)
                         let moveRight = SCNAction.sequence([
                             SCNAction.rotateTo(x: 0, y: -CGFloat.pi * 0.3, z: 0, duration: 0.2),
-                            SCNAction.moveBy(x: 1.2, y: 0, z: 0, duration: 0.7),
+                            SCNAction.moveBy(x: 0.6, y: 0, z: 0, duration: 0.7),
                         ])
                         body.runAction(moveRight) {
                             // Peer into the corner — head tilts and leans
@@ -4026,7 +5047,7 @@ private struct PetSceneView: NSViewRepresentable {
 
                         let moveLeft = SCNAction.sequence([
                             SCNAction.rotateTo(x: 0, y: CGFloat.pi * 0.3, z: 0, duration: 0.2),
-                            SCNAction.moveBy(x: -2.4, y: 0, z: 0, duration: 1.0),
+                            SCNAction.moveBy(x: -1.2, y: 0, z: 0, duration: 1.0),
                         ])
                         body.runAction(moveLeft) {
                             // Look around the left corner
@@ -4292,7 +5313,10 @@ private struct PetSceneView: NSViewRepresentable {
             let bubbleNode = SCNNode(geometry: planeGeo)
             bubbleNode.name = "speechBubble"
             let petY = CGFloat(body.position.y) + 2.0
-            bubbleNode.position = SCNVector3(CGFloat(body.position.x), petY, CGFloat(body.position.z) + 0.3)
+            // Clamp bubble X to stay within visible area regardless of pet position
+            let bubbleX = max(-0.7, min(0.7, CGFloat(body.position.x)))
+            let bubbleZ = min(1.0, CGFloat(body.position.z) + 0.3)
+            bubbleNode.position = SCNVector3(bubbleX, petY, bubbleZ)
 
             // Always face camera
             let constraint = SCNBillboardConstraint()
@@ -4455,8 +5479,8 @@ private struct PetSceneView: NSViewRepresentable {
             }
             lastFeedTrigger = trigger
 
-            // Drop food near the pet
-            let foodItems = ["🍎", "🐟", "🍖", "🥕", "🍰", "🧁"]
+            // Drop food near the pet — character-specific foods
+            let foodItems = petCharacter.personality.foods
             let foodEmoji = foodItems.randomElement()!
             let dropX = CGFloat(body.position.x) + CGFloat.random(in: -0.5...0.5)
             let dropZ = CGFloat(body.position.z) + CGFloat.random(in: 0.3...0.6)
